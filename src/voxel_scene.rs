@@ -1,4 +1,4 @@
-use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, Query, Res}, entity::Entity, event::{Event, EventWriter}}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat, Vec3Swizzles}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::BuildChildren, log::warn};
+use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, Query, Res}, entity::Entity, event::{Event, EventWriter}}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::BuildChildren, log::warn};
 use dot_vox::{SceneNode, Frame};
 
 #[derive(Bundle, Default)]
@@ -84,6 +84,7 @@ fn spawn_voxel_node_recursive(
             None
         }
     }) {
+        #[cfg(not(test))]
         entity_commands.insert(PbrBundle {
             mesh: model.mesh.clone(),
             material: model.material.clone(),
@@ -210,10 +211,112 @@ fn transform_from_frame(frame: &Frame) -> Mat4 {
         let scale: Vec3 = (*scale).into();
         let quat = Quat::from_array(*rotation);
         let (axis, angle) = quat.to_axis_angle();
-        let mat3 = Mat3::from_axis_angle(axis.xzy(), angle) * Mat3::from_diagonal(scale);
+        let mat3 = Mat3::from_axis_angle(Vec3::new(-axis.x, axis.z, axis.y), angle) * Mat3::from_diagonal(scale);
         Mat4::from_mat3(mat3)
     } else {
         Mat4::IDENTITY
     };
     translation * rotation
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::{app::App, asset::{AssetPlugin, AssetServer, LoadState, AssetApp}, MinimalPlugins, render::texture::ImagePlugin, hierarchy::Children, reflect::Enum};
+    use crate::VoxScenePlugin;
+    use super::*;
+    
+    #[async_std::test]
+    async fn test_load_scene() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
+        app.update();
+        let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve test.vox from Res<Assets>");
+        assert_eq!(scene.name, "test.vox");
+        assert_eq!(scene.models.len(), 3, "Same 3 models are instanced through the scene");
+        assert_eq!(scene.layers.len(), 8);
+        assert_eq!(scene.layers.first().unwrap().name.as_ref().expect("Layer 0 name"), "scenery");
+        let outer_group = scene.root.children.first().expect("First object in scene");
+        assert_eq!(outer_group.name.as_ref().expect("Name of first obj"), "outer-group");
+        assert_eq!(outer_group.children.len(), 3);
+        let inner_group = outer_group.children.first().expect("First child of outer-group");
+        assert_eq!(inner_group.name.as_ref().expect("name of inner group"), "outer-group/inner-group");
+    }
+    
+    #[async_std::test]
+    async fn test_load_scene_slice() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
+        app.update();
+        let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve test.vox from Res<Assets>");
+        assert_eq!(scene.name, "test.vox#outer-group/inner-group");
+        assert_eq!(scene.models.len(), 3, "Same 3 models are instanced through the scene");
+        assert_eq!(scene.layers.len(), 8);
+        assert_eq!(scene.layers.first().unwrap().name.as_ref().expect("Layer 0 name"), "scenery");
+        let inner_group = &scene.root;
+        assert_eq!(inner_group.name.as_ref().expect("Name of first obj"), "outer-group/inner-group");
+        assert_eq!(inner_group.children.len(), 4);
+        let dice = inner_group.children.last().expect("Last child of inner-group");
+        assert_eq!(dice.name.as_ref().expect("name of dice"), "outer-group/inner-group/dice");
+    }
+    
+    #[async_std::test]
+    async fn test_transmissive_mat() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
+        app.update();
+        let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve scene from Res<Assets>");
+        let walls = &scene.root;
+        let mat_handle = &scene.models[walls.model_id.expect("walls model_id")].material;
+        let material = app.world.resource::<Assets<StandardMaterial>>().get(mat_handle).expect("material");
+        assert!(material.specular_transmission_texture.is_some());
+        assert_eq!(material.specular_transmission, 1.0);
+        assert!((material.ior - 1.3).abs() / 1.3 <= 0.00001);
+        assert!(material.metallic_roughness_texture.is_some());
+    }
+
+    #[async_std::test]
+    async fn test_opaque_mat() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        app.update();
+        let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve scene from Res<Assets>");
+        let dice = &scene.root;
+        let mat_handle = &scene.models[dice.model_id.expect("dice model_id")].material;
+        let material = app.world.resource::<Assets<StandardMaterial>>().get(mat_handle).expect("material");
+        assert!(material.specular_transmission_texture.is_none());
+        assert_eq!(material.specular_transmission, 0.0);
+        assert!(material.metallic_roughness_texture.is_some());
+    }
+
+    #[async_std::test]
+    async fn test_spawn_system() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
+        app.update();
+        
+        assert_eq!(app.world.resource::<AssetServer>().load_state(handle.clone()), LoadState::Loaded);
+        let entity = app.world.spawn(VoxelSceneBundle {
+            scene: handle,
+            ..Default::default()
+        }).id();
+        app.update();
+        
+        assert!(app.world.get::<Handle<VoxelScene>>(entity).is_none());
+        assert_eq!(app.world.query::<&VoxelLayer>().iter(&app.world).len(), 5, "5 voxel nodes spawned in this scene slice");
+        assert_eq!(app.world.query::<&Name>().iter(&app.world).len(), 3, "But only 3 of the voxel nodes are named"); 
+        assert_eq!(app.world.get::<Name>(entity).expect("Name component").as_str(), "outer-group/inner-group");
+        let children = app.world.get::<Children>(entity).expect("children of inner-group").as_ref();
+        assert_eq!(children.len(), 4, "inner-group has 4 children");
+        assert_eq!(app.world.get::<Name>(*children.last().expect("last child")).expect("Name component").as_str(), "outer-group/inner-group/dice");
+    }
+
+    /// `await` the response from this and then call `app.update()` 
+    async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<VoxelScene> {
+        app
+        .add_plugins((MinimalPlugins, AssetPlugin::default(), ImagePlugin::default(), VoxScenePlugin))
+        .init_asset::<StandardMaterial>()
+        .init_asset::<Mesh>();
+        let assets = app.world.resource::<AssetServer>();
+        assets.load_untyped_async(filename).await.expect(format!("Loaded {filename}").as_str()).typed::<VoxelScene>()
+    }
 }

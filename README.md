@@ -44,7 +44,7 @@ commands.spawn(VoxelSceneBundle {
     ..default()
 });
 ```
-Alternatively, spawn individual models using the name assigned to it in MagicaVoxel:
+Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel:
 
 ```rust
 commands.spawn(VoxelSceneBundle {
@@ -84,6 +84,14 @@ TLDR: split up models containing glass voxels into convex chunks using Magica Vo
 - If you have a concave model that contains glass voxels, the other parts of that model will not be visible through the glass voxels. This is a limitation of Bevy's screen-space specular transmission system. To work around this limitation, use the Magica Voxel world editor to break up models that contain glass elements into separate models that are each convex.
 - Bevy's StandardMaterial only allows a single Index of Refraction (IoR) per material. The IoR contained in a model are averaged together to arrive at this value. If your scene contains transmissive materials that have widely differing IoRs (eg water vs diamond), and you think that averaging those IoRs together makes a significant visible difference to the scene, consider breaking the model up into separate meshes for each transmissive medium.
 - Bevy's Screen Space Ambient Occlusion (SSAO) appears to block the blurring affect that you get from glass materials that have roughness. If you have rough glass materials, consider not using SSAO.
+
+## Developing `bevy_vox_scene`
+
+After cloning this repo, use Cargo run the unit tests:
+
+```
+cargo test --lib
+```
 
 ## Acknowledgements
 

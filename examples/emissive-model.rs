@@ -40,7 +40,7 @@ fn setup(
     
     commands.spawn(VoxelSceneBundle {
         // Load a single model using the name assigned to it in MagicaVoxel
-        scene: assets.load("study.vox#computer"),
+        scene: assets.load("study.vox#workstation/computer"),
         ..default()
     });
 }

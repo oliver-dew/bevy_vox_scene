@@ -4,7 +4,7 @@ description = "A Bevy engine plugin for loading Magica Voxel world files and ren
 keywords = ["Bevy", "voxel", "Magica-Voxel"]
 categories = ["game-development", "graphics", "rendering", "rendering::data-formats"]
 license = "MIT"
-version = "0.10.3"
+version = "0.10.4"
 repository = "https://github.com/Utsira/bevy_vox_scene"
 authors = ["Oliver Dew <olidew@gmail.com>"]
 edition = "2021"
@@ -31,3 +31,4 @@ serde = "1.0.193"
 bevy = { version = "0.12.0" }
 bevy_panorbit_camera = "0.10.0"
 rand = "0.8.5"
+async-std = { version = "1.12.0", features = ["attributes"] }

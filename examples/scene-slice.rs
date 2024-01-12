@@ -3,7 +3,7 @@ use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
 use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 
 /// Asset labels aren't just for loading individual models within a scene, they can load any named group within a scene, a "slice" of the scene
-/// Here, just the fishtank (and its contents) is loaded from the example scene
+/// Here, just the workstation is loaded from the example scene
 fn main() {
     let mut app = App::new();
     
@@ -57,8 +57,8 @@ fn setup(
     ));
     
     commands.spawn(VoxelSceneBundle {
-        // "tank" is the name of the group containing the glass walls, the body of water, the scenery in the tank and the fish
-        scene: assets.load("study.vox#tank"),
+        // "workstation" is the name of the group containing the desk, computer, & keyboard
+        scene: assets.load("study.vox#workstation"),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });

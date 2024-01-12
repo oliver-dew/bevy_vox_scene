@@ -37,7 +37,7 @@ fn setup(
                 screen_space_specular_transmission_steps: 1,
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
             tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
             ..Default::default()
         },
