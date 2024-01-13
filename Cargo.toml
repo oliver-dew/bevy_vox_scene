@@ -1,7 +1,7 @@
 [package]
 name = "bevy_vox_scene"
 description = "A Bevy engine plugin for loading Magica Voxel world files and render materials directly in Bevy as a scene graph."
-keywords = ["Bevy", "voxel", "Magica-Voxel"]
+keywords = ["bevy", "voxel", "Magica-Voxel"]
 categories = ["game-development", "graphics", "rendering", "rendering::data-formats"]
 license = "MIT"
 version = "0.11.0"
