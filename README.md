@@ -2,10 +2,7 @@
 <code>bevy_vox_scene</code>
 </h1>
 
-<a href="https://crates.io/crates/bevy_vox_scene">
-<img height="24" src="https://img.shields.io/crates/v/bevy_vox_scene?style=for-the-badge"/>
-</a>
-
+[![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
 
 A plugin for [the Bevy Engine](https://bevyengine.org) which allows loading [Magica Voxel](https://ephtracy.github.io) `.vox` files directly into a Bevy scene graph.
