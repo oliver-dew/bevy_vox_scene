@@ -1,31 +1,32 @@
-use bevy::{prelude::*, core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping, core_3d::ScreenSpaceTransmissionQuality, experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasBundle}}};
+use bevy::{
+    core_pipeline::{
+        bloom::BloomSettings,
+        core_3d::ScreenSpaceTransmissionQuality,
+        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        tonemapping::Tonemapping,
+    },
+    prelude::*,
+};
+use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
-use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 
 fn main() {
     let mut app = App::new();
-    
-    app.add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin,
-    ))
-    .add_systems(Startup, setup);
-    
+
+    app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_systems(Startup, setup);
+
     // *Note:* TAA is not _required_ for specular transmission, but
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
     app.insert_resource(Msaa::Off)
-    .add_plugins(TemporalAntiAliasPlugin);
-    
+        .add_plugins(TemporalAntiAliasPlugin);
+
     app.run();
 }
 
-fn setup(
-    mut commands: Commands,
-    assets: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3dBundle {
             camera: Camera {
@@ -48,12 +49,12 @@ fn setup(
         },
         #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
         TemporalAntiAliasBundle::default(),
-        EnvironmentMapLight { 
-            diffuse_map: assets.load("pisa_diffuse.ktx2"), 
+        EnvironmentMapLight {
+            diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
         },
     ));
-    
+
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 10000.0,
@@ -63,7 +64,7 @@ fn setup(
         transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
         ..default()
     });
-    
+
     commands.spawn(VoxelSceneBundle {
         scene: assets.load("study.vox"),
         transform: Transform::from_scale(Vec3::splat(0.05)),

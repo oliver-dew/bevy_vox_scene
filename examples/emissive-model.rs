@@ -1,22 +1,15 @@
-use bevy::{prelude::*, core_pipeline::bloom::BloomSettings};
+use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
+use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
-use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 
 fn main() {
     App::new()
-    .add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin,
-    ))
-    .add_systems(Startup, setup)
-    .run();
+        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_systems(Startup, setup)
+        .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    assets: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     // An hdr and bloom-enabled camera is needed to create the emissive glowing effect
     commands.spawn((
         Camera3dBundle {
@@ -32,12 +25,12 @@ fn setup(
             intensity: 0.3,
             ..default()
         },
-        EnvironmentMapLight { 
-            diffuse_map: assets.load("pisa_diffuse.ktx2"), 
+        EnvironmentMapLight {
+            diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
         },
     ));
-    
+
     commands.spawn(VoxelSceneBundle {
         // Load a single model using the name assigned to it in MagicaVoxel
         scene: assets.load("study.vox#workstation/computer"),

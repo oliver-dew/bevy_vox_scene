@@ -4,7 +4,7 @@
 //!use bevy::prelude::*;
 //!use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
 //! # use bevy::{app::AppExit, utils::HashSet};
-//! 
+//!
 //!fn main() {
 //!    App::new()
 //!    .add_plugins((
@@ -25,7 +25,7 @@
 //!        scene: assets.load("study.vox"),
 //!        ..default()
 //!    });
-//! 
+//!
 //!    // Load a single model using the name assigned to it in MagicaVoxel
 //!    commands.spawn(VoxelSceneBundle {
 //!        scene: assets.load("study.vox#workstation/desk"),
@@ -46,15 +46,18 @@
 #![forbid(missing_docs, unsafe_code)]
 use bevy::{
     app::{App, Plugin, SpawnScene},
-    asset::AssetApp, ecs::schedule::IntoSystemConfigs,
+    asset::AssetApp,
+    ecs::schedule::IntoSystemConfigs,
 };
 
 mod loader;
 mod voxel_scene;
-pub use voxel_scene::{VoxelSceneBundle, VoxelSceneHookBundle, VoxelScene, VoxelLayer, VoxelSceneHook};
 pub use loader::VoxLoaderSettings;
 #[doc(inline)]
 use loader::VoxSceneLoader;
+pub use voxel_scene::{
+    VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle,
+};
 mod mesh;
 mod voxel;
 
@@ -65,12 +68,11 @@ pub struct VoxScenePlugin;
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app
-        .init_asset::<voxel_scene::VoxelScene>()
-        .register_asset_loader(VoxSceneLoader)
-        .add_systems(SpawnScene, (
-            voxel_scene::spawn_vox_scenes,
-            voxel_scene::run_hooks
-        ).chain());
+        app.init_asset::<voxel_scene::VoxelScene>()
+            .register_asset_loader(VoxSceneLoader)
+            .add_systems(
+                SpawnScene,
+                (voxel_scene::spawn_vox_scenes, voxel_scene::run_hooks).chain(),
+            );
     }
 }

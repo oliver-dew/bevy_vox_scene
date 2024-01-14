@@ -1,33 +1,34 @@
-use bevy::{prelude::*, core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping, core_3d::ScreenSpaceTransmissionQuality, experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasBundle}}};
+use bevy::{
+    core_pipeline::{
+        bloom::BloomSettings,
+        core_3d::ScreenSpaceTransmissionQuality,
+        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        tonemapping::Tonemapping,
+    },
+    prelude::*,
+};
+use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
-use bevy_panorbit_camera::{PanOrbitCameraPlugin, PanOrbitCamera};
 
 /// Asset labels aren't just for loading individual models within a scene, they can load any named group within a scene, a "slice" of the scene
 /// Here, just the workstation is loaded from the example scene
 fn main() {
     let mut app = App::new();
-    
-    app.add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin,
-    ))
-    .add_systems(Startup, setup);
-    
+
+    app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_systems(Startup, setup);
+
     // *Note:* TAA is not _required_ for specular transmission, but
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
     app.insert_resource(Msaa::Off)
-    .add_plugins(TemporalAntiAliasPlugin);
-    
+        .add_plugins(TemporalAntiAliasPlugin);
+
     app.run();
 }
 
-fn setup(
-    mut commands: Commands,
-    assets: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3dBundle {
             camera: Camera {
@@ -50,12 +51,12 @@ fn setup(
         },
         #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
         TemporalAntiAliasBundle::default(),
-        EnvironmentMapLight { 
-            diffuse_map: assets.load("pisa_diffuse.ktx2"), 
+        EnvironmentMapLight {
+            diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
         },
     ));
-    
+
     commands.spawn(VoxelSceneBundle {
         // "workstation" is the name of the group containing the desk, computer, & keyboard
         scene: assets.load("study.vox#workstation"),

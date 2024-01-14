@@ -7,10 +7,7 @@ use ndshape::{RuntimeShape, Shape};
 
 use crate::voxel::Voxel;
 
-pub(crate) fn mesh_model(
-    buffer_shape: RuntimeShape<u32, 3>,
-    buffer: &[Voxel],
-) -> Mesh {
+pub(crate) fn mesh_model(buffer_shape: RuntimeShape<u32, 3>, buffer: &[Voxel]) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(buffer_shape.size() as usize);
     let quads_config = RIGHT_HANDED_Y_UP_CONFIG;
     greedy_quads(
