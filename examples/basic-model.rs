@@ -28,6 +28,8 @@ fn setup(
     
     commands.spawn(VoxelSceneBundle {
         // Load a single model using the name assigned to it in MagicaVoxel
+        // If a model is nested in a named group, than the group will form part of the path
+        // Path components are separated with a slash
         scene: assets.load("study.vox#workstation/desk"),
         ..default()
     });

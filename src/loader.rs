@@ -17,7 +17,7 @@ use crate::voxel_scene::{self, VoxelScene, LayerInfo, VoxelModel, VoxelNode};
 /// You can load unnamed models by appending `#model{no}` to the asset loading path, where `{no}` corresponds to the model index in the file. Note that this index is subject to change if you delete models in the Magica Voxel file.
 pub(super) struct VoxSceneLoader;
 
-/// Setting for the VoxSceneLoader.
+/// Settings for the VoxSceneLoader.
 #[derive(Serialize, Deserialize)]
 pub struct VoxLoaderSettings {
     /// Multiplier for emissive strength. Defaults to 2.0.
