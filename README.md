@@ -91,7 +91,7 @@ TLDR: split up models containing glass voxels into convex chunks using Magica Vo
 After cloning this repo, use Cargo to run the unit tests:
 
 ```
-cargo test --lib
+cargo test
 ```
 
 ## Acknowledgements

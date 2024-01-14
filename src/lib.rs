@@ -3,7 +3,8 @@
 //!```
 //!use bevy::prelude::*;
 //!use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
-//!
+//! # use bevy::{app::AppExit, utils::HashSet};
+//! 
 //!fn main() {
 //!    App::new()
 //!    .add_plugins((
@@ -11,6 +12,7 @@
 //!        VoxScenePlugin,
 //!    ))
 //!    .add_systems(Startup, setup)
+//! #   .add_systems(Update, assert_scene_loaded)
 //!    .run();
 //!}
 //!
@@ -18,7 +20,6 @@
 //!    mut commands: Commands,
 //!    assets: Res<AssetServer>,
 //!) {
-//!    
 //!    // Load an entire scene graph
 //!    commands.spawn(VoxelSceneBundle {
 //!        scene: assets.load("study.vox"),
@@ -27,11 +28,21 @@
 //! 
 //!    // Load a single model using the name assigned to it in MagicaVoxel
 //!    commands.spawn(VoxelSceneBundle {
-//!        scene: assets.load("study.vox#desk"),
+//!        scene: assets.load("study.vox#workstation/desk"),
 //!        ..default()
 //!    });
 //!}
-//!``` 
+//! # fn assert_scene_loaded(
+//! #     query: Query<&Name>,
+//! #     mut exit: EventWriter<AppExit>,
+//! # ) {
+//! #     let all_names: HashSet<&str> = query.iter().map(|n| { n.as_str()} ).collect();
+//! #     if all_names.is_empty() { return };
+//! #     let expected_names: HashSet<&str> = ["wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
+//! #     assert_eq!(all_names, expected_names);
+//! #     exit.send(AppExit);
+//! # }
+//!```
 use bevy::{
     app::{App, Plugin, SpawnScene},
     asset::AssetApp, ecs::schedule::IntoSystemConfigs,
