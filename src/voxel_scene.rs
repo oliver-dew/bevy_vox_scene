@@ -1,63 +1,139 @@
-use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, EntityCommands, Query, Res}, entity::Entity, world::{EntityRef, World}, query::Without}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::{BuildChildren, Children}, log::warn};
+use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, EntityCommands, Query, Res}, entity::Entity, world::{EntityRef, World}, query::Without}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::{BuildChildren, Children}, log::warn, utils::HashMap};
 use dot_vox::{SceneNode, Frame};
 
+/// A Bundle that makes it easier to spawn Voxel Scenes.
 #[derive(Bundle, Default)]
 pub struct VoxelSceneBundle {
+    /// A Handle to a [`VoxelScene`], typically returned from an [`bevy::asset::AssetServer`]. This Entity will become the root of the spawned Voxel Scene.
     pub scene: Handle<VoxelScene>,
+    /// The Transform of the scene root. This will override whatever the root transform is in the Magica Voxel scene.
     pub transform: Transform,
+    /// The Visibility of the scene root. This will override whatever the root visibility is in the Magical Voxel scene.
     pub visibility: Visibility,
 }
 
+
+/// A Bundle that makes it easier to spawn Voxel Scenes, with a [`VoxelSceneHook`], which allows you to easily modify Entities deeper within the scene hierarchy.
 #[derive(Bundle, Default)]
 pub struct VoxelSceneHookBundle {
+    /// A Handle to a [`VoxelScene`], typically returned from an [`bevy::asset::AssetServer`]. This Entity will become the root of the spawned Voxel Scene.
     pub scene: Handle<VoxelScene>,
+    /// A [`VoxelSceneHook`] allows you to specify a closure that will be run for each Entity spawned in the scene graph. 
     pub hook: VoxelSceneHook,
+    /// The Transform of the scene root. This will override whatever the root transform is in the Magica Voxel scene.
     pub transform: Transform,
+    /// The Visibility of the scene root. This will override whatever the root visibility is in the Magical Voxel scene.
     pub visibility: Visibility,
 }
 
+/// A representation of the Voxel Scene Graph. [`crate::loader::VoxSceneLoader`] parses Magica Voxel `.vox` into a [`VoxelScene`].
 #[derive(Asset, TypePath, Debug)]
 pub struct VoxelScene {
-    pub name: String,
-    pub root: VoxelNode,
-    pub models: Vec<VoxelModel>,
-    pub layers: Vec<LayerInfo>,
+    pub(crate) root: VoxelNode,
+    pub(crate) models: Vec<VoxelModel>,
+    pub(crate) layers: Vec<LayerInfo>,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct VoxelNode {
-    pub name: Option<String>,
-    pub transform: Mat4,
-    pub children: Vec<VoxelNode>,
-    pub model_id: Option<usize>,
-    pub is_hidden: bool,
-    pub layer_id: u32,
+pub(crate) struct VoxelNode {
+    name: Option<String>,
+    transform: Mat4,
+    children: Vec<VoxelNode>,
+    model_id: Option<usize>,
+    is_hidden: bool,
+    layer_id: u32,
 }
 
 #[derive(Debug, Clone)]
-pub struct VoxelModel {
+pub(crate) struct VoxelModel {
     pub mesh: Handle<Mesh>,
     pub material: Handle<StandardMaterial>,
 }
 
 #[derive(Debug, Clone)]
-pub struct LayerInfo {
+pub(crate) struct LayerInfo {
     pub name: Option<String>,
     pub is_hidden: bool,
 }
 
+/// A Component specifying which layer the Entity belongs to, with an optional name. This can be configured in the Magica Voxel world editor.
 #[derive(Component, Clone)]
 pub struct VoxelLayer {
+    /// The identifier for the layer. Magic Voxel 0.99.6 allows you to assign nodes to one of 8 layers, 
+    /// so this value will be an index in the range 0 through 7.
     pub id: u32,
+    /// An optional name for the Layer, assignable in Magica Voxel layer editor.
     pub name: Option<String>,
 }
 
+/// Place this Component in the same Bundle as a [`VoxelScene`] Handle to execute a closure against every 
+/// Entity that gets spawned in the graph of that [`VoxelScene`].
+/// This allows you to specify, before the scene graph has been spawned, how entities at a deeper level 
+/// than the root should be modified. A common use-case would adding custom Components to entities
+/// depending on their name or [`VoxelLayer`].
+/// ```rust
+///# use bevy::{prelude::*, app::AppExit, utils::HashSet};
+///# use bevy_vox_scene::{VoxScenePlugin, VoxelSceneHook, VoxelSceneHookBundle};
+///# 
+///# fn main() {
+///#     App::new()
+///#     .add_plugins((
+///#         DefaultPlugins,
+///#         VoxScenePlugin,
+///#     ))
+///#     .add_systems(Startup, setup)
+///#     .add_systems(Update, assert_scene_loaded)
+///#     .run();
+///# }
+///# 
+/// #[derive(Component)]
+/// struct Fish;
+/// 
+/// fn setup(
+///     mut commands: Commands,
+///     assets: Res<AssetServer>,
+/// ) {
+///     commands.spawn((
+///         VoxelSceneHookBundle {
+///             scene: assets.load("study.vox#tank"),
+/// 
+///             // This closure will be run against every child Entity that gets spawned in the scene
+///             hook: VoxelSceneHook::new(move |entity, commands| {
+///                 let Some(name) = entity.get::<Name>() else { return };
+///                 match name.as_str() {
+///                     // Node names give the path to the asset, with components separated by /. Here, "goldfish" and "tetra" are two fish types in the "tank"
+///                     "tank/goldfish" | "tank/tetra" => {
+///                         // add a marker Component.
+///                         commands.insert(Fish);
+///                     }
+///                     _ => {},
+///                 }
+///             }),
+///             ..default()
+///         },
+///     ));
+/// }
+///# 
+///# fn assert_scene_loaded(
+///#     query: Query<&Name, With<Fish>>,
+///#     mut exit: EventWriter<AppExit>,
+///# ) {
+///#     let all_fish: Vec<&str> = query.iter().map(|n| { n.as_str() }).collect();
+///#     if all_fish.is_empty() { return };
+///#     assert_eq!(all_fish.len(), 5);
+///#     let expected_names: HashSet<&str> = ["tank/tetra", "tank/goldfish"].into();
+///#     let all_names: HashSet<&str> = HashSet::from_iter(all_fish);
+///#     assert_eq!(expected_names, all_names);
+///#     exit.send(AppExit);
+///# }
+/// ```
 #[derive(Component)]
 pub struct VoxelSceneHook {
     hook: Box<dyn Fn(&EntityRef, &mut EntityCommands) + Send + Sync + 'static>,
 }
 
 impl VoxelSceneHook {
+    /// Create a new hook with the closure `hook`. This will be run against every entity that gets spawned in the scene graph.
     pub fn new<F: Fn(&EntityRef, &mut EntityCommands) + Send + Sync + 'static>(hook: F) -> Self {
         Self {
             hook: Box::new(hook),
@@ -73,17 +149,22 @@ impl Default for VoxelSceneHook {
     }
 }
 
-pub(crate) fn spawn_vox_scenes(
+pub(super) fn spawn_vox_scenes(
     mut commands: Commands,
-    query: Query<(Entity, &Transform, &Visibility, &Handle<VoxelScene>)>,
+    query: Query<(Entity, &Handle<VoxelScene>, Option<&Transform>, Option<&Visibility>)>,
     vox_scenes: Res<Assets<VoxelScene>>,
 ) {
-    for (root, transform, visibility, scene_handle) in query.iter() {
+    for (root, scene_handle, transform, visibility) in query.iter() {
         if let Some(scene) = vox_scenes.get(scene_handle) {
             spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene);
-            commands.entity(root)
-            .remove::<Handle<VoxelScene>>()
-            .insert((*transform, *visibility));
+            let mut entity = commands.entity(root);
+            entity.remove::<Handle<VoxelScene>>();
+            if let Some(transform) = transform {
+                entity.insert(*transform);
+            }
+            if let Some(visibility) = visibility {
+                entity.insert(*visibility);
+            }
         }
     }
 }
@@ -189,6 +270,20 @@ pub(crate) fn parse_xform_node(
     }
 }
 
+pub(crate) fn find_subasset_names(
+    subassets_by_name: &mut HashMap<String, VoxelNode>,
+    node: &VoxelNode,
+) {
+    if let Some(name) = &node.name {
+        if !subassets_by_name.contains_key(name) {
+            subassets_by_name.insert(name.to_string(), node.clone());
+        }
+    }
+    for child in &node.children {
+        find_subasset_names(subassets_by_name, child);
+    }
+}
+
 fn parse_xform_child(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
@@ -270,7 +365,6 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
         app.update();
         let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve test.vox from Res<Assets>");
-        assert_eq!(scene.name, "test.vox");
         assert_eq!(scene.models.len(), 3, "Same 3 models are instanced through the scene");
         assert_eq!(scene.layers.len(), 8);
         assert_eq!(scene.layers.first().unwrap().name.as_ref().expect("Layer 0 name"), "scenery");
@@ -287,7 +381,6 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
         app.update();
         let scene = app.world.resource::<Assets<VoxelScene>>().get(handle).expect("retrieve test.vox from Res<Assets>");
-        assert_eq!(scene.name, "test.vox#outer-group/inner-group");
         assert_eq!(scene.models.len(), 3, "Same 3 models are instanced through the scene");
         assert_eq!(scene.layers.len(), 8);
         assert_eq!(scene.layers.first().unwrap().name.as_ref().expect("Layer 0 name"), "scenery");

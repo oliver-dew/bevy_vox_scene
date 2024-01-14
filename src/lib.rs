@@ -43,6 +43,7 @@
 //! #     exit.send(AppExit);
 //! # }
 //!```
+#![forbid(missing_docs, unsafe_code)]
 use bevy::{
     app::{App, Plugin, SpawnScene},
     asset::AssetApp, ecs::schedule::IntoSystemConfigs,
