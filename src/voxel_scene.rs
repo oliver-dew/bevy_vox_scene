@@ -1,9 +1,17 @@
-use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, Query, Res}, entity::Entity, event::{Event, EventWriter}}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::BuildChildren, log::warn};
+use bevy::{ecs::{bundle::Bundle, component::Component, system::{Commands, EntityCommands, Query, Res}, entity::Entity, world::{EntityRef, World}, query::Without}, asset::{Handle, Asset, Assets}, transform::components::Transform, reflect::TypePath, math::{Mat4, Vec3, Mat3, Quat}, render::{mesh::Mesh, view::Visibility, prelude::SpatialBundle}, pbr::{StandardMaterial, PbrBundle}, core::Name, hierarchy::{BuildChildren, Children}, log::warn};
 use dot_vox::{SceneNode, Frame};
 
 #[derive(Bundle, Default)]
 pub struct VoxelSceneBundle {
     pub scene: Handle<VoxelScene>,
+    pub transform: Transform,
+    pub visibility: Visibility,
+}
+
+#[derive(Bundle, Default)]
+pub struct VoxelSceneHookBundle {
+    pub scene: Handle<VoxelScene>,
+    pub hook: VoxelSceneHook,
     pub transform: Transform,
     pub visibility: Visibility,
 }
@@ -44,23 +52,35 @@ pub struct VoxelLayer {
     pub name: Option<String>,
 }
 
-#[derive(Event)]
-pub struct VoxelEntityReady {
-    pub scene_name: String,
-    pub entity: Entity,
-    pub name: String,
-    pub layer_id: u32,
+#[derive(Component)]
+pub struct VoxelSceneHook {
+    hook: Box<dyn Fn(&EntityRef, &mut EntityCommands) + Send + Sync + 'static>,
+}
+
+impl VoxelSceneHook {
+    pub fn new<F: Fn(&EntityRef, &mut EntityCommands) + Send + Sync + 'static>(hook: F) -> Self {
+        Self {
+            hook: Box::new(hook),
+        }
+    }
+}
+
+impl Default for VoxelSceneHook {
+    fn default() -> Self {
+        Self::new(|_, _| {
+            warn!("Default VoxelSceneHook does nothing")
+         })
+    }
 }
 
 pub(crate) fn spawn_vox_scenes(
     mut commands: Commands,
     query: Query<(Entity, &Transform, &Visibility, &Handle<VoxelScene>)>,
     vox_scenes: Res<Assets<VoxelScene>>,
-    mut event_writer: EventWriter<VoxelEntityReady>,
 ) {
     for (root, transform, visibility, scene_handle) in query.iter() {
         if let Some(scene) = vox_scenes.get(scene_handle) {
-            spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, &mut event_writer);
+            spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene);
             commands.entity(root)
             .remove::<Handle<VoxelScene>>()
             .insert((*transform, *visibility));
@@ -73,9 +93,11 @@ fn spawn_voxel_node_recursive(
     voxel_node: &VoxelNode,
     entity: Entity,
     scene: &VoxelScene,
-    event_writer: &mut EventWriter<VoxelEntityReady>,
 ) {
     let mut entity_commands = commands.entity(entity);
+    if let Some(name) = &voxel_node.name {
+        entity_commands.insert(Name::new(name.clone()));
+    }
     if let Some(model) = voxel_node.model_id.and_then(|id| {
         if let Some(model) = scene.models.get(id) { 
             Some(model) 
@@ -109,17 +131,34 @@ fn spawn_voxel_node_recursive(
         for child in &voxel_node.children {
             let mut child_entity = builder.spawn_empty();
             let id = child_entity.id();
-            spawn_voxel_node_recursive(child_entity.commands(), child, id, scene, event_writer);
+            spawn_voxel_node_recursive(child_entity.commands(), child, id, scene);
         }
     });
-    if let Some(name) = &voxel_node.name {
-        entity_commands.insert(Name::new(name.clone()));
-        event_writer.send(VoxelEntityReady {
-            scene_name: scene.name.clone(),
-            entity, 
-            name: name.to_string(), 
-            layer_id: voxel_node.layer_id 
-        });
+}
+
+pub(super) fn run_hooks(
+    mut commands: Commands,
+    world: &World,
+    query: Query<(Entity, &VoxelSceneHook), Without<Handle<VoxelScene>>>,
+) {
+    for (entity, scene_hook) in query.iter() {
+        run_hook_recursive(&mut commands, world, entity, scene_hook);
+        commands.entity(entity).remove::<VoxelSceneHook>();
+    }
+}
+
+fn run_hook_recursive(
+    commands: &mut Commands,
+    world: &World,
+    entity: Entity,
+    scene_hook: &VoxelSceneHook,
+) {
+    let entity_ref = world.entity(entity);
+    let mut entity_commands = commands.entity(entity);
+    (scene_hook.hook)(&entity_ref, &mut entity_commands);
+    let Some(children) = entity_ref.get::<Children>() else { return };
+    for child in children.as_ref() {
+        run_hook_recursive(commands, world, *child, scene_hook);
     }
 }
 
@@ -221,7 +260,7 @@ fn transform_from_frame(frame: &Frame) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
-    use bevy::{app::App, asset::{AssetPlugin, AssetServer, LoadState, AssetApp}, MinimalPlugins, render::texture::ImagePlugin, hierarchy::Children, reflect::Enum};
+    use bevy::{app::App, asset::{AssetPlugin, AssetServer, LoadState, AssetApp}, MinimalPlugins, render::texture::ImagePlugin, hierarchy::Children};
     use crate::VoxScenePlugin;
     use super::*;
     
@@ -293,14 +332,18 @@ mod tests {
         let mut app = App::new();
         let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
         app.update();
-        
+
         assert_eq!(app.world.resource::<AssetServer>().load_state(handle.clone()), LoadState::Loaded);
-        let entity = app.world.spawn(VoxelSceneBundle {
+        let entity = app.world.spawn(VoxelSceneHookBundle {
             scene: handle,
+            hook: VoxelSceneHook::new(move |entity, _| {
+                let Some(name) = entity.get::<Name>() else { return };
+                let expected_names: [&'static str; 3] = ["outer-group/inner-group", "outer-group/inner-group/dice", "outer-group/inner-group/walls"];
+                assert!(expected_names.contains(&name.as_str()));
+            }),
             ..Default::default()
         }).id();
         app.update();
-        
         assert!(app.world.get::<Handle<VoxelScene>>(entity).is_none());
         assert_eq!(app.world.query::<&VoxelLayer>().iter(&app.world).len(), 5, "5 voxel nodes spawned in this scene slice");
         assert_eq!(app.world.query::<&Name>().iter(&app.world).len(), 3, "But only 3 of the voxel nodes are named"); 
@@ -308,6 +351,7 @@ mod tests {
         let children = app.world.get::<Children>(entity).expect("children of inner-group").as_ref();
         assert_eq!(children.len(), 4, "inner-group has 4 children");
         assert_eq!(app.world.get::<Name>(*children.last().expect("last child")).expect("Name component").as_str(), "outer-group/inner-group/dice");
+        app.update(); // fire the hooks
     }
 
     /// `await` the response from this and then call `app.update()` 

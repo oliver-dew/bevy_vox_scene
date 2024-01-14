@@ -2,11 +2,10 @@
 <code>bevy_vox_scene</code>
 </h1>
 
-<a href="https://crates.io/crates/bevy_vox_scene">
-<img height="24" src="https://img.shields.io/crates/v/bevy_vox_scene?style=for-the-badge"/>
-</a>
-
+[![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
+[![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 
 A plugin for [the Bevy Engine](https://bevyengine.org) which allows loading [Magica Voxel](https://ephtracy.github.io) `.vox` files directly into a Bevy scene graph.
 `bevy_vox_scene` is forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh).
@@ -59,6 +58,7 @@ Take a look in the `examples/` directory for complete working examples. To run a
 cargo run --example <example name>
 ```
 
+- To modify entities within a scene hierarchy using scene hooks, see the [`modify-scene` example](/examples/modify-scene.rs).
 - If you want glowing emissive voxels, add an HDR and bloom-enabled camera. See the [`emissive-model` example](/examples/emissive-model.rs).
 - Enabling Screen-Space Ambient Occlusion can give your voxel scenes more pop. See the [`ssao-model` example](/examples/ssao-model.rs).
 - If you want glass voxels to refract other objects in the scene, enable specular transmission on your camera3d. See the [`transmission-scene` example](/examples/transmission-scene.rs).
@@ -67,7 +67,7 @@ cargo run --example <example name>
 
 | Bevy version | Magica Voxel version | `bevy-vox-scene` version | 
 | ------------ | -------------- | --- |
-| 0.12         | 0.99.6               | 0.9, 0.10       | 
+| 0.12         | 0.99.6               | 0.9, 0.10, 0.11       | 
 
 ## Limitations and workarounds
 
@@ -98,4 +98,6 @@ cargo test --lib
 
 Forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) by Lucas A.
 
-Like `bevy-vox-mesh`, `bevy-vox-scene` uses `dot-vox` to parse the vox files and the greedy mesher from [`block-mesh-rs`] (https://github.com/bonsairobo/block-mesh-rs) to create efficient meshes.
+Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-engine/dot_vox) to parse the vox files and the greedy mesher from [`block-mesh-rs`] (https://github.com/bonsairobo/block-mesh-rs) to create efficient meshes.
+
+`VoxelSceneHook` is adapted from [bevy-scene-hook](https://github.com/nicopap/bevy-scene-hook) by Nicola Papale.
