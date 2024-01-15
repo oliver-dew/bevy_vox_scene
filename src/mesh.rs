@@ -3,22 +3,22 @@ use bevy::render::{
     render_resource::PrimitiveTopology,
 };
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
-use ndshape::{RuntimeShape, Shape};
+use ndshape::Shape;
 
-use crate::voxel::Voxel;
+use crate::voxel::VoxelData;
 
-pub(crate) fn mesh_model(buffer_shape: &RuntimeShape<u32, 3>, buffer: &[Voxel]) -> Mesh {
-    let mut greedy_quads_buffer = GreedyQuadsBuffer::new(buffer_shape.size() as usize);
+pub(crate) fn mesh_model(data: &VoxelData) -> Mesh {
+    let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
     let quads_config = RIGHT_HANDED_Y_UP_CONFIG;
     greedy_quads(
-        buffer,
-        buffer_shape,
+        &data.voxels,
+        &data.shape,
         [0; 3],
-        buffer_shape.as_array().map(|x| x - 1),
+        data.shape.as_array().map(|x| x - 1),
         &quads_config.faces,
         &mut greedy_quads_buffer,
     );
-    let [x, y, z] = buffer_shape.as_array().map(|x| x - 2);
+    let [x, y, z] = data.shape.as_array().map(|x| x - 2);
 
     let num_indices = greedy_quads_buffer.quads.num_quads() * 6;
     let num_vertices = greedy_quads_buffer.quads.num_quads() * 4;
@@ -37,7 +37,7 @@ pub(crate) fn mesh_model(buffer_shape: &RuntimeShape<u32, 3>, buffer: &[Voxel]) 
         .zip(quads_config.faces.as_ref())
     {
         for quad in group.iter() {
-            let palette_index = buffer[buffer_shape.linearize(quad.minimum) as usize].index;
+            let palette_index = data.voxels[data.shape.linearize(quad.minimum) as usize].index;
             indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
             positions.extend_from_slice(
                 &face

@@ -42,14 +42,13 @@ pub struct VoxelData {
 pub(crate) fn load_from_model(
     model: &Model,
     translucent_voxels: &HashMap<u8, f32>,
-) -> (RuntimeShape<u32, 3>, Vec<Voxel>, Vec<f32>) {
-    let model_shape =
-        RuntimeShape::<u32, 3>::new([model.size.x + 2, model.size.z + 2, model.size.y + 2]);
-    let mut data = vec![EMPTY_VOXEL; model_shape.size() as usize];
+) -> (VoxelData, Vec<f32>) {
+    let shape = RuntimeShape::<u32, 3>::new([model.size.x + 2, model.size.z + 2, model.size.y + 2]);
+    let mut voxels = vec![EMPTY_VOXEL; shape.size() as usize];
     let mut refraction_indices: Vec<f32> = Vec::new();
 
     model.voxels.iter().for_each(|voxel| {
-        let index = model_shape.linearize([
+        let index = shape.linearize([
             model.size.x - voxel.x as u32,
             voxel.z as u32 + 1,
             voxel.y as u32 + 1,
@@ -59,11 +58,11 @@ pub(crate) fn load_from_model(
         if let Some(ior) = ior {
             refraction_indices.push(*ior);
         }
-        data[index] = Voxel {
+        voxels[index] = Voxel {
             index: voxel.i,
             is_translucent,
         };
     });
 
-    (model_shape, data, refraction_indices)
+    (VoxelData { shape, voxels }, refraction_indices)
 }

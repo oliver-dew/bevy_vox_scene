@@ -1,4 +1,4 @@
-use crate::{voxel::VoxelData, parse::{parse_xform_node, find_subasset_names}};
+use crate::parse::{find_subasset_names, parse_xform_node};
 use anyhow::anyhow;
 use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
@@ -336,10 +336,10 @@ impl VoxSceneLoader {
         // Models
         for (index, model) in file.models.iter().enumerate() {
             let name = format!("model/mesh/{}", index);
-            let (shape, buffer, refraction_indices) =
+            let (data, refraction_indices) =
                 crate::voxel::load_from_model(model, &translucent_voxels);
-            let mesh_handle = load_context
-                .labeled_asset_scope(name.clone(), |_| crate::mesh::mesh_model(&shape, &buffer));
+            let mesh =
+                load_context.labeled_asset_scope(name.clone(), |_| crate::mesh::mesh_model(&data));
 
             let material: Handle<StandardMaterial> = if refraction_indices.is_empty() {
                 opaque_material_handle.clone()
@@ -380,19 +380,15 @@ impl VoxSceneLoader {
                 })
             };
             load_context.labeled_asset_scope(format!("model/{}", index), |_| VoxelModel {
-                data: VoxelData {
-                    shape,
-                    voxels: buffer,
-                },
-                mesh: mesh_handle,
+                data,
+                mesh,
                 material,
             });
         }
 
         // Scene graph
 
-        let root =
-            parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
+        let root = parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
         let layers: Vec<LayerInfo> = file
             .layers
             .iter()

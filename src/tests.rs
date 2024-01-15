@@ -1,12 +1,14 @@
 use super::*;
-use crate::{VoxScenePlugin, scene::VoxelModelInstance};
+use crate::{scene::VoxelModelInstance, VoxScenePlugin};
 use bevy::{
     app::App,
-    asset::{AssetApp, AssetPlugin, AssetServer, Assets, LoadState, Handle},
+    asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
     core::Name,
     hierarchy::Children,
-    render::{texture::ImagePlugin, mesh::Mesh},
-    MinimalPlugins, pbr::StandardMaterial, utils::hashbrown::HashSet,
+    pbr::StandardMaterial,
+    render::{mesh::Mesh, texture::ImagePlugin},
+    utils::hashbrown::HashSet,
+    MinimalPlugins,
 };
 
 #[async_std::test]
@@ -197,7 +199,10 @@ async fn test_spawn_system() {
         4,
         "4 model instances spawned in this scene slice"
     );
-    let models: HashSet<Handle<VoxelModel>> = instance_query.iter(&app.world).map(|c| c.0.clone()).collect();
+    let models: HashSet<Handle<VoxelModel>> = instance_query
+        .iter(&app.world)
+        .map(|c| c.0.clone())
+        .collect();
     assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     assert_eq!(
         app.world

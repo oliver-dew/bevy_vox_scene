@@ -8,7 +8,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::{voxel::VoxelData, hook::VoxelSceneHook};
+use crate::{hook::VoxelSceneHook, voxel::VoxelData};
 
 /// A component bundle for spawning Voxel Scenes.
 ///
@@ -133,7 +133,7 @@ pub(crate) struct LayerInfo {
 }
 
 /// Component wrapping the handle to the [`VoxelModel`]
-/// 
+///
 /// When the scene is spawned this component gets added to entities with a voxel mesh.
 #[derive(Component)]
 pub struct VoxelModelInstance(pub Handle<VoxelModel>);
