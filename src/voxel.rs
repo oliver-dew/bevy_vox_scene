@@ -34,6 +34,11 @@ impl MergeVoxel for Voxel {
     }
 }
 
+pub(crate) struct VoxelData {
+    pub shape: RuntimeShape<u32, 3>,
+    pub voxels: Vec<Voxel>,
+}
+
 pub(crate) fn load_from_model(
     model: &Model,
     translucent_voxels: &HashMap<u8, f32>,

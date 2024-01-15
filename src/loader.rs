@@ -11,6 +11,7 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use crate::voxel::VoxelData;
 
 use crate::voxel_scene::{self, LayerInfo, VoxelModel, VoxelNode, VoxelScene};
 
@@ -193,10 +194,10 @@ impl VoxSceneLoader {
             .unwrap();
         let has_varying_roughness = max_roughness
             - roughness
-                .iter()
-                .cloned()
-                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-                .unwrap()
+            .iter()
+            .cloned()
+            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+            .unwrap()
             > 0.001;
 
         let metalness: Vec<f32> = file
@@ -211,10 +212,10 @@ impl VoxSceneLoader {
             .unwrap();
         let has_varying_metalness = max_metalness
             - metalness
-                .iter()
-                .cloned()
-                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-                .unwrap()
+            .iter()
+            .cloned()
+            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+            .unwrap()
             > 0.001;
         let has_metallic_roughness = has_varying_roughness || has_varying_metalness;
         let metallic_roughness_texture: Option<Handle<Image>> = if has_metallic_roughness {
@@ -333,65 +334,66 @@ impl VoxSceneLoader {
             });
         }
         // Models
-        let models: Vec<VoxelModel> = file
-            .models
-            .iter()
-            .enumerate()
-            .map(|(index, model)| {
-                let name = format!("model-{}", index);
-                let (shape, buffer, refraction_indices) =
-                    crate::voxel::load_from_model(model, &translucent_voxels);
-                let mesh_handle = load_context
-                    .labeled_asset_scope(name.clone(), |_| crate::mesh::mesh_model(shape, &buffer));
+        for (index, model) in file.models.iter().enumerate() {
+            let name = format!("model/mesh/{}", index);
+            let (shape, buffer, refraction_indices) =
+                crate::voxel::load_from_model(model, &translucent_voxels);
+            let mesh_handle = load_context
+                .labeled_asset_scope(name.clone(), |_| crate::mesh::mesh_model(&shape, &buffer));
 
-                let material: Handle<StandardMaterial> = if refraction_indices.is_empty() {
-                    opaque_material_handle.clone()
-                } else {
-                    load_context.labeled_asset_scope(format!("material-{}", name), |_| {
-                        let ior = 1.0
-                            + (refraction_indices
-                                .iter()
-                                .cloned()
-                                .reduce(|acc, e| acc + e)
-                                .unwrap_or(0.0)
-                                / refraction_indices.len() as f32);
-                        StandardMaterial {
-                            base_color_texture: Some(color_handle.clone()),
-                            emissive: if has_emissive {
-                                Color::WHITE * settings.emission_strength
-                            } else {
-                                Color::BLACK
-                            },
-                            emissive_texture: emissive_texture.clone(),
-                            perceptual_roughness: if has_metallic_roughness {
-                                1.0
-                            } else {
-                                max_roughness
-                            },
-                            metallic: if has_metallic_roughness {
-                                1.0
-                            } else {
-                                max_metalness
-                            },
-                            metallic_roughness_texture: metallic_roughness_texture.clone(),
-                            specular_transmission: 1.0,
-                            specular_transmission_texture: specular_transmission_texture.clone(),
-                            ior,
-                            thickness: model.size.x.min(model.size.y.min(model.size.z)) as f32,
-                            ..Default::default()
-                        }
-                    })
-                };
+            let material: Handle<StandardMaterial> = if refraction_indices.is_empty() {
+                opaque_material_handle.clone()
+            } else {
+                load_context.labeled_asset_scope(format!("model/material/{}", index), |_| {
+                    let ior = 1.0
+                        + (refraction_indices
+                        .iter()
+                        .cloned()
+                        .reduce(|acc, e| acc + e)
+                        .unwrap_or(0.0)
+                        / refraction_indices.len() as f32);
+                    StandardMaterial {
+                        base_color_texture: Some(color_handle.clone()),
+                        emissive: if has_emissive {
+                            Color::WHITE * settings.emission_strength
+                        } else {
+                            Color::BLACK
+                        },
+                        emissive_texture: emissive_texture.clone(),
+                        perceptual_roughness: if has_metallic_roughness {
+                            1.0
+                        } else {
+                            max_roughness
+                        },
+                        metallic: if has_metallic_roughness {
+                            1.0
+                        } else {
+                            max_metalness
+                        },
+                        metallic_roughness_texture: metallic_roughness_texture.clone(),
+                        specular_transmission: 1.0,
+                        specular_transmission_texture: specular_transmission_texture.clone(),
+                        ior,
+                        thickness: model.size.x.min(model.size.y.min(model.size.z)) as f32,
+                        ..Default::default()
+                    }
+                })
+            };
+            load_context.labeled_asset_scope(format!("model/{}", index), |_| {
                 VoxelModel {
+                    data: VoxelData {
+                        shape,
+                        voxels: buffer
+                    },
                     mesh: mesh_handle,
                     material,
                 }
-            })
-            .collect();
+            });
+        };
 
         // Scene graph
 
-        let root = voxel_scene::parse_xform_node(&file.scenes, &file.scenes[0], None);
+        let root = voxel_scene::parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
         let layers: Vec<LayerInfo> = file
             .layers
             .iter()
@@ -406,13 +408,11 @@ impl VoxSceneLoader {
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
                 root: node,
-                models: models.clone(),
                 layers: layers.clone(),
             });
         }
         Ok(VoxelScene {
             root,
-            models,
             layers,
         })
     }

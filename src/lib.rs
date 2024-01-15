@@ -58,6 +58,7 @@ use loader::VoxSceneLoader;
 pub use voxel_scene::{
     VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle,
 };
+use voxel_scene::VoxelModel;
 mod mesh;
 mod voxel;
 
@@ -68,7 +69,9 @@ pub struct VoxScenePlugin;
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<voxel_scene::VoxelScene>()
+        app
+            .init_asset::<voxel_scene::VoxelScene>()
+            .init_asset::<VoxelModel>()
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,

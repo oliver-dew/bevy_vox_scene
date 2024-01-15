@@ -1,5 +1,6 @@
+use crate::voxel::VoxelData;
 use bevy::{
-    asset::{Asset, Assets, Handle},
+    asset::{Asset, Assets, Handle, LoadContext},
     core::Name,
     ecs::{
         bundle::Bundle,
@@ -80,7 +81,6 @@ pub struct VoxelSceneHookBundle {
 #[derive(Asset, TypePath, Debug)]
 pub struct VoxelScene {
     pub(crate) root: VoxelNode,
-    pub(crate) models: Vec<VoxelModel>,
     pub(crate) layers: Vec<LayerInfo>,
 }
 
@@ -89,13 +89,14 @@ pub(crate) struct VoxelNode {
     name: Option<String>,
     transform: Mat4,
     children: Vec<VoxelNode>,
-    model_id: Option<usize>,
+    model: Option<Handle<VoxelModel>>,
     is_hidden: bool,
     layer_id: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Asset, TypePath)]
 pub(crate) struct VoxelModel {
+    pub data: VoxelData,
     pub mesh: Handle<Mesh>,
     pub material: Handle<StandardMaterial>,
 }
@@ -105,6 +106,9 @@ pub(crate) struct LayerInfo {
     pub name: Option<String>,
     pub is_hidden: bool,
 }
+
+#[derive(Component)]
+pub struct VoxelModelInstance(Handle<VoxelModel>);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///
@@ -210,10 +214,11 @@ pub(super) fn spawn_vox_scenes(
         Option<&Visibility>,
     )>,
     vox_scenes: Res<Assets<VoxelScene>>,
+    vox_models: Res<Assets<VoxelModel>>,
 ) {
     for (root, scene_handle, transform, visibility) in query.iter() {
         if let Some(scene) = vox_scenes.get(scene_handle) {
-            spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene);
+            spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, &vox_models);
             let mut entity = commands.entity(root);
             entity.remove::<Handle<VoxelScene>>();
             if let Some(transform) = transform {
@@ -231,25 +236,25 @@ fn spawn_voxel_node_recursive(
     voxel_node: &VoxelNode,
     entity: Entity,
     scene: &VoxelScene,
+    vox_models: &Res<Assets<VoxelModel>>,
 ) {
     let mut entity_commands = commands.entity(entity);
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
-    if let Some(model) = voxel_node.model_id.and_then(|id| {
-        if let Some(model) = scene.models.get(id) {
-            Some(model)
+    if let Some(model_handle) = &voxel_node.model {
+        if let Some(model) = vox_models.get(model_handle) {
+            entity_commands.insert(VoxelModelInstance(model_handle.clone()));
+            #[cfg(not(test))]
+            entity_commands.insert(PbrBundle {
+                mesh: model.mesh.clone(),
+                material: model.material.clone(),
+                ..Default::default()
+            });
         } else {
-            warn!("Model {} not found, omitting", id);
-            None
+            warn!("Model not found, omitting: {:?}", model_handle);
+            entity_commands.insert(SpatialBundle::default());
         }
-    }) {
-        #[cfg(not(test))]
-        entity_commands.insert(PbrBundle {
-            mesh: model.mesh.clone(),
-            material: model.material.clone(),
-            ..Default::default()
-        });
     } else {
         entity_commands.insert(SpatialBundle::default());
     }
@@ -273,7 +278,7 @@ fn spawn_voxel_node_recursive(
             for child in &voxel_node.children {
                 let mut child_entity = builder.spawn_empty();
                 let id = child_entity.id();
-                spawn_voxel_node_recursive(child_entity.commands(), child, id, scene);
+                spawn_voxel_node_recursive(child_entity.commands(), child, id, scene, vox_models);
             }
         });
 }
@@ -308,6 +313,7 @@ pub(crate) fn parse_xform_node(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
+    load_context: &mut LoadContext,
 ) -> VoxelNode {
     match scene_node {
         SceneNode::Transform {
@@ -330,13 +336,14 @@ pub(crate) fn parse_xform_node(
                 &graph[*child as usize],
                 &mut vox_node,
                 accumulated.as_ref(),
+                load_context,
             );
             vox_node
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
             let mut vox_node = VoxelNode::default();
-            parse_xform_child(graph, scene_node, &mut vox_node, parent_name);
+            parse_xform_child(graph, scene_node, &mut vox_node, parent_name, load_context);
             vox_node
         }
     }
@@ -361,11 +368,17 @@ fn parse_xform_child(
     scene_node: &SceneNode,
     partial_node: &mut VoxelNode,
     parent_name: Option<&String>,
+    load_context: &mut LoadContext,
 ) {
     match scene_node {
         SceneNode::Transform { .. } => {
             warn!("Found nested Transform nodes");
-            partial_node.children = vec![parse_xform_node(graph, scene_node, parent_name)];
+            partial_node.children = vec![parse_xform_node(
+                graph,
+                scene_node,
+                parent_name,
+                load_context,
+            )];
         }
         SceneNode::Group {
             attributes: _,
@@ -373,15 +386,17 @@ fn parse_xform_child(
         } => {
             partial_node.children = children
                 .iter()
-                .map(|child| parse_xform_node(graph, &graph[*child as usize], parent_name))
+                .map(|child| {
+                    parse_xform_node(graph, &graph[*child as usize], parent_name, load_context)
+                })
                 .collect();
         }
         SceneNode::Shape {
             attributes: _,
             models,
         } => {
-            let model_id = models[0].model_id as usize;
-            partial_node.model_id = Some(model_id);
+            let handle = load_context.get_label_handle(format!("model/{}", models[0].model_id));
+            partial_node.model = Some(handle);
         }
     }
 }
@@ -453,8 +468,14 @@ mod tests {
             .resource::<Assets<VoxelScene>>()
             .get(handle)
             .expect("retrieve test.vox from Res<Assets>");
+        let all_models: Vec<&VoxelModel> = app
+            .world
+            .resource::<Assets<VoxelModel>>()
+            .iter()
+            .map(|(_, asset)| asset)
+            .collect();
         assert_eq!(
-            scene.models.len(),
+            all_models.len(),
             3,
             "Same 3 models are instanced through the scene"
         );
@@ -495,11 +516,6 @@ mod tests {
             .resource::<Assets<VoxelScene>>()
             .get(handle)
             .expect("retrieve test.vox from Res<Assets>");
-        assert_eq!(
-            scene.models.len(),
-            3,
-            "Same 3 models are instanced through the scene"
-        );
         assert_eq!(scene.layers.len(), 8);
         assert_eq!(
             scene
@@ -539,7 +555,12 @@ mod tests {
             .get(handle)
             .expect("retrieve scene from Res<Assets>");
         let walls = &scene.root;
-        let mat_handle = &scene.models[walls.model_id.expect("walls model_id")].material;
+        let model = app
+            .world
+            .resource::<Assets<VoxelModel>>()
+            .get(walls.model.as_ref().expect("Walls has a model handle"))
+            .expect("retrieve model from Res<Assets>");
+        let mat_handle = &model.material;
         let material = app
             .world
             .resource::<Assets<StandardMaterial>>()
@@ -563,7 +584,12 @@ mod tests {
             .get(handle)
             .expect("retrieve scene from Res<Assets>");
         let dice = &scene.root;
-        let mat_handle = &scene.models[dice.model_id.expect("dice model_id")].material;
+        let model = app
+            .world
+            .resource::<Assets<VoxelModel>>()
+            .get(dice.model.as_ref().expect("Walls has a model handle"))
+            .expect("retrieve model from Res<Assets>");
+        let mat_handle = &model.material;
         let material = app
             .world
             .resource::<Assets<StandardMaterial>>()
