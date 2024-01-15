@@ -15,7 +15,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use super::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelNode, VoxelScene};
+use crate::scene::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelNode, VoxelScene};
 
 pub(crate) fn spawn_vox_scenes(
     mut commands: Commands,

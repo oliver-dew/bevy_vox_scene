@@ -1,12 +1,12 @@
 use super::*;
-use crate::VoxScenePlugin;
+use crate::{VoxScenePlugin, scene::VoxelModelInstance};
 use bevy::{
     app::App,
-    asset::{AssetApp, AssetPlugin, AssetServer, Assets, LoadState},
+    asset::{AssetApp, AssetPlugin, AssetServer, Assets, LoadState, Handle},
     core::Name,
     hierarchy::Children,
-    render::texture::ImagePlugin,
-    MinimalPlugins,
+    render::{texture::ImagePlugin, mesh::Mesh},
+    MinimalPlugins, pbr::StandardMaterial, utils::hashbrown::HashSet,
 };
 
 #[async_std::test]
@@ -191,6 +191,14 @@ async fn test_spawn_system() {
         3,
         "But only 3 of the voxel nodes are named"
     );
+    let mut instance_query = app.world.query::<&VoxelModelInstance>();
+    assert_eq!(
+        instance_query.iter(&app.world).len(),
+        4,
+        "4 model instances spawned in this scene slice"
+    );
+    let models: HashSet<Handle<VoxelModel>> = instance_query.iter(&app.world).map(|c| c.0.clone()).collect();
+    assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     assert_eq!(
         app.world
             .get::<Name>(entity)

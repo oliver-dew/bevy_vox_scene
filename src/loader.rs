@@ -1,4 +1,4 @@
-use crate::voxel::VoxelData;
+use crate::{voxel::VoxelData, parse::{parse_xform_node, find_subasset_names}};
 use anyhow::anyhow;
 use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
@@ -13,7 +13,7 @@ use bevy::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::scene::{self, LayerInfo, VoxelModel, VoxelNode, VoxelScene};
+use crate::scene::{LayerInfo, VoxelModel, VoxelNode, VoxelScene};
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
 ///
@@ -392,7 +392,7 @@ impl VoxSceneLoader {
         // Scene graph
 
         let root =
-            scene::parse::parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
+            parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
         let layers: Vec<LayerInfo> = file
             .layers
             .iter()
@@ -402,7 +402,7 @@ impl VoxSceneLoader {
             })
             .collect();
         let mut subasset_by_name: HashMap<String, VoxelNode> = HashMap::new();
-        scene::parse::find_subasset_names(&mut subasset_by_name, &root);
+        find_subasset_names(&mut subasset_by_name, &root);
 
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {

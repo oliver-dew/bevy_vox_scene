@@ -1,8 +1,3 @@
-mod hook;
-pub(crate) mod parse;
-pub(super) mod systems;
-#[cfg(test)]
-mod tests;
 use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
@@ -12,13 +7,14 @@ use bevy::{
     render::{mesh::Mesh, view::Visibility},
     transform::components::Transform,
 };
-pub use hook::VoxelSceneHook;
 
-use crate::voxel::VoxelData;
+use crate::{voxel::VoxelData, hook::VoxelSceneHook};
 
 /// A component bundle for spawning Voxel Scenes.
 ///
 /// The root of the spawned scene will be the entity that has this bundle.
+/// In addition to the standard components bevy uses to organise and render pbr meshes,
+/// spawned entities will also have [`VoxelLayer`] and [`VoxelModelInstance`] components added.
 /// ```no_run
 /// # use bevy::prelude::*;
 /// # use bevy_vox_scene::VoxelSceneBundle;
@@ -55,7 +51,37 @@ pub struct VoxelSceneBundle {
 /// A component bundle for spawning Voxel Scenes, with a [`VoxelSceneHook`].
 ///
 /// The root of the spawned scene will be the entity that has this bundle.
-/// The [`VoxelSceneHook`] allows you to easily modify Entities deep within the scene hierarchy.
+/// In addition to the standard components bevy uses to organise and render pbr meshes,
+/// spawned entities will also have [`VoxelLayer`] and [`VoxelModelInstance`] components added.
+/// The [`VoxelSceneHook`] allows you to modify entities spawned within the hierarchy.
+/// A typical use-case would be adding additional components based on an entity's [`bevy::core::Name`]
+/// or [`VoxelLayer`].
+/// ```
+/// # use bevy::{prelude::*, app::AppExit, utils::HashSet};
+/// # use bevy_vox_scene::{VoxelSceneHook, VoxelSceneHookBundle};
+/// #
+/// # #[derive(Component)]
+/// # struct Fish;
+/// #
+/// # fn setup(
+/// #     mut commands: Commands,
+/// #     assets: Res<AssetServer>,
+/// # ) {
+/// VoxelSceneHookBundle {
+///     scene: assets.load("study.vox#tank"),
+///     hook: VoxelSceneHook::new(move |entity, commands| {
+///         let Some(name) = entity.get::<Name>() else { return };
+///         match name.as_str() {
+///             "tank/goldfish" | "tank/tetra" => {
+///                 commands.insert(Fish);
+///             }
+///             _ => {},
+///         }
+///     }),
+///     ..default()
+/// };
+/// # }
+/// ```
 #[derive(Bundle, Default)]
 pub struct VoxelSceneHookBundle {
     /// A handle to a [`VoxelScene`], typically loaded from a ".vox" file via the [`bevy::asset::AssetServer`].
@@ -81,18 +107,22 @@ pub struct VoxelScene {
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct VoxelNode {
-    name: Option<String>,
-    transform: Mat4,
-    children: Vec<VoxelNode>,
-    model: Option<Handle<VoxelModel>>,
-    is_hidden: bool,
-    layer_id: u32,
+    pub name: Option<String>,
+    pub transform: Mat4,
+    pub children: Vec<VoxelNode>,
+    pub model: Option<Handle<VoxelModel>>,
+    pub is_hidden: bool,
+    pub layer_id: u32,
 }
 
+/// Asset containing the voxel data for a model, as well as handles to the mesh derived from that data and the material
 #[derive(Asset, TypePath)]
-pub(crate) struct VoxelModel {
+pub struct VoxelModel {
+    /// The voxel data used to generate the mesh
     pub data: VoxelData,
+    /// Handle to the model's mesh
     pub mesh: Handle<Mesh>,
+    /// Handle to the model's material
     pub material: Handle<StandardMaterial>,
 }
 
@@ -102,8 +132,11 @@ pub(crate) struct LayerInfo {
     pub is_hidden: bool,
 }
 
+/// Component wrapping the handle to the [`VoxelModel`]
+/// 
+/// When the scene is spawned this component gets added to entities with a voxel mesh.
 #[derive(Component)]
-pub struct VoxelModelInstance(Handle<VoxelModel>);
+pub struct VoxelModelInstance(pub Handle<VoxelModel>);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///

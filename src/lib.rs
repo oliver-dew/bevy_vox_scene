@@ -53,13 +53,20 @@ use bevy::{
 
 mod loader;
 mod scene;
+mod hook;
+mod systems;
+mod parse;
+mod mesh;
+mod voxel;
+
+#[cfg(test)]
+mod tests;
+
+pub use scene::{VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHookBundle, VoxelModelInstance, VoxelModel};
+pub use hook::VoxelSceneHook;
 pub use loader::VoxLoaderSettings;
 #[doc(inline)]
 use loader::VoxSceneLoader;
-use scene::VoxelModel;
-pub use scene::{VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle};
-mod mesh;
-mod voxel;
 
 /// The core plugin adding functionality for loading `.vox` files.
 ///
@@ -73,7 +80,7 @@ impl Plugin for VoxScenePlugin {
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,
-                (scene::systems::spawn_vox_scenes, scene::systems::run_hooks).chain(),
+                (systems::spawn_vox_scenes, systems::run_hooks).chain(),
             );
     }
 }

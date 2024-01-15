@@ -6,12 +6,12 @@ use ndshape::Shape;
 
 // trait implementation rules requires the use of a newtype to allow meshing.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Voxel {
-    pub(crate) index: u8,
-    pub(crate) is_translucent: bool,
+pub struct Voxel {
+    pub index: u8,
+    pub is_translucent: bool,
 }
 
-pub(crate) const EMPTY_VOXEL: Voxel = Voxel {
+pub const EMPTY_VOXEL: Voxel = Voxel {
     index: 255,
     is_translucent: false,
 };
@@ -34,7 +34,7 @@ impl MergeVoxel for Voxel {
     }
 }
 
-pub(crate) struct VoxelData {
+pub struct VoxelData {
     pub shape: RuntimeShape<u32, 3>,
     pub voxels: Vec<Voxel>,
 }

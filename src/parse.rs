@@ -6,7 +6,7 @@ use bevy::{
 };
 use dot_vox::{Frame, SceneNode};
 
-use super::VoxelNode;
+use crate::scene::VoxelNode;
 
 pub(crate) fn parse_xform_node(
     graph: &Vec<SceneNode>,
