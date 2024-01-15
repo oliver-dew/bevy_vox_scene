@@ -1,3 +1,4 @@
+use crate::voxel::VoxelData;
 use anyhow::anyhow;
 use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
@@ -11,9 +12,8 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use crate::voxel::VoxelData;
 
-use crate::voxel_scene::{self, LayerInfo, VoxelModel, VoxelNode, VoxelScene};
+use crate::scene::{self, LayerInfo, VoxelModel, VoxelNode, VoxelScene};
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
 ///
@@ -194,10 +194,10 @@ impl VoxSceneLoader {
             .unwrap();
         let has_varying_roughness = max_roughness
             - roughness
-            .iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+                .iter()
+                .cloned()
+                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+                .unwrap()
             > 0.001;
 
         let metalness: Vec<f32> = file
@@ -212,10 +212,10 @@ impl VoxSceneLoader {
             .unwrap();
         let has_varying_metalness = max_metalness
             - metalness
-            .iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+                .iter()
+                .cloned()
+                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+                .unwrap()
             > 0.001;
         let has_metallic_roughness = has_varying_roughness || has_varying_metalness;
         let metallic_roughness_texture: Option<Handle<Image>> = if has_metallic_roughness {
@@ -347,11 +347,11 @@ impl VoxSceneLoader {
                 load_context.labeled_asset_scope(format!("model/material/{}", index), |_| {
                     let ior = 1.0
                         + (refraction_indices
-                        .iter()
-                        .cloned()
-                        .reduce(|acc, e| acc + e)
-                        .unwrap_or(0.0)
-                        / refraction_indices.len() as f32);
+                            .iter()
+                            .cloned()
+                            .reduce(|acc, e| acc + e)
+                            .unwrap_or(0.0)
+                            / refraction_indices.len() as f32);
                     StandardMaterial {
                         base_color_texture: Some(color_handle.clone()),
                         emissive: if has_emissive {
@@ -379,21 +379,20 @@ impl VoxSceneLoader {
                     }
                 })
             };
-            load_context.labeled_asset_scope(format!("model/{}", index), |_| {
-                VoxelModel {
-                    data: VoxelData {
-                        shape,
-                        voxels: buffer
-                    },
-                    mesh: mesh_handle,
-                    material,
-                }
+            load_context.labeled_asset_scope(format!("model/{}", index), |_| VoxelModel {
+                data: VoxelData {
+                    shape,
+                    voxels: buffer,
+                },
+                mesh: mesh_handle,
+                material,
             });
-        };
+        }
 
         // Scene graph
 
-        let root = voxel_scene::parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
+        let root =
+            scene::parse::parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
         let layers: Vec<LayerInfo> = file
             .layers
             .iter()
@@ -403,7 +402,7 @@ impl VoxSceneLoader {
             })
             .collect();
         let mut subasset_by_name: HashMap<String, VoxelNode> = HashMap::new();
-        voxel_scene::find_subasset_names(&mut subasset_by_name, &root);
+        scene::parse::find_subasset_names(&mut subasset_by_name, &root);
 
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
@@ -411,9 +410,6 @@ impl VoxSceneLoader {
                 layers: layers.clone(),
             });
         }
-        Ok(VoxelScene {
-            root,
-            layers,
-        })
+        Ok(VoxelScene { root, layers })
     }
 }

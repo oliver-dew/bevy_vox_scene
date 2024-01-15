@@ -44,6 +44,7 @@
 //! # }
 //!```
 #![forbid(missing_docs, unsafe_code)]
+
 use bevy::{
     app::{App, Plugin, SpawnScene},
     asset::AssetApp,
@@ -51,14 +52,12 @@ use bevy::{
 };
 
 mod loader;
-mod voxel_scene;
+mod scene;
 pub use loader::VoxLoaderSettings;
 #[doc(inline)]
 use loader::VoxSceneLoader;
-pub use voxel_scene::{
-    VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle,
-};
-use voxel_scene::VoxelModel;
+use scene::VoxelModel;
+pub use scene::{VoxelLayer, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle};
 mod mesh;
 mod voxel;
 
@@ -69,13 +68,12 @@ pub struct VoxScenePlugin;
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_asset::<voxel_scene::VoxelScene>()
+        app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModel>()
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,
-                (voxel_scene::spawn_vox_scenes, voxel_scene::run_hooks).chain(),
+                (scene::systems::spawn_vox_scenes, scene::systems::run_hooks).chain(),
             );
     }
 }

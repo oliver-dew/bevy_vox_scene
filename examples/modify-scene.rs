@@ -1,5 +1,3 @@
-use rand::Rng;
-use std::f32::consts::PI;
 use bevy::{
     core_pipeline::{
         bloom::BloomSettings,
@@ -12,6 +10,8 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneHook, VoxelSceneHookBundle};
+use rand::Rng;
+use std::f32::consts::PI;
 
 /// Uses the [`bevy_vox_scene::VoxelSceneHook`] component to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
