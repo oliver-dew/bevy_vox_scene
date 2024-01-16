@@ -341,20 +341,12 @@ impl VoxSceneLoader {
         // Models
         for (index, model) in file.models.iter().enumerate() {
             let name = format!("model/mesh/{}", index);
-            let (data, refraction_indices) = voxel::load_from_model(model, &translucent_voxels);
-            let mesh = load_context.labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&data));
+            let data = voxel::load_from_model(model, &translucent_voxels);
+            let (visible_voxels, ior) = data.visible_voxels();
+            let mesh = load_context.labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&visible_voxels, &data.shape));
 
-            let material: Handle<StandardMaterial> = if refraction_indices.is_empty() {
-                opaque_material_handle.clone()
-            } else {
+            let material: Handle<StandardMaterial> = if let Some(ior) = ior {
                 load_context.labeled_asset_scope(format!("model/material/{}", index), |_| {
-                    let ior = 1.0
-                        + (refraction_indices
-                            .iter()
-                            .cloned()
-                            .reduce(|acc, e| acc + e)
-                            .unwrap_or(0.0)
-                            / refraction_indices.len() as f32);
                     StandardMaterial {
                         base_color_texture: Some(color_handle.clone()),
                         emissive: if has_emissive {
@@ -381,6 +373,8 @@ impl VoxSceneLoader {
                         ..Default::default()
                     }
                 })
+            } else {
+                opaque_material_handle.clone()
             };
             load_context.labeled_asset_scope(format!("model/{}", index), |_| VoxelModel {
                 data,
