@@ -5,7 +5,7 @@ use bevy::render::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
-use crate::voxel::VoxelData;
+use super::voxel::VoxelData;
 
 pub(crate) fn mesh_model(data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);

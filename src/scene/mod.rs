@@ -1,3 +1,6 @@
+mod hook;
+pub(super) mod systems;
+
 use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
@@ -8,7 +11,8 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::{hook::VoxelSceneHook, voxel::VoxelData};
+use crate::load::VoxelData;
+pub use hook::VoxelSceneHook;
 
 /// A component bundle for spawning Voxel Scenes.
 ///

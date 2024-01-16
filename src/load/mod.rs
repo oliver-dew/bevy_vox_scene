@@ -1,4 +1,7 @@
-use crate::parse::{find_subasset_names, parse_xform_node};
+mod mesh;
+mod parse;
+mod voxel;
+
 use anyhow::anyhow;
 use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
@@ -10,10 +13,12 @@ use bevy::{
     },
     utils::{hashbrown::HashMap, BoxedFuture},
 };
+use parse::{find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::scene::{LayerInfo, VoxelModel, VoxelNode, VoxelScene};
+pub use voxel::VoxelData;
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
 ///
@@ -336,10 +341,8 @@ impl VoxSceneLoader {
         // Models
         for (index, model) in file.models.iter().enumerate() {
             let name = format!("model/mesh/{}", index);
-            let (data, refraction_indices) =
-                crate::voxel::load_from_model(model, &translucent_voxels);
-            let mesh =
-                load_context.labeled_asset_scope(name.clone(), |_| crate::mesh::mesh_model(&data));
+            let (data, refraction_indices) = voxel::load_from_model(model, &translucent_voxels);
+            let mesh = load_context.labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&data));
 
             let material: Handle<StandardMaterial> = if refraction_indices.is_empty() {
                 opaque_material_handle.clone()
