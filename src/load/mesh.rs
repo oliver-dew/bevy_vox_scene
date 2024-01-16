@@ -1,24 +1,26 @@
-use bevy::render::{
+use bevy::{render::{
     mesh::{Indices, Mesh, VertexAttributeValues},
     render_resource::PrimitiveTopology,
-};
+}, math::Vec3};
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
-use ndshape::{Shape, RuntimeShape};
+use ndshape::Shape;
 
-use super::voxel::VisibleVoxel;
+use super::{voxel::VisibleVoxel, VoxelData};
 
-pub(crate) fn mesh_model(voxels: &Vec<VisibleVoxel>, shape: &RuntimeShape<u32, 3>) -> Mesh {
-    let mut greedy_quads_buffer = GreedyQuadsBuffer::new(shape.size() as usize);
+pub(crate) fn mesh_model(voxels: &Vec<VisibleVoxel>, data: &VoxelData) -> Mesh {
+    let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
     let quads_config = RIGHT_HANDED_Y_UP_CONFIG;
     greedy_quads(
         &voxels,
-        shape,
+        &data.shape,
         [0; 3],
-        shape.as_array().map(|x| x - 1),
+        data.shape.as_array().map(|x| x - 1),
         &quads_config.faces,
         &mut greedy_quads_buffer,
     );
-    let [x, y, z] = shape.as_array().map(|x| x - 2);
+    let extents = data.size();
+    let half_extents = Vec3::new(extents.x as f32, extents.y as f32, extents.z as f32) * 0.5;
+    let leading_padding = (data.padding() / 2) as f32;
 
     let num_indices = greedy_quads_buffer.quads.num_quads() * 6;
     let num_vertices = greedy_quads_buffer.quads.num_quads() * 4;
@@ -37,17 +39,17 @@ pub(crate) fn mesh_model(voxels: &Vec<VisibleVoxel>, shape: &RuntimeShape<u32, 3
         .zip(quads_config.faces.as_ref())
     {
         for quad in group.iter() {
-            let palette_index = voxels[shape.linearize(quad.minimum) as usize].index;
+            let palette_index = voxels[data.shape.linearize(quad.minimum) as usize].index;
             indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
             positions.extend_from_slice(
                 &face
                     .quad_mesh_positions(quad, 1.0)
-                    .map(|position| position.map(|x| x - 1.0)) // corrects the 1 offset introduced by the meshing.
+                    .map(|position| position.map(|x| x - leading_padding)) // corrects the 1 offset introduced by the meshing.
                     .map(|position| {
                         [
-                            position[0] - (x as f32) / 2.0,
-                            position[1] - (y as f32) / 2.0,
-                            position[2] - (z as f32) / 2.0,
+                            position[0] - half_extents.x,
+                            position[1] - half_extents.y,
+                            position[2] - half_extents.z,
                         ]
                     }), // move center of the mesh center
             );

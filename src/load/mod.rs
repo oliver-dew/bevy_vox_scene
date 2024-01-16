@@ -30,6 +30,9 @@ pub(super) struct VoxSceneLoader;
 /// Settings for the VoxSceneLoader.
 #[derive(Serialize, Deserialize)]
 pub struct VoxLoaderSettings {
+    /// Whether the outer-most faces of the model should be meshed. Defaults to true. Set this to false if the outer faces of a
+    /// model will never be visible, for instance if the model id part of a 3D tileset.
+    pub mesh_outer_faces: bool,
     /// Multiplier for emissive strength. Defaults to 2.0.
     pub emission_strength: f32,
     /// Defaults to `true` to more accurately reflect the colours in Magica Voxel.
@@ -41,6 +44,7 @@ pub struct VoxLoaderSettings {
 impl Default for VoxLoaderSettings {
     fn default() -> Self {
         Self {
+            mesh_outer_faces: true,
             emission_strength: 2.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
@@ -341,9 +345,9 @@ impl VoxSceneLoader {
         // Models
         for (index, model) in file.models.iter().enumerate() {
             let name = format!("model/mesh/{}", index);
-            let data = voxel::load_from_model(model, &translucent_voxels);
+            let data = voxel::load_from_model(model, &translucent_voxels, settings.mesh_outer_faces);
             let (visible_voxels, ior) = data.visible_voxels();
-            let mesh = load_context.labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&visible_voxels, &data.shape));
+            let mesh = load_context.labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&visible_voxels, &data));
 
             let material: Handle<StandardMaterial> = if let Some(ior) = ior {
                 load_context.labeled_asset_scope(format!("model/material/{}", index), |_| {
