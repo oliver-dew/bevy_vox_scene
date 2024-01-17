@@ -11,6 +11,23 @@ use bevy::{
     MinimalPlugins,
 };
 
+#[test]
+fn test_raw_voxel_conversion() {
+    let raw = RawVoxel::EMPTY;
+    let vox: Voxel = raw.into();
+    assert_eq!(
+        vox,
+        Voxel::EMPTY,
+        "RawVoxel(255) should have wrapped around to Voxel(0)"
+    );
+    let back_to_raw = RawVoxel::from(vox);
+    assert_eq!(
+        back_to_raw,
+        RawVoxel::EMPTY,
+        "Voxel(0) should have wrapped around to RawVoxel(255)"
+    );
+}
+
 #[async_std::test]
 async fn test_load_scene() {
     let mut app = App::new();

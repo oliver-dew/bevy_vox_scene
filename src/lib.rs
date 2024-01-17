@@ -38,7 +38,7 @@
 //! # ) {
 //! #     let all_names: HashSet<&str> = query.iter().map(|n| { n.as_str()} ).collect();
 //! #     if all_names.is_empty() { return };
-//! #     let expected_names: HashSet<&str> = ["wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
+//! #     let expected_names: HashSet<&str> = ["snowflake", "wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
 //! #     assert_eq!(all_names, expected_names);
 //! #     exit.send(AppExit);
 //! # }
@@ -46,7 +46,7 @@
 #![forbid(missing_docs, unsafe_code)]
 
 use bevy::{
-    app::{App, Plugin, SpawnScene},
+    app::{App, Plugin, SpawnScene, Update},
     asset::AssetApp,
     ecs::schedule::IntoSystemConfigs,
 };
@@ -57,9 +57,12 @@ mod scene;
 #[cfg(test)]
 mod tests;
 
-pub use load::VoxLoaderSettings;
+use load::RawVoxel;
 #[doc(inline)]
 use load::VoxSceneLoader;
+pub use load::{VoxLoaderSettings, Voxel, VoxelData};
+pub use scene::modify::{BoxRegion, ModifyVoxelModel, VoxelRegion};
+
 pub use scene::{
     VoxelLayer, VoxelModel, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
@@ -78,6 +81,7 @@ impl Plugin for VoxScenePlugin {
             .add_systems(
                 SpawnScene,
                 (scene::systems::spawn_vox_scenes, scene::systems::run_hooks).chain(),
-            );
+            )
+            .add_systems(Update, scene::modify::modify_voxels);
     }
 }

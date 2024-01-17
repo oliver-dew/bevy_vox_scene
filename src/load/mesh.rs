@@ -1,7 +1,10 @@
-use bevy::{render::{
-    mesh::{Indices, Mesh, VertexAttributeValues},
-    render_resource::PrimitiveTopology,
-}, math::Vec3};
+use bevy::{
+    math::Vec3,
+    render::{
+        mesh::{Indices, Mesh, VertexAttributeValues},
+        render_resource::PrimitiveTopology,
+    },
+};
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
