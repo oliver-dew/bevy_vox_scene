@@ -1,5 +1,6 @@
 mod hook;
 pub(super) mod modify;
+pub(super) mod queryable;
 pub(super) mod systems;
 
 use bevy::{
@@ -124,11 +125,11 @@ pub(crate) struct VoxelNode {
 #[derive(Asset, TypePath)]
 pub struct VoxelModel {
     /// The voxel data used to generate the mesh
-    pub data: VoxelData,
+    pub(crate) data: VoxelData,
     /// Handle to the model's mesh
-    pub mesh: Handle<Mesh>,
+    pub(crate) mesh: Handle<Mesh>,
     /// Handle to the model's material
-    pub material: Handle<StandardMaterial>,
+    pub(crate) material: Handle<StandardMaterial>,
 }
 
 #[derive(Debug, Clone)]

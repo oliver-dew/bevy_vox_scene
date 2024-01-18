@@ -5,12 +5,12 @@ use bevy::{
         entity::Entity,
         system::{Commands, Query, ResMut},
     },
-    math::{UVec3, Vec3},
+    math::IVec3,
     render::mesh::Mesh,
 };
 use ndshape::Shape;
 
-use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance};
+use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable};
 
 /// Programatically modify the voxels in the instanced voxel model
 ///
@@ -25,14 +25,14 @@ use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance};
 /// # assets: Res<AssetServer>)
 /// # {
 /// // overlay a voxel sphere over the loaded model
-/// let sphere_center = Vec3::new(10.0, 10.0, 10.0);
-/// let radius_squared = 10.0 * 10.0;
+/// let sphere_center = IVec3::new(10, 10, 10);
+/// let radius_squared = 10 * 10;
 /// commands.spawn((
 ///     VoxelSceneBundle {
 ///         scene: assets.load("study.vox#workstation/desk"),
 ///         ..default ()
 ///     },
-///     ModifyVoxelModel::new(VoxelRegion::All, move | position, voxel | {
+///     ModifyVoxelModel::new(VoxelRegion::All, move | position, voxel, model | {
 ///         // a signed-distance function for a sphere:
 ///         if position.distance_squared(sphere_center) < radius_squared {
 ///             // inside of the sphere, coloured with voxels of index 7 in the palette
@@ -48,23 +48,27 @@ use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance};
 #[derive(Component)]
 pub struct ModifyVoxelModel {
     pub(crate) region: VoxelRegion,
-    pub(crate) modify: Box<dyn Fn(Vec3, &Voxel) -> Voxel + Send + Sync + 'static>,
+    pub(crate) modify: Box<dyn Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>,
 }
 
 impl ModifyVoxelModel {
     /// Returns a new [`ModifyVoxelModel`] component
     ///
     /// Attaching this component to an entity that also has a [`VoxelModelInstance`] will
-    /// run the `modifer` closure against every voxel in the `region``.
+    /// run the `modify` closure against every voxel within the `region`.
     ///
     /// ### Arguments
     /// * `region` - a [`VoxelRegion`] defining the area of the voxel model that the modifier will operate on.
-    /// * `modifier` - a closure that will run against every voxel with the `region`.
+    /// * `modify` - a closure that will run against every voxel within the `region`.
+    ///
+    /// ### Arguments passed to the `modify` closure
+    /// * the position of the current voxel, in voxel space
+    /// * the index of the current voxel
+    /// * a reference to the model, allowing, for instance, querying neighbouring voxels via the methods in [`crate::VoxelQueryable`]
     ///
     /// ### Notes
-    /// The smaller the `region` is, the more peformant the operation will be.
-    ///
-    pub fn new<F: Fn(Vec3, &Voxel) -> Voxel + Send + Sync + 'static>(
+    /// The smaller the `region` is, the more performant the operation will be.
+    pub fn new<F: Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>(
         region: VoxelRegion,
         modify: F,
     ) -> Self {
@@ -84,10 +88,10 @@ pub enum VoxelRegion {
 }
 
 impl VoxelRegion {
-    fn clamped(&self, size: UVec3) -> BoxRegion {
+    fn clamped(&self, size: IVec3) -> BoxRegion {
         match self {
             VoxelRegion::All => BoxRegion {
-                origin: UVec3::ZERO,
+                origin: IVec3::ZERO,
                 size,
             },
             VoxelRegion::Box(box_area) => box_area.clamped(size),
@@ -97,17 +101,17 @@ impl VoxelRegion {
 
 /// A box area of a voxel model expressed in voxel coordinates
 pub struct BoxRegion {
-    /// The start of the region
-    pub origin: UVec3,
+    /// The lower-back-left corner of the region
+    pub origin: IVec3,
     /// The size of the region
-    pub size: UVec3,
+    pub size: IVec3,
 }
 
 impl BoxRegion {
-    fn clamped(&self, model_size: UVec3) -> BoxRegion {
-        let origin = self.origin.min(model_size - UVec3::ONE);
+    fn clamped(&self, model_size: IVec3) -> BoxRegion {
+        let origin = self.origin.clamp(IVec3::ZERO, model_size - IVec3::ONE);
         let max_size = model_size - origin;
-        let size = self.size.clamp(UVec3::ONE, max_size);
+        let size = self.size.clamp(IVec3::ONE, max_size);
         BoxRegion { origin, size }
     }
 }
@@ -121,8 +125,8 @@ pub(crate) fn modify_voxels(
     for (entity, modifier, instance) in query.iter() {
         let Some(model) = models.get_mut(instance.0.id()) else { continue; };
 
-        let leading_padding = UVec3::splat(model.data.padding() / 2);
-        let size = model.data.size();
+        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+        let size = model.size();
         let region = modifier.region.clamped(size);
         let start = leading_padding + region.origin;
         let end = start + region.size;
@@ -130,11 +134,12 @@ pub(crate) fn modify_voxels(
         for x in start.x..end.x {
             for y in start.y..end.y {
                 for z in start.z..end.z {
-                    let index = model.data.shape.linearize([x, y, z]) as usize;
+                    let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
                     let source: Voxel = model.data.voxels[index].clone().into();
                     updated[index] = RawVoxel::from((modifier.modify)(
-                        Vec3::new(x as f32, y as f32, z as f32),
+                        IVec3::new(x, y, z) - leading_padding,
                         &source,
+                        model,
                     ));
                 }
             }

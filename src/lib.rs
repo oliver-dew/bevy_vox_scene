@@ -60,10 +60,11 @@ mod tests;
 use load::RawVoxel;
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{VoxLoaderSettings, Voxel, VoxelData};
-pub use scene::modify::{BoxRegion, ModifyVoxelModel, VoxelRegion};
+pub use load::{VoxLoaderSettings, Voxel};
 
 pub use scene::{
+    modify::{BoxRegion, ModifyVoxelModel, VoxelRegion},
+    queryable::VoxelQueryable,
     VoxelLayer, VoxelModel, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
 };

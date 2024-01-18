@@ -18,8 +18,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::scene::{LayerInfo, VoxelModel, VoxelNode, VoxelScene};
-pub(crate) use voxel::RawVoxel;
-pub use voxel::{Voxel, VoxelData};
+pub use voxel::Voxel;
+pub(crate) use voxel::{RawVoxel, VoxelData};
+
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
 ///
 /// It converts Magica Voxel's left-handed Z-up space to bevy's right-handed Y-up space.

@@ -13,14 +13,15 @@ use bevy::{
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     BoxRegion, ModifyVoxelModel, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance,
-    VoxelRegion, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle,
+    VoxelQueryable, VoxelRegion, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
+    VoxelSceneHookBundle,
 };
 use rand::Rng;
 
 // When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
     let mut app = App::new();
-    // Making this frequency not cleanly divisible by the snowflake speed ensures that expensive collision checks
+    // Making this frequency not cleanly divisible by the snowflake speed ensures that expensive collisions
     // don't all happen on the same frame
     let snow_spawn_freq = Duration::from_secs_f32(0.213);
     app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
@@ -93,7 +94,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 #[derive(Component)]
-struct Snowflake;
+struct Snowflake(Quat);
 
 #[derive(Component)]
 struct Scenery;
@@ -105,8 +106,10 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     let mut rng = rand::thread_rng();
     let position = Vec3::new(rng.gen_range(-30.0..30.0), 80.0, rng.gen_range(-20.0..20.0)).round()
         + Vec3::splat(0.5);
+    let rotation_axis = Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
+    let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
     commands.spawn((
-        Snowflake,
+        Snowflake(angular_velocity),
         VoxelSceneBundle {
             scene: scenes.snowflake.clone(),
             transform: Transform::from_translation(position),
@@ -117,33 +120,54 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
 
 fn update_snow(
     mut commands: Commands,
-    mut snowflakes: Query<(Entity, &mut Transform), (With<Snowflake>, Without<Scenery>)>,
+    mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<
         (Entity, &GlobalTransform, &VoxelModelInstance),
         (With<Scenery>, Without<Snowflake>),
     >,
     models: Res<Assets<VoxelModel>>,
 ) {
-    for (snowflake, mut snowflake_xform) in snowflakes.iter_mut() {
+    for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
         snowflake_xform.translation.y -= 0.1;
+        snowflake_xform.rotation *= snowflake_angular_vel.0;
         // don't check collisions unless crossing boundary to next voxel
         if old_ypos.trunc() == snowflake_xform.translation.y.trunc() {
             continue;
         }
         for (item, item_xform, item_instance) in scenery.iter() {
             let Some(model) = models.get(item_instance.0.id()) else { continue  };
-            let Some(vox_pos_below_snowflake) = model.data.global_point_to_voxel_space(snowflake_xform.translation - Vec3::Y, item_xform) else { continue };
-            if model.data.get_voxel_at_point(vox_pos_below_snowflake) == Voxel::EMPTY {
+            let vox_pos =
+                model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
+            // check whether snowflake has landed on something solid
+            let pos_below_snowflake = vox_pos - IVec3::Y;
+            let Some(voxel) = model.get_voxel_at_point(pos_below_snowflake) else { continue };
+            if voxel == Voxel::EMPTY {
                 continue;
             };
+            let flake_radius = 2;
+            let radius_squared = flake_radius * flake_radius;
             let flake_region = BoxRegion {
-                origin: vox_pos_below_snowflake + UVec3::Y,
-                size: UVec3::ONE,
+                origin: vox_pos - IVec3::splat(flake_radius),
+                size: IVec3::splat(1 + (flake_radius * 2)),
             };
             commands.entity(item).insert(ModifyVoxelModel::new(
                 VoxelRegion::Box(flake_region),
-                |_, _| Voxel(234),
+                move |pos, voxel, model| {
+                    // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
+                    if *voxel == Voxel::EMPTY && pos.distance_squared(vox_pos) <= radius_squared {
+                        if let Some(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
+                            if voxel_below == Voxel::EMPTY {
+                                return Voxel::EMPTY;
+                            } else {
+                                // draw our snow material
+                                return Voxel(234);
+                            }
+                        }
+                    }
+                    // else we return the underlying voxel, unmodified
+                    voxel.clone()
+                },
             ));
             commands.entity(snowflake).insert(ToBeDespawned);
         }
