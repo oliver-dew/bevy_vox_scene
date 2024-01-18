@@ -1,38 +1,29 @@
 use bevy::{
-    asset::Assets,
-    ecs::{
-        component::Component,
-        entity::Entity,
-        system::{Commands, Query, ResMut},
-    },
+    asset::{AssetId, Assets},
+    ecs::system::Command,
     math::IVec3,
     render::mesh::Mesh,
 };
 use ndshape::Shape;
 
-use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable};
+use crate::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
 
-/// Programatically modify the voxels in the instanced voxel model
+/// Command that programatically modifies the voxels in a model.
 ///
-/// Attaching this component to an entity that also has a [`VoxelModelInstance`] will
-/// run the closure against every voxel in the region.
+/// This command will run the closure against every voxel within the region of the model.
 ///
 /// ### Example
 /// ```no_run
 /// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelSceneBundle, ModifyVoxelModel, VoxelRegion, Voxel};
+/// # use bevy_vox_scene::{VoxelModel, ModifyVoxelModel, VoxelRegion, Voxel};
 /// # fn setup(mut commands: Commands,
-/// # assets: Res<AssetServer>)
+/// # handle: Handle<VoxelModel>)
 /// # {
 /// // overlay a voxel sphere over the loaded model
 /// let sphere_center = IVec3::new(10, 10, 10);
 /// let radius_squared = 10 * 10;
-/// commands.spawn((
-///     VoxelSceneBundle {
-///         scene: assets.load("study.vox#workstation/desk"),
-///         ..default ()
-///     },
-///     ModifyVoxelModel::new(VoxelRegion::All, move | position, voxel, model | {
+/// commands.add(
+///     ModifyVoxelModel::new(handle.id(), VoxelRegion::All, move | position, voxel, model | {
 ///         // a signed-distance function for a sphere:
 ///         if position.distance_squared(sphere_center) < radius_squared {
 ///             // inside of the sphere, coloured with voxels of index 7 in the palette
@@ -42,22 +33,22 @@ use crate::{RawVoxel, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable};
 ///             voxel.clone()
 ///         }
 ///     }),
-/// ));
+/// );
 /// # }
 /// ```
-#[derive(Component)]
 pub struct ModifyVoxelModel {
-    pub(crate) region: VoxelRegion,
-    pub(crate) modify: Box<dyn Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>,
+    model: AssetId<VoxelModel>,
+    region: VoxelRegion,
+    modify: Box<dyn Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>,
 }
 
 impl ModifyVoxelModel {
-    /// Returns a new [`ModifyVoxelModel`] component
+    /// Returns a new [`ModifyVoxelModel`] command
     ///
-    /// Attaching this component to an entity that also has a [`VoxelModelInstance`] will
-    /// run the `modify` closure against every voxel within the `region`.
+    /// Running this command will run the `modify` closure against every voxel within the `region` of the `model`.
     ///
     /// ### Arguments
+    /// * `model` - the id of the [`VoxelModel`] to be modified (you can obtain this by from the [`bevy::asset::Handle::id()`] method).
     /// * `region` - a [`VoxelRegion`] defining the area of the voxel model that the modifier will operate on.
     /// * `modify` - a closure that will run against every voxel within the `region`.
     ///
@@ -69,13 +60,29 @@ impl ModifyVoxelModel {
     /// ### Notes
     /// The smaller the `region` is, the more performant the operation will be.
     pub fn new<F: Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>(
+        model: AssetId<VoxelModel>,
         region: VoxelRegion,
         modify: F,
     ) -> Self {
         Self {
-            region: region,
+            model,
+            region,
             modify: Box::new(modify),
         }
+    }
+}
+
+impl Command for ModifyVoxelModel {
+    fn apply(self, world: &mut bevy::prelude::World) {
+        let cell = world.cell();
+        let perform = || -> Option<()> {
+            let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
+            let mut models = cell.get_resource_mut::<Assets<VoxelModel>>()?;
+            let mut model = models.get_mut(self.model)?;
+            modify_model(&mut model, &self, &mut meshes);
+            Some(())
+        };
+        perform();
     }
 }
 
@@ -116,37 +123,27 @@ impl BoxRegion {
     }
 }
 
-pub(crate) fn modify_voxels(
-    mut commands: Commands,
-    query: Query<(Entity, &ModifyVoxelModel, &VoxelModelInstance)>,
-    mut models: ResMut<Assets<VoxelModel>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    for (entity, modifier, instance) in query.iter() {
-        let Some(model) = models.get_mut(instance.0.id()) else { continue; };
-
-        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
-        let size = model.size();
-        let region = modifier.region.clamped(size);
-        let start = leading_padding + region.origin;
-        let end = start + region.size;
-        let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
-        for x in start.x..end.x {
-            for y in start.y..end.y {
-                for z in start.z..end.z {
-                    let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
-                    let source: Voxel = model.data.voxels[index].clone().into();
-                    updated[index] = RawVoxel::from((modifier.modify)(
-                        IVec3::new(x, y, z) - leading_padding,
-                        &source,
-                        model,
-                    ));
-                }
+fn modify_model(model: &mut VoxelModel, modifier: &ModifyVoxelModel, meshes: &mut Assets<Mesh>) {
+    let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+    let size = model.size();
+    let region = modifier.region.clamped(size);
+    let start = leading_padding + region.origin;
+    let end = start + region.size;
+    let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
+    for x in start.x..end.x {
+        for y in start.y..end.y {
+            for z in start.z..end.z {
+                let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
+                let source: Voxel = model.data.voxels[index].clone().into();
+                updated[index] = RawVoxel::from((modifier.modify)(
+                    IVec3::new(x, y, z) - leading_padding,
+                    &source,
+                    model,
+                ));
             }
         }
-        model.data.voxels = updated;
-        meshes.insert(&model.mesh, model.data.remesh());
-        // TODO: also update material if transparency has changed
-        commands.entity(entity).remove::<ModifyVoxelModel>();
     }
+    model.data.voxels = updated;
+    meshes.insert(&model.mesh, model.data.remesh());
+    // TODO: also update material if transparency has changed
 }

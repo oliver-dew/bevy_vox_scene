@@ -82,7 +82,6 @@ impl Plugin for VoxScenePlugin {
             .add_systems(
                 SpawnScene,
                 (scene::systems::spawn_vox_scenes, scene::systems::run_hooks).chain(),
-            )
-            .add_systems(Update, scene::modify::modify_voxels);
+            );
     }
 }
