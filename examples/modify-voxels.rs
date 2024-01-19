@@ -5,8 +5,8 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    BoxRegion, ModifyVoxelModel, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelQueryable,
-    VoxelRegion, VoxelSceneHook, VoxelSceneHookBundle,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelQueryable, VoxelRegion,
+    VoxelSceneHook, VoxelSceneHookBundle,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -73,46 +73,42 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
     // All the floor tiles are instances of the same model, so we only need one instance
     let Some(instance) = query.iter().next() else { return };
-    let region = BoxRegion {
+    let region = VoxelRegion::Box {
         origin: IVec3::new(0, 4, 0),
         size: IVec3::new(64, 8, 64),
     };
-    commands.add(ModifyVoxelModel::new(
-        instance.0.id(),
-        VoxelRegion::Box(region),
-        |pos, voxel, model| {
-            if *voxel != Voxel::EMPTY {
-                return voxel.clone();
-            };
-            let mut rng = rand::thread_rng();
-            let value: u16 = rng.gen_range(0..5000);
-            if value > 20 {
-                return Voxel::EMPTY;
-            };
-            let vox_below = model
-                .get_voxel_at_point(pos - IVec3::Y)
-                .unwrap_or(Voxel::EMPTY);
-            let grass_voxels: RangeInclusive<u8> = 161..=165;
-            let grow_grass = grass_voxels.contains(&vox_below.0);
-            let mut plant_grass = !grow_grass && value < 5 && vox_below != Voxel::EMPTY;
-            if plant_grass {
-                // poisson disk effect: don't plant grass if too near other blades
-                'check_neighbors: for direction in [IVec3::NEG_X, IVec3::X, IVec3::NEG_Z, IVec3::Z]
-                {
-                    let neighbor = model
-                        .get_voxel_at_point(pos + direction)
-                        .unwrap_or(Voxel::EMPTY);
-                    if grass_voxels.contains(&neighbor.0) {
-                        plant_grass = false;
-                        break 'check_neighbors;
-                    }
+    commands.modify_voxel_model(instance.0.id(), region, |pos, voxel, model| {
+        if *voxel != Voxel::EMPTY {
+            // don't overwrite any voxels
+            return voxel.clone();
+        };
+        let mut rng = rand::thread_rng();
+        let value: u16 = rng.gen_range(0..5000);
+        if value > 20 {
+            return Voxel::EMPTY;
+        };
+        let vox_below = model
+            .get_voxel_at_point(pos - IVec3::Y)
+            .unwrap_or(Voxel::EMPTY);
+        let grass_voxels: RangeInclusive<u8> = 161..=165;
+        let grow_grass = grass_voxels.contains(&vox_below.0);
+        let mut plant_grass = !grow_grass && value < 5 && vox_below != Voxel::EMPTY;
+        if plant_grass {
+            // poisson disk effect: don't plant grass if too near other blades
+            'check_neighbors: for direction in [IVec3::NEG_X, IVec3::X, IVec3::NEG_Z, IVec3::Z] {
+                let neighbor = model
+                    .get_voxel_at_point(pos + direction)
+                    .unwrap_or(Voxel::EMPTY);
+                if grass_voxels.contains(&neighbor.0) {
+                    plant_grass = false;
+                    break 'check_neighbors;
                 }
             }
-            if plant_grass || grow_grass {
-                Voxel((161 + value % 5) as u8)
-            } else {
-                Voxel::EMPTY
-            }
-        },
-    ));
+        }
+        if plant_grass || grow_grass {
+            Voxel((161 + value % 5) as u8)
+        } else {
+            Voxel::EMPTY
+        }
+    });
 }

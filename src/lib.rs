@@ -46,7 +46,7 @@
 #![forbid(missing_docs, unsafe_code)]
 
 use bevy::{
-    app::{App, Plugin, SpawnScene, Update},
+    app::{App, Plugin, SpawnScene},
     asset::AssetApp,
     ecs::schedule::IntoSystemConfigs,
 };
@@ -63,7 +63,7 @@ use load::VoxSceneLoader;
 pub use load::{VoxLoaderSettings, Voxel};
 
 pub use scene::{
-    modify::{BoxRegion, ModifyVoxelModel, VoxelRegion},
+    modify::{ModifyVoxelCommandsExt, VoxelRegion},
     queryable::VoxelQueryable,
     VoxelLayer, VoxelModel, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,

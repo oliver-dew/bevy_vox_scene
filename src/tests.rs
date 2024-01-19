@@ -4,7 +4,9 @@ use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
     core::Name,
+    ecs::system::{Commands, Res, RunSystemOnce},
     hierarchy::Children,
+    math::IVec3,
     pbr::StandardMaterial,
     render::{mesh::Mesh, texture::ImagePlugin},
     utils::hashbrown::HashSet,
@@ -242,6 +244,60 @@ async fn test_spawn_system() {
         "outer-group/inner-group/dice"
     );
     app.update(); // fire the hooks
+}
+
+#[async_std::test]
+async fn test_modify_voxels() {
+    let mut app = App::new();
+    let handle =
+        setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+    app.update();
+    app.world.run_system_once(modify_voxels);
+    app.update();
+    let scene = app
+        .world
+        .resource::<Assets<VoxelScene>>()
+        .get(handle)
+        .expect("retrieve scene from Res<Assets>");
+    let model_handle = scene.root.model.as_ref().expect("Root should have a model");
+    let model = app
+        .world
+        .resource::<Assets<VoxelModel>>()
+        .get(model_handle)
+        .expect("retrieve model from Res<Assets>");
+    assert_eq!(
+        model.get_voxel_at_point(IVec3::splat(4)),
+        None,
+        "Max coordinate should be 3,3,3"
+    );
+    assert_eq!(
+        model.get_voxel_at_point(IVec3::splat(-1)),
+        None,
+        "Min coordinate should be 0,0,0"
+    );
+    let voxel = model
+        .get_voxel_at_point(IVec3::splat(2))
+        .expect("Retrieve voxel");
+    assert_eq!(voxel.0, 7, "Voxel material should've been changed to 7");
+}
+
+fn modify_voxels(mut commands: Commands, models: Res<Assets<VoxelModel>>) {
+    let id = models
+        .iter()
+        .filter_map(|(id, model)| {
+            if model.size() == IVec3::splat(4) {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .next()
+        .expect("There should be a dice model the size of which is 4 x 4 x 4");
+    let region = VoxelRegion::Box {
+        origin: IVec3::splat(2),
+        size: IVec3::ONE,
+    };
+    commands.modify_voxel_model(id, region, |_pos, _voxel, _model| Voxel(7));
 }
 
 /// `await` the response from this and then call `app.update()`
