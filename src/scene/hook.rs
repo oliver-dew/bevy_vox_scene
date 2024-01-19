@@ -5,11 +5,11 @@ use bevy::{
 
 /// A component containing a closure that will be run against every entity spawned from a Voxel Scene
 ///
-/// Assign this component to an entity that also has a [Handle<VoxelScene>](VoxelScene) to execute a closure
+/// Assign this component to an entity that also has a [`Handle<VoxelScene>`](crate::VoxelScene) to execute a closure
 /// against every entity that gets spawned in the graph of the Voxel Scene.
 /// This allows you to specify, before the scene graph has been spawned, how entities at a deeper level
 /// than the root should be modified. A common use-case would adding custom components to entities
-/// depending on their name or [`VoxelLayer`].
+/// depending on their name or [`crate::VoxelLayer`].
 /// ```rust
 /// # use bevy::{prelude::*, app::AppExit, utils::HashSet};
 /// # use bevy_vox_scene::{VoxScenePlugin, VoxelSceneHook, VoxelSceneHookBundle};

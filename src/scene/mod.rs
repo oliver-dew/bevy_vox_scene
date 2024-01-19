@@ -103,7 +103,7 @@ pub struct VoxelSceneHookBundle {
 
 /// A representation of the Voxel Scene Graph.
 ///
-/// To spawn a voxel scene, add a [Handle<VoxelScene>](VoxelScene), [`VoxelSceneBundle`], or [`VoxelSceneHookBundle`] to an Entity.
+/// To spawn a voxel scene, add a [`Handle<VoxelScene>`](VoxelScene), [`VoxelSceneBundle`], or [`VoxelSceneHookBundle`] to an Entity.
 /// Voxel Scenes can be loaded from Magica Voxel .vox files.
 #[derive(Asset, TypePath, Debug)]
 pub struct VoxelScene {
