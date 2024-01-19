@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     prelude::*,
@@ -7,31 +5,25 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    BoxRegion, ModifyVoxelModel, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance,
-    VoxelQueryable, VoxelRegion, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
-    VoxelSceneHookBundle,
+    BoxRegion, ModifyVoxelModel, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelQueryable,
+    VoxelRegion, VoxelSceneHook, VoxelSceneHookBundle,
 };
 use rand::Rng;
+use std::{ops::RangeInclusive, time::Duration};
 
-// When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
-    // Making this frequency not cleanly divisible by the snowflake speed ensures that expensive collisions
-    // don't all happen on the same frame
-    let snow_spawn_freq = Duration::from_secs_f32(0.213);
     App::new()
         .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (spawn_snow.run_if(on_timer(snow_spawn_freq)), update_snow),
+            grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
         )
         .run();
 }
 
-#[derive(Resource)]
-struct Scenes {
-    snowflake: Handle<VoxelScene>,
-}
+#[derive(Component)]
+struct Floor;
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
@@ -40,7 +32,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
                 hdr: true,
                 ..Default::default()
             },
-            transform: Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
             tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
             ..Default::default()
         },
@@ -54,93 +46,73 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             specular_map: assets.load("pisa_specular.ktx2"),
         },
     ));
-    commands.insert_resource(Scenes {
-        snowflake: assets.load("study.vox#snowflake"),
+
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: true,
+            ..Default::default()
+        },
+        transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
+        ..default()
     });
 
     commands.spawn(VoxelSceneHookBundle {
-        // Load a slice of the scene
-        scene: assets.load("study.vox#workstation"),
-        hook: VoxelSceneHook::new(|entity, commands| {
-            if entity.get::<VoxelModelInstance>().is_some() {
-                commands.insert(Scenery);
+        scene: assets.load("study.vox"),
+        hook: VoxelSceneHook::new(move |entity, commands| {
+            let Some(name) = entity.get::<Name>() else { return };
+            if name.as_str() == "floor" {
+                commands.insert(Floor);
             }
         }),
+        transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
 }
 
-#[derive(Component)]
-struct Snowflake(Quat);
-
-#[derive(Component)]
-struct Scenery;
-
-fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
-    let mut rng = rand::thread_rng();
-    let position = Vec3::new(rng.gen_range(-30.0..30.0), 80.0, rng.gen_range(-20.0..20.0)).round()
-        + Vec3::splat(0.5);
-    let rotation_axis =
-        Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
-    let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
-    commands.spawn((
-        Snowflake(angular_velocity),
-        VoxelSceneBundle {
-            scene: scenes.snowflake.clone(),
-            transform: Transform::from_translation(position),
-            ..default()
+fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
+    // All the floor tiles are instances of the same model, so we only need one instance
+    let Some(instance) = query.iter().next() else { return };
+    let region = BoxRegion {
+        origin: IVec3::new(0, 4, 0),
+        size: IVec3::new(64, 8, 64),
+    };
+    commands.add(ModifyVoxelModel::new(
+        instance.0.id(),
+        VoxelRegion::Box(region),
+        |pos, voxel, model| {
+            if *voxel != Voxel::EMPTY {
+                return voxel.clone();
+            };
+            let mut rng = rand::thread_rng();
+            let value: u16 = rng.gen_range(0..5000);
+            if value > 20 {
+                return Voxel::EMPTY;
+            };
+            let vox_below = model
+                .get_voxel_at_point(pos - IVec3::Y)
+                .unwrap_or(Voxel::EMPTY);
+            let grass_voxels: RangeInclusive<u8> = 161..=165;
+            let grow_grass = grass_voxels.contains(&vox_below.0);
+            let mut plant_grass = !grow_grass && value < 5 && vox_below != Voxel::EMPTY;
+            if plant_grass {
+                // poisson disk effect: don't plant grass if too near other blades
+                'check_neighbors: for direction in [IVec3::NEG_X, IVec3::X, IVec3::NEG_Z, IVec3::Z]
+                {
+                    let neighbor = model
+                        .get_voxel_at_point(pos + direction)
+                        .unwrap_or(Voxel::EMPTY);
+                    if grass_voxels.contains(&neighbor.0) {
+                        plant_grass = false;
+                        break 'check_neighbors;
+                    }
+                }
+            }
+            if plant_grass || grow_grass {
+                Voxel((161 + value % 5) as u8)
+            } else {
+                Voxel::EMPTY
+            }
         },
     ));
-}
-
-fn update_snow(
-    mut commands: Commands,
-    mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
-    scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
-    models: Res<Assets<VoxelModel>>,
-) {
-    for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
-        let old_ypos = snowflake_xform.translation.y;
-        snowflake_xform.translation.y -= 0.1;
-        snowflake_xform.rotation *= snowflake_angular_vel.0;
-        // don't check collisions unless crossing boundary to next voxel
-        if old_ypos.trunc() == snowflake_xform.translation.y.trunc() {
-            continue;
-        }
-        for (item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(item_instance.0.id()) else { continue  };
-            let vox_pos =
-                model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
-            // check whether snowflake has landed on something solid
-            let pos_below_snowflake = vox_pos - IVec3::Y;
-            let Some(voxel) = model.get_voxel_at_point(pos_below_snowflake) else { continue };
-            if voxel == Voxel::EMPTY {
-                continue;
-            };
-            let flake_radius = 2;
-            let radius_squared = flake_radius * flake_radius;
-            let flake_region = BoxRegion {
-                origin: vox_pos - IVec3::splat(flake_radius),
-                size: IVec3::splat(1 + (flake_radius * 2)),
-            };
-            commands.add(ModifyVoxelModel::new(
-                item_instance.0.id(),
-                VoxelRegion::Box(flake_region),
-                move |pos, voxel, model| {
-                    // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
-                    if *voxel == Voxel::EMPTY && pos.distance_squared(vox_pos) <= radius_squared {
-                        if let Some(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
-                            if voxel_below != Voxel::EMPTY {
-                                // draw our snow material
-                                return Voxel(234);
-                            }
-                        }
-                    }
-                    // else we return the underlying voxel, unmodified
-                    voxel.clone()
-                },
-            ));
-            commands.entity(snowflake).despawn();
-        }
-    }
 }
