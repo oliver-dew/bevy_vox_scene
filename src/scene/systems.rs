@@ -54,9 +54,9 @@ fn spawn_voxel_node_recursive(
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
-    if let Some(model_handle) = &voxel_node.model {
-        if let Some(model) = vox_models.get(model_handle) {
-            entity_commands.insert(VoxelModelInstance(model_handle.clone()));
+    if let Some(model_handle) = &voxel_node.model_id.and_then(|id| scene.models.get(id)) {
+        if let Some(model) = vox_models.get(*model_handle) {
+            entity_commands.insert(VoxelModelInstance((**model_handle).clone()));
             #[cfg(not(test))]
             entity_commands.insert(PbrBundle {
                 mesh: model.mesh.clone(),

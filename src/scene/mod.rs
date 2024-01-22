@@ -109,6 +109,7 @@ pub struct VoxelSceneHookBundle {
 pub struct VoxelScene {
     pub(crate) root: VoxelNode,
     pub(crate) layers: Vec<LayerInfo>,
+    pub(crate) models: Vec<Handle<VoxelModel>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -116,7 +117,7 @@ pub(crate) struct VoxelNode {
     pub name: Option<String>,
     pub transform: Mat4,
     pub children: Vec<VoxelNode>,
-    pub model: Option<Handle<VoxelModel>>,
+    pub model_id: Option<usize>,
     pub is_hidden: bool,
     pub layer_id: u32,
 }

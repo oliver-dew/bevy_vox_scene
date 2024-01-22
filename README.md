@@ -15,6 +15,8 @@ A plugin for [the Bevy Engine](https://bevyengine.org) which allows loading [Mag
 
 Whereas other voxel crates load a single model with voxel colors but no other material properties, `bevy_vox_scene` can load an entire scene graph from a Magica Voxel world file, and it attempts to recreate the material properties from Magica Voxel's render tab. This means you can produce a scene in Bevy that approximates Magica Voxel's raytraced renders, but at Bevy's real-time interactive framerates.
 
+Use Magica Voxel as your Bevy level editor.
+
 Here is the [study example scene](examples/transmission-scene.rs) as rendered by Magica Voxel's raytracer:
 ![The study scene rendered in Magica Voxel](assets/studyMV.jpg)
 

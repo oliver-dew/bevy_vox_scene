@@ -62,6 +62,20 @@ pub(crate) fn find_subasset_names(
     }
 }
 
+pub(crate) fn find_model_names(name_for_model: &mut Vec<Option<String>>, node: &VoxelNode) {
+    if let Some(model_id) = &node.model_id {
+        match (&name_for_model[*model_id], &node.name) {
+            (None, Some(name)) | (Some(_), Some(name)) => {
+                _ = name_for_model[*model_id] = Some(name.to_string())
+            }
+            (None, None) | (Some(_), None) => _ = (),
+        };
+    }
+    for child in &node.children {
+        find_model_names(name_for_model, child);
+    }
+}
+
 fn parse_xform_child(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
@@ -94,8 +108,7 @@ fn parse_xform_child(
             attributes: _,
             models,
         } => {
-            let handle = load_context.get_label_handle(format!("model/{}", models[0].model_id));
-            partial_node.model = Some(handle);
+            partial_node.model_id = Some(models[0].model_id as usize);
         }
     }
 }

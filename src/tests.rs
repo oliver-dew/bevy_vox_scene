@@ -127,10 +127,16 @@ async fn test_transmissive_mat() {
         .get(handle)
         .expect("retrieve scene from Res<Assets>");
     let walls = &scene.root;
+    let model_id = walls.model_id.expect("Walls has a model id");
     let model = app
         .world
         .resource::<Assets<VoxelModel>>()
-        .get(walls.model.as_ref().expect("Walls has a model handle"))
+        .get(
+            scene
+                .models
+                .get(model_id)
+                .expect("Walls has a model handle"),
+        )
         .expect("retrieve model from Res<Assets>");
     let mat_handle = &model.material;
     let material = app
@@ -156,10 +162,11 @@ async fn test_opaque_mat() {
         .get(handle)
         .expect("retrieve scene from Res<Assets>");
     let dice = &scene.root;
+    let model_id = dice.model_id.expect("Dice has a model id");
     let model = app
         .world
         .resource::<Assets<VoxelModel>>()
-        .get(dice.model.as_ref().expect("Walls has a model handle"))
+        .get(scene.models.get(model_id).expect("Dice has a model handle"))
         .expect("retrieve model from Res<Assets>");
     let mat_handle = &model.material;
     let material = app
@@ -259,11 +266,16 @@ async fn test_modify_voxels() {
         .resource::<Assets<VoxelScene>>()
         .get(handle)
         .expect("retrieve scene from Res<Assets>");
-    let model_handle = scene.root.model.as_ref().expect("Root should have a model");
+    let model_id = scene.root.model_id.expect("Root should have a model");
     let model = app
         .world
         .resource::<Assets<VoxelModel>>()
-        .get(model_handle)
+        .get(
+            scene
+                .models
+                .get(model_id)
+                .expect("root should have model handle"),
+        )
         .expect("retrieve model from Res<Assets>");
     assert_eq!(
         model.get_voxel_at_point(IVec3::splat(4)),

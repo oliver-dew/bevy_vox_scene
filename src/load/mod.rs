@@ -5,6 +5,7 @@ mod voxel;
 use anyhow::anyhow;
 use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
+    log::info,
     pbr::StandardMaterial,
     render::{
         color::Color,
@@ -13,7 +14,7 @@ use bevy::{
     },
     utils::{hashbrown::HashMap, BoxedFuture},
 };
-use parse::{find_subasset_names, parse_xform_node};
+use parse::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -97,7 +98,7 @@ impl VoxSceneLoader {
             Ok(data) => data,
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
-
+        info!("Loading {}", load_context.asset_path());
         // Color
         let color_handle =
             load_context.labeled_asset_scope("material_base_color".to_string(), |_| {
@@ -344,52 +345,6 @@ impl VoxSceneLoader {
                 }
             });
         }
-        // Models
-        for (index, model) in file.models.iter().enumerate() {
-            let name = format!("model/mesh/{}", index);
-            let data =
-                voxel::load_from_model(model, &translucent_voxels, settings.mesh_outer_faces);
-            let (visible_voxels, ior) = data.visible_voxels();
-            let mesh = load_context
-                .labeled_asset_scope(name.clone(), |_| mesh::mesh_model(&visible_voxels, &data));
-
-            let material: Handle<StandardMaterial> = if let Some(ior) = ior {
-                load_context.labeled_asset_scope(format!("model/material/{}", index), |_| {
-                    StandardMaterial {
-                        base_color_texture: Some(color_handle.clone()),
-                        emissive: if has_emissive {
-                            Color::WHITE * settings.emission_strength
-                        } else {
-                            Color::BLACK
-                        },
-                        emissive_texture: emissive_texture.clone(),
-                        perceptual_roughness: if has_metallic_roughness {
-                            1.0
-                        } else {
-                            max_roughness
-                        },
-                        metallic: if has_metallic_roughness {
-                            1.0
-                        } else {
-                            max_metalness
-                        },
-                        metallic_roughness_texture: metallic_roughness_texture.clone(),
-                        specular_transmission: 1.0,
-                        specular_transmission_texture: specular_transmission_texture.clone(),
-                        ior,
-                        thickness: model.size.x.min(model.size.y.min(model.size.z)) as f32,
-                        ..Default::default()
-                    }
-                })
-            } else {
-                opaque_material_handle.clone()
-            };
-            load_context.labeled_asset_scope(format!("model/{}", index), |_| VoxelModel {
-                data,
-                mesh,
-                material,
-            });
-        }
 
         // Scene graph
 
@@ -405,12 +360,72 @@ impl VoxSceneLoader {
         let mut subasset_by_name: HashMap<String, VoxelNode> = HashMap::new();
         find_subasset_names(&mut subasset_by_name, &root);
 
+        let mut model_names: Vec<Option<String>> = vec![None; file.models.len()];
+        find_model_names(&mut model_names, &root);
+
+        let models: Vec<Handle<VoxelModel>> = model_names
+            .iter()
+            .zip(file.models)
+            .enumerate()
+            .map(|(index, (maybe_name, model))| {
+                let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
+                let data =
+                    voxel::load_from_model(&model, &translucent_voxels, settings.mesh_outer_faces);
+                let (visible_voxels, ior) = data.visible_voxels();
+                let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
+                    mesh::mesh_model(&visible_voxels, &data)
+                });
+
+                let material: Handle<StandardMaterial> = if let Some(ior) = ior {
+                    load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                        StandardMaterial {
+                            base_color_texture: Some(color_handle.clone()),
+                            emissive: if has_emissive {
+                                Color::WHITE * settings.emission_strength
+                            } else {
+                                Color::BLACK
+                            },
+                            emissive_texture: emissive_texture.clone(),
+                            perceptual_roughness: if has_metallic_roughness {
+                                1.0
+                            } else {
+                                max_roughness
+                            },
+                            metallic: if has_metallic_roughness {
+                                1.0
+                            } else {
+                                max_metalness
+                            },
+                            metallic_roughness_texture: metallic_roughness_texture.clone(),
+                            specular_transmission: 1.0,
+                            specular_transmission_texture: specular_transmission_texture.clone(),
+                            ior,
+                            thickness: model.size.x.min(model.size.y.min(model.size.z)) as f32,
+                            ..Default::default()
+                        }
+                    })
+                } else {
+                    opaque_material_handle.clone()
+                };
+                load_context.labeled_asset_scope(format!("{}@model", name), |_| VoxelModel {
+                    data,
+                    mesh,
+                    material,
+                })
+            })
+            .collect();
+
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
                 root: node,
                 layers: layers.clone(),
+                models: models.clone(),
             });
         }
-        Ok(VoxelScene { root, layers })
+        Ok(VoxelScene {
+            root,
+            layers,
+            models,
+        })
     }
 }
