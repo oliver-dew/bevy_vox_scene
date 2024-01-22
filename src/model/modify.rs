@@ -6,7 +6,7 @@ use bevy::{
 };
 use ndshape::Shape;
 
-use crate::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
 
 /// Command that programatically modifies the voxels in a model.
 ///

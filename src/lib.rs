@@ -52,20 +52,22 @@ use bevy::{
 };
 
 mod load;
+mod model;
 mod scene;
 
 #[cfg(test)]
 mod tests;
 
-use load::RawVoxel;
+pub use load::VoxLoaderSettings;
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{VoxLoaderSettings, Voxel};
-
-pub use scene::{
+pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion},
     queryable::VoxelQueryable,
-    VoxelLayer, VoxelModel, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
+    Voxel, VoxelModel,
+};
+pub use scene::{
+    VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
 };
 

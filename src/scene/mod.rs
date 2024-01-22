@@ -1,19 +1,16 @@
 mod hook;
-pub(super) mod modify;
-pub(super) mod queryable;
 pub(super) mod systems;
 
 use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
     math::Mat4,
-    pbr::StandardMaterial,
     reflect::TypePath,
-    render::{mesh::Mesh, view::Visibility},
+    render::view::Visibility,
     transform::components::Transform,
 };
 
-use crate::load::VoxelData;
+use crate::model::VoxelModel;
 pub use hook::VoxelSceneHook;
 
 /// A component bundle for spawning Voxel Scenes.
@@ -120,17 +117,6 @@ pub(crate) struct VoxelNode {
     pub model_id: Option<usize>,
     pub is_hidden: bool,
     pub layer_id: u32,
-}
-
-/// Asset containing the voxel data for a model, as well as handles to the mesh derived from that data and the material
-#[derive(Asset, TypePath)]
-pub struct VoxelModel {
-    /// The voxel data used to generate the mesh
-    pub(crate) data: VoxelData,
-    /// Handle to the model's mesh
-    pub(crate) mesh: Handle<Mesh>,
-    /// Handle to the model's material
-    pub(crate) material: Handle<StandardMaterial>,
 }
 
 #[derive(Debug, Clone)]

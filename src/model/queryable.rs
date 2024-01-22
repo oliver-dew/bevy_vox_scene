@@ -1,4 +1,4 @@
-use crate::{Voxel, VoxelModel};
+use super::{Voxel, VoxelModel};
 use bevy::{
     math::{BVec3, IVec3, UVec3, Vec3},
     transform::components::GlobalTransform,

@@ -1,6 +1,5 @@
-mod mesh;
-mod parse;
-mod voxel;
+mod parse_model;
+mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
@@ -14,13 +13,15 @@ use bevy::{
     },
     utils::{hashbrown::HashMap, BoxedFuture},
 };
-use parse::{find_model_names, find_subasset_names, parse_xform_node};
+use parse_model::load_from_model;
+use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::scene::{LayerInfo, VoxelModel, VoxelNode, VoxelScene};
-pub use voxel::Voxel;
-pub(crate) use voxel::{RawVoxel, VoxelData};
+use crate::{
+    model::VoxelModel,
+    scene::{LayerInfo, VoxelNode, VoxelScene},
+};
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
 ///
@@ -369,11 +370,10 @@ impl VoxSceneLoader {
             .enumerate()
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data =
-                    voxel::load_from_model(&model, &translucent_voxels, settings.mesh_outer_faces);
+                let data = load_from_model(&model, &translucent_voxels, settings.mesh_outer_faces);
                 let (visible_voxels, ior) = data.visible_voxels();
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
-                    mesh::mesh_model(&visible_voxels, &data)
+                    crate::model::mesh::mesh_model(&visible_voxels, &data)
                 });
 
                 let material: Handle<StandardMaterial> = if let Some(ior) = ior {

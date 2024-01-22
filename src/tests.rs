@@ -1,5 +1,5 @@
 use super::*;
-use crate::{scene::VoxelModelInstance, VoxScenePlugin};
+use crate::{model::RawVoxel, scene::VoxelModelInstance, VoxScenePlugin};
 use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},

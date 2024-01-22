@@ -8,7 +8,35 @@ use dot_vox::{Frame, SceneNode};
 
 use crate::scene::VoxelNode;
 
-pub(crate) fn parse_xform_node(
+pub(super) fn find_subasset_names(
+    subassets_by_name: &mut HashMap<String, VoxelNode>,
+    node: &VoxelNode,
+) {
+    if let Some(name) = &node.name {
+        if !subassets_by_name.contains_key(name) {
+            subassets_by_name.insert(name.to_string(), node.clone());
+        }
+    }
+    for child in &node.children {
+        find_subasset_names(subassets_by_name, child);
+    }
+}
+
+pub(super) fn find_model_names(name_for_model: &mut Vec<Option<String>>, node: &VoxelNode) {
+    if let Some(model_id) = &node.model_id {
+        match (&name_for_model[*model_id], &node.name) {
+            (None, Some(name)) | (Some(_), Some(name)) => {
+                _ = name_for_model[*model_id] = Some(name.to_string())
+            }
+            (None, None) | (Some(_), None) => _ = (),
+        };
+    }
+    for child in &node.children {
+        find_model_names(name_for_model, child);
+    }
+}
+
+pub(super) fn parse_xform_node(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
@@ -45,34 +73,6 @@ pub(crate) fn parse_xform_node(
             parse_xform_child(graph, scene_node, &mut vox_node, parent_name, load_context);
             vox_node
         }
-    }
-}
-
-pub(crate) fn find_subasset_names(
-    subassets_by_name: &mut HashMap<String, VoxelNode>,
-    node: &VoxelNode,
-) {
-    if let Some(name) = &node.name {
-        if !subassets_by_name.contains_key(name) {
-            subassets_by_name.insert(name.to_string(), node.clone());
-        }
-    }
-    for child in &node.children {
-        find_subasset_names(subassets_by_name, child);
-    }
-}
-
-pub(crate) fn find_model_names(name_for_model: &mut Vec<Option<String>>, node: &VoxelNode) {
-    if let Some(model_id) = &node.model_id {
-        match (&name_for_model[*model_id], &node.name) {
-            (None, Some(name)) | (Some(_), Some(name)) => {
-                _ = name_for_model[*model_id] = Some(name.to_string())
-            }
-            (None, None) | (Some(_), None) => _ = (),
-        };
-    }
-    for child in &node.children {
-        find_model_names(name_for_model, child);
     }
 }
 
