@@ -20,13 +20,13 @@ impl RawVoxel {
 
 impl From<Voxel> for RawVoxel {
     fn from(value: Voxel) -> Self {
-        Self(((value.0 as i16 - 1) % 256 as i16) as u8)
+        Self(((value.0 as i16 - 1) % 256_i16) as u8)
     }
 }
 
-impl Into<Voxel> for RawVoxel {
-    fn into(self) -> Voxel {
-        Voxel(((self.0 as i16 + 1) % 256 as i16) as u8)
+impl From<RawVoxel> for Voxel {
+    fn from(value: RawVoxel) -> Voxel {
+        Voxel(((value.0 as i16 + 1) % 256_i16) as u8)
     }
 }
 

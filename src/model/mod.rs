@@ -1,13 +1,12 @@
 use bevy::{
     asset::{Asset, Handle},
-    math::UVec3,
     pbr::StandardMaterial,
     reflect::TypePath,
     render::mesh::Mesh,
     utils::HashMap,
 };
 use block_mesh::VoxelVisibility;
-use ndshape::{RuntimeShape, Shape};
+use ndshape::RuntimeShape;
 
 use self::voxel::VisibleVoxel;
 pub use self::{queryable::VoxelQueryable, voxel::Voxel};
@@ -19,7 +18,7 @@ pub(super) mod queryable;
 mod voxel;
 
 /// Asset containing the voxel data for a model, as well as handles to the mesh derived from that data and the material
-#[derive(Asset, TypePath)]
+#[derive(Asset, TypePath, Default)]
 pub struct VoxelModel {
     /// The voxel data used to generate the mesh
     pub(crate) data: VoxelData,
@@ -39,13 +38,18 @@ pub(crate) struct VoxelData {
     pub mesh_outer_faces: bool,
 }
 
-impl VoxelData {
-    /// The size of the voxel model.
-    pub(crate) fn size(&self) -> UVec3 {
-        let raw_size: UVec3 = self.shape.as_array().into();
-        raw_size - UVec3::splat(self.padding())
+impl Default for VoxelData {
+    fn default() -> Self {
+        Self {
+            shape: RuntimeShape::<u32, 3>::new([0, 0, 0]),
+            voxels: Default::default(),
+            ior_for_voxel: Default::default(),
+            mesh_outer_faces: true,
+        }
     }
+}
 
+impl VoxelData {
     /// If the outer faces are to be meshed, the mesher requires 1 voxel of padding around the edge of the model
     pub(crate) fn padding(&self) -> u32 {
         if self.mesh_outer_faces {
@@ -57,7 +61,7 @@ impl VoxelData {
 
     pub(crate) fn remesh(&self) -> Mesh {
         let (visible_voxels, _) = self.visible_voxels();
-        mesh::mesh_model(&visible_voxels, &self)
+        mesh::mesh_model(&visible_voxels, self)
     }
 
     /// Returns the [`VoxelVisibility`] of each Voxel, and, if the model contains

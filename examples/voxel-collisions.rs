@@ -8,7 +8,8 @@ use bevy::{
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable,
-    VoxelRegion, VoxelScene, VoxelSceneBundle, VoxelSceneHook, VoxelSceneHookBundle,
+    VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
+    VoxelSceneHookBundle,
 };
 use rand::Rng;
 
@@ -118,13 +119,13 @@ fn update_snow(
             };
             let flake_radius = 2;
             let radius_squared = flake_radius * flake_radius;
-            let flake_region = VoxelRegion::Box {
+            let flake_region = VoxelRegion {
                 origin: vox_pos - IVec3::splat(flake_radius),
                 size: IVec3::splat(1 + (flake_radius * 2)),
             };
             commands.modify_voxel_model(
                 item_instance.0.id(),
-                flake_region,
+                VoxelRegionMode::Box(flake_region),
                 move |pos, voxel, model| {
                     // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
                     if *voxel == Voxel::EMPTY && pos.distance_squared(vox_pos) <= radius_squared {

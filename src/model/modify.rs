@@ -1,7 +1,7 @@
 use bevy::{
     asset::{AssetId, Assets},
     ecs::system::{Command, Commands},
-    math::IVec3,
+    math::{IVec3, Vec3},
     render::mesh::Mesh,
 };
 use ndshape::Shape;
@@ -15,20 +15,20 @@ use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
 /// ### Example
 /// ```no_run
 /// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModel, ModifyVoxelCommandsExt, VoxelRegion, Voxel};
+/// # use bevy_vox_scene::{VoxelModel, ModifyVoxelCommandsExt, VoxelRegionMode, VoxelRegion, Voxel};
 /// # let mut commands: Commands = panic!();
 /// # let model_handle: Handle<VoxelModel> = panic!();
 /// // cut a sphere-shaped hole out of the loaded model
 /// let sphere_center = IVec3::new(10, 10, 10);
 /// let radius = 10;
 /// let radius_squared = radius * radius;
-/// let region = VoxelRegion::Box {
+/// let region = VoxelRegion {
 ///     origin: sphere_center - IVec3::splat(radius),
 ///     size: IVec3::splat(1 + (radius * 2)),
 /// };
 /// commands.modify_voxel_model(
 ///     model_handle.id(),
-///     region,
+///     VoxelRegionMode::Box(region),
 ///     move | position, voxel, model | {
 ///         // a signed-distance function for a sphere:
 ///         if position.distance_squared(sphere_center) <= radius_squared {
@@ -50,25 +50,29 @@ pub trait ModifyVoxelCommandsExt {
     /// * `modify` - a closure that will run against every voxel within the `region`.
     ///
     /// ### Arguments passed to the `modify` closure
-    /// * the position of the current voxel, in voxel space
-    /// * the index of the current voxel
-    /// * a reference to the model, allowing, for instance, querying neighbouring voxels via the methods in [`crate::VoxelQueryable`]
+    /// * `position` - the position of the current voxel, in voxel space
+    /// * `voxel` - the index of the current voxel
+    /// * `model` - a reference to the model, allowing, for instance, querying neighbouring voxels via the methods in [`crate::VoxelQueryable`]
     ///
     /// ### Notes
     /// The smaller the `region` is, the more performant the operation will be.
-    fn modify_voxel_model<F: Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>(
+    fn modify_voxel_model<
+        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
+    >(
         &mut self,
         model: AssetId<VoxelModel>,
-        region: VoxelRegion,
+        region: VoxelRegionMode,
         modify: F,
     ) -> &mut Self;
 }
 
 impl ModifyVoxelCommandsExt for Commands<'_, '_> {
-    fn modify_voxel_model<F: Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>(
+    fn modify_voxel_model<
+        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
+    >(
         &mut self,
         model: AssetId<VoxelModel>,
-        region: VoxelRegion,
+        region: VoxelRegionMode,
         modify: F,
     ) -> &mut Self {
         self.add(ModifyVoxelModel {
@@ -82,8 +86,8 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
 
 struct ModifyVoxelModel {
     model: AssetId<VoxelModel>,
-    region: VoxelRegion,
-    modify: Box<dyn Fn(IVec3, &Voxel, &VoxelModel) -> Voxel + Send + Sync + 'static>,
+    region: VoxelRegionMode,
+    modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
 }
 
 impl Command for ModifyVoxelModel {
@@ -92,8 +96,8 @@ impl Command for ModifyVoxelModel {
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
             let mut models = cell.get_resource_mut::<Assets<VoxelModel>>()?;
-            let mut model = models.get_mut(self.model)?;
-            modify_model(&mut model, &self, &mut meshes);
+            let model = models.get_mut(self.model)?;
+            modify_model(model, &self, &mut meshes);
             Some(())
         };
         perform();
@@ -101,38 +105,57 @@ impl Command for ModifyVoxelModel {
 }
 
 /// The region of the model to modify
-pub enum VoxelRegion {
+pub enum VoxelRegionMode {
     /// The entire area of the model
     All,
     /// A box region within the model, expressed in voxel space
-    Box {
-        /// The lower-back-left corner of the region
-        origin: IVec3,
-        /// The size of the region
-        size: IVec3,
-    },
+    Box(VoxelRegion),
+}
+
+impl VoxelRegionMode {
+    fn clamped(&self, model_size: IVec3) -> VoxelRegion {
+        match self {
+            VoxelRegionMode::All => VoxelRegion {
+                origin: IVec3::ZERO,
+                size: model_size,
+            },
+            VoxelRegionMode::Box(region) => {
+                let origin = region.origin.clamp(IVec3::ZERO, model_size - IVec3::ONE);
+                let max_size = model_size - origin;
+                let size = region.size.clamp(IVec3::ONE, max_size);
+                VoxelRegion { origin, size }
+            }
+        }
+    }
+}
+
+/// A box region within a model
+pub struct VoxelRegion {
+    /// The lower-back-left corner of the region
+    pub origin: IVec3,
+    /// The size of the region
+    pub size: IVec3,
 }
 
 impl VoxelRegion {
-    fn clamped(&self, model_size: IVec3) -> (IVec3, IVec3) {
-        match self {
-            VoxelRegion::All => (IVec3::ZERO, model_size),
-            VoxelRegion::Box { origin, size } => {
-                let origin = origin.clamp(IVec3::ZERO, model_size - IVec3::ONE);
-                let max_size = model_size - origin;
-                let size = size.clamp(IVec3::ONE, max_size);
-                (origin, size)
-            }
-        }
+    /// Computes the center of the region
+    pub fn center(&self) -> Vec3 {
+        let origin = Vec3::new(
+            self.origin.x as f32,
+            self.origin.y as f32,
+            self.origin.z as f32,
+        );
+        let size = Vec3::new(self.size.x as f32, self.size.y as f32, self.size.z as f32);
+        origin + (size * 0.5)
     }
 }
 
 fn modify_model(model: &mut VoxelModel, modifier: &ModifyVoxelModel, meshes: &mut Assets<Mesh>) {
     let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
     let model_size = model.size();
-    let (origin, size) = modifier.region.clamped(model_size);
-    let start = leading_padding + origin;
-    let end = start + size;
+    let region = modifier.region.clamped(model_size);
+    let start = leading_padding + region.origin;
+    let end = start + region.size;
     let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
     for x in start.x..end.x {
         for y in start.y..end.y {

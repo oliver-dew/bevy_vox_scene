@@ -30,34 +30,34 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 ## Usage
 
 1. Add the crate using cargo: `cargo add bevy_vox_scene`
-2. Import the library: 
-```rust
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+
+   Then in code:
+
+```rust no_run
+use bevy::prelude::*;
+use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle}; // 2.
+
+fn main() {
+    App::new()
+        .add_plugins((DefaultPlugins, VoxScenePlugin)) // 3.
+        .add_systems(Startup, setup)
+        .run();
+}
+
+fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.spawn(VoxelSceneBundle { // 4.
+        scene: assets.load("study.vox#workstation/desk"),
+        ..default()
+    });
+}
 ```
 
-3. Add the plugin to the app: 
-```rust
-app.add_plugins(VoxScenePlugin)
-```
+2. Import the library.
+3. Add the plugin to the app.
+4. Spawn a scene graph using `VoxelSceneBundle`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
-4. Spawn an entire scene graph using `VoxelSceneBundle`:
-```rust
-commands.spawn(VoxelSceneBundle {
-    scene: assets.load("study.vox"),
-    ..default()
-});
-```
-Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel:
-
-```rust
-commands.spawn(VoxelSceneBundle {
-    scene: assets.load("study.vox#desk"),
-    ..default()
-});
-```
-
-Take a look in the `examples/` directory for complete working examples. To run an example, enter:
-```
+Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
+```ignore
 cargo run --example <example name>
 ```
 
@@ -88,14 +88,6 @@ TLDR: split up models containing glass voxels into convex chunks using Magica Vo
 - If you have a concave model that contains glass voxels, the other parts of that model will not be visible through the glass voxels. This is a limitation of Bevy's screen-space specular transmission system. To work around this limitation, use the Magica Voxel world editor to break up models that contain glass elements into separate models that are each convex.
 - Bevy's StandardMaterial only allows a single Index of Refraction (IoR) per material. The IoR contained in a model are averaged together to arrive at this value. If your scene contains transmissive materials that have widely differing IoRs (eg water vs diamond), and you think that averaging those IoRs together makes a significant visible difference to the scene, consider breaking the model up into separate meshes for each transmissive medium.
 - Bevy's Screen Space Ambient Occlusion (SSAO) appears to block the blurring affect that you get from glass materials that have roughness. If you have rough glass materials, consider not using SSAO.
-
-## Developing `bevy_vox_scene`
-
-After cloning this repo, use Cargo to run the unit tests:
-
-```
-cargo test
-```
 
 ## Acknowledgements
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{model::RawVoxel, scene::VoxelModelInstance, VoxScenePlugin};
+use crate::{model::RawVoxel, scene::VoxelModelInstance, VoxScenePlugin, VoxelRegion};
 use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
@@ -305,11 +305,13 @@ fn modify_voxels(mut commands: Commands, models: Res<Assets<VoxelModel>>) {
         })
         .next()
         .expect("There should be a dice model the size of which is 4 x 4 x 4");
-    let region = VoxelRegion::Box {
+    let region = VoxelRegion {
         origin: IVec3::splat(2),
         size: IVec3::ONE,
     };
-    commands.modify_voxel_model(id, region, |_pos, _voxel, _model| Voxel(7));
+    commands.modify_voxel_model(id, VoxelRegionMode::Box(region), |_pos, _voxel, _model| {
+        Voxel(7)
+    });
 }
 
 /// `await` the response from this and then call `app.update()`

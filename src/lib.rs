@@ -44,6 +44,7 @@
 //! # }
 //!```
 #![forbid(missing_docs, unsafe_code)]
+#![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
 use bevy::{
     app::{App, Plugin, SpawnScene},
@@ -62,7 +63,7 @@ pub use load::VoxLoaderSettings;
 #[doc(inline)]
 use load::VoxSceneLoader;
 pub use model::{
-    modify::{ModifyVoxelCommandsExt, VoxelRegion},
+    modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
     Voxel, VoxelModel,
 };

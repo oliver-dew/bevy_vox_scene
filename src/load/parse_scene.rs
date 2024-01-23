@@ -26,9 +26,9 @@ pub(super) fn find_model_names(name_for_model: &mut Vec<Option<String>>, node: &
     if let Some(model_id) = &node.model_id {
         match (&name_for_model[*model_id], &node.name) {
             (None, Some(name)) | (Some(_), Some(name)) => {
-                _ = name_for_model[*model_id] = Some(name.to_string())
+                name_for_model[*model_id] = Some(name.to_string())
             }
-            (None, None) | (Some(_), None) => _ = (),
+            (None, None) | (Some(_), None) => (),
         };
     }
     for child in &node.children {

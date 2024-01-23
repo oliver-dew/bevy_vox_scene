@@ -8,13 +8,15 @@ use bevy::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
+use crate::VoxelQueryable;
+
 use super::{voxel::VisibleVoxel, VoxelData};
 
-pub(crate) fn mesh_model(voxels: &Vec<VisibleVoxel>, data: &VoxelData) -> Mesh {
+pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
     let quads_config = RIGHT_HANDED_Y_UP_CONFIG;
     greedy_quads(
-        &voxels,
+        voxels,
         &data.shape,
         [0; 3],
         data.shape.as_array().map(|x| x - 1),
