@@ -1,4 +1,4 @@
-use super::{Voxel, VoxelData, VoxelModel};
+use super::{RawVoxel, Voxel, VoxelData, VoxelModel};
 use bevy::{
     math::{BVec3, IVec3, UVec3, Vec3},
     transform::components::GlobalTransform,
@@ -91,6 +91,30 @@ impl VoxelQueryable for VoxelData {
         let raw_voxel = self.voxels.get(index)?;
         let voxel: Voxel = raw_voxel.clone().into();
         Some(voxel)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OutOfBoundsError;
+
+impl VoxelData {
+    /// Writes a voxel to a point in the model
+    ///
+    /// ### Arguments
+    /// * `voxel` - the [`Voxel`] to be written
+    /// * `point` - the position at which the voxel will be written
+    ///
+    /// ### Returns
+    /// `Ok(())` if the operation was successful, or [`OutOfBoundsError`] if `point` lies outside the model
+    pub fn set_voxel(&mut self, voxel: Voxel, point: Vec3) -> Result<(), OutOfBoundsError> {
+        let position = self
+            .point_in_model(point.as_ivec3())
+            .ok_or(OutOfBoundsError)?;
+        let leading_padding = UVec3::splat(self.padding() / 2);
+        let index = self.shape.linearize((position + leading_padding).into()) as usize;
+        let raw_voxel: RawVoxel = voxel.into();
+        self.voxels[index] = raw_voxel;
+        Ok(())
     }
 }
 trait BitwiseComparable {

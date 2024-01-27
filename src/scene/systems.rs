@@ -56,13 +56,14 @@ fn spawn_voxel_node_recursive(
     }
     if let Some(model_handle) = &voxel_node.model_id.and_then(|id| scene.models.get(id)) {
         if let Some(model) = vox_models.get(*model_handle) {
-            entity_commands.insert(VoxelModelInstance((**model_handle).clone()));
-            #[cfg(not(test))]
-            entity_commands.insert(PbrBundle {
-                mesh: model.mesh.clone(),
-                material: model.material.clone(),
-                ..Default::default()
-            });
+            entity_commands.insert((
+                VoxelModelInstance((**model_handle).clone()),
+                PbrBundle {
+                    mesh: model.mesh.clone(),
+                    material: model.material.clone(),
+                    ..Default::default()
+                },
+            ));
         } else {
             warn!("Model not found, omitting: {:?}", model_handle);
             entity_commands.insert(SpatialBundle::default());

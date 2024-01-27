@@ -18,7 +18,7 @@ pub use hook::VoxelSceneHook;
 /// The root of the spawned scene will be the entity that has this bundle.
 /// In addition to the standard components bevy uses to organise and render pbr meshes,
 /// spawned entities will also have [`VoxelLayer`] and [`VoxelModelInstance`] components added.
-/// ```no_run
+/// ```
 /// # use bevy::prelude::*;
 /// # use bevy_vox_scene::VoxelSceneBundle;
 ///

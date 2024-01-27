@@ -29,7 +29,12 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ## Usage
 
-1. Add the crate using cargo: `cargo add bevy_vox_scene`
+1. Add the crate using the command line (`cargo add bevy_vox_scene`) or by adding it to `Cargo.toml`:
+
+```toml
+[dependencies]
+bevy_vox_scene = "0.11.4"
+```
 
    Then in code:
 

@@ -1,3 +1,5 @@
+#![forbid(missing_docs, unsafe_code)]
+#![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 //! A plugin for the Bevy engine which allows loading Magica Voxel .vox files as scene graphs.
 //!
 //!```
@@ -43,8 +45,6 @@
 //! #     exit.send(AppExit);
 //! # }
 //!```
-#![forbid(missing_docs, unsafe_code)]
-#![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 
 use bevy::{
     app::{App, Plugin, SpawnScene},
@@ -65,7 +65,7 @@ use load::VoxSceneLoader;
 pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
-    Voxel, VoxelModel,
+    Voxel, VoxelData, VoxelModel,
 };
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,

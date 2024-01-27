@@ -1,5 +1,6 @@
 use bevy::{
-    asset::{Asset, Handle},
+    asset::{Asset, Assets, Handle},
+    ecs::system::ResMut,
     pbr::StandardMaterial,
     reflect::TypePath,
     render::mesh::Mesh,
@@ -28,14 +29,30 @@ pub struct VoxelModel {
     pub(crate) material: Handle<StandardMaterial>,
 }
 
+impl VoxelModel {
+    /// Create a new VoxelModel from [`VoxelData`]
+    pub fn new(
+        data: VoxelData,
+        meshes: &mut ResMut<Assets<Mesh>>,
+        material: Handle<StandardMaterial>,
+    ) -> Self {
+        let mesh = data.remesh();
+        VoxelModel {
+            data,
+            mesh: meshes.add(mesh),
+            material,
+        }
+    }
+}
+
 /// The voxel data used to create a mesh and a material.
 ///
 /// Note that all coordinates are in Bevy's right-handed Y-up space
-pub(crate) struct VoxelData {
-    pub shape: RuntimeShape<u32, 3>,
-    pub voxels: Vec<RawVoxel>,
-    pub ior_for_voxel: HashMap<u8, f32>,
-    pub mesh_outer_faces: bool,
+pub struct VoxelData {
+    pub(crate) shape: RuntimeShape<u32, 3>,
+    pub(crate) voxels: Vec<RawVoxel>,
+    pub(crate) ior_for_voxel: HashMap<u8, f32>,
+    pub(crate) mesh_outer_faces: bool,
 }
 
 impl Default for VoxelData {
