@@ -113,7 +113,7 @@ fn update_snow(
                 model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
             // check whether snowflake has landed on something solid
             let pos_below_snowflake = vox_pos - IVec3::Y;
-            let Some(voxel) = model.get_voxel_at_point(pos_below_snowflake) else { continue };
+            let Ok(voxel) = model.get_voxel_at_point(pos_below_snowflake) else { continue };
             if voxel == Voxel::EMPTY {
                 continue;
             };
@@ -129,7 +129,7 @@ fn update_snow(
                 move |pos, voxel, model| {
                     // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
                     if *voxel == Voxel::EMPTY && pos.distance_squared(vox_pos) <= radius_squared {
-                        if let Some(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
+                        if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
                             if voxel_below != Voxel::EMPTY {
                                 // draw our snow material
                                 return Voxel(234);

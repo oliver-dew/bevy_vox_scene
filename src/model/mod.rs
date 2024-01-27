@@ -46,8 +46,6 @@ impl VoxelModel {
 }
 
 /// The voxel data used to create a mesh and a material.
-///
-/// Note that all coordinates are in Bevy's right-handed Y-up space
 pub struct VoxelData {
     pub(crate) shape: RuntimeShape<u32, 3>,
     pub(crate) voxels: Vec<RawVoxel>,

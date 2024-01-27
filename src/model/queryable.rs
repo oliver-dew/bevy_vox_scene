@@ -5,6 +5,9 @@ use bevy::{
 };
 use ndshape::Shape;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutOfBoundsError;
+
 /// Methods for converting from global and local to voxel-space coordinates, getting the size of a voxel model, and the voxel at a given point
 pub trait VoxelQueryable {
     /// The size of the voxel model.
@@ -49,11 +52,11 @@ pub trait VoxelQueryable {
     }
 
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
-    fn point_in_model(&self, point: IVec3) -> Option<UVec3> {
+    fn point_in_model(&self, point: IVec3) -> Result<UVec3, OutOfBoundsError> {
         if point.greater_than_or_equal(self.size()).any() {
-            return None;
+            return Err(OutOfBoundsError);
         };
-        UVec3::try_from(point).ok()
+        UVec3::try_from(point).map_err(|_| OutOfBoundsError)
     }
     /// Returns the [`Voxel`] at the point (given in voxel space)
     ///
@@ -61,8 +64,8 @@ pub trait VoxelQueryable {
     /// * `position` - the position in voxel space
     ///
     /// ### Returns
-    /// the voxel at this point. If the point lies outside the bounds of the model, it will return [`None`].
-    fn get_voxel_at_point(&self, position: IVec3) -> Option<Voxel>;
+    /// the voxel at this point. If the point lies outside the bounds of the model, it will return [`OutOfBoundsError`].
+    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError>;
 }
 
 impl VoxelQueryable for VoxelModel {
@@ -71,7 +74,7 @@ impl VoxelQueryable for VoxelModel {
         self.data.size()
     }
 
-    fn get_voxel_at_point(&self, position: IVec3) -> Option<Voxel> {
+    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         self.data.get_voxel_at_point(position)
     }
 }
@@ -84,18 +87,15 @@ impl VoxelQueryable for VoxelData {
         IVec3::try_from(padded).unwrap_or(IVec3::ZERO)
     }
 
-    fn get_voxel_at_point(&self, position: IVec3) -> Option<Voxel> {
+    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         let position = self.point_in_model(position)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
         let index = self.shape.linearize((position + leading_padding).into()) as usize;
-        let raw_voxel = self.voxels.get(index)?;
+        let raw_voxel = self.voxels.get(index).ok_or(OutOfBoundsError)?;
         let voxel: Voxel = raw_voxel.clone().into();
-        Some(voxel)
+        Ok(voxel)
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct OutOfBoundsError;
 
 impl VoxelData {
     /// Writes a voxel to a point in the model
@@ -105,11 +105,9 @@ impl VoxelData {
     /// * `point` - the position at which the voxel will be written
     ///
     /// ### Returns
-    /// `Ok(())` if the operation was successful, or [`OutOfBoundsError`] if `point` lies outside the model
+    /// [`Result::Ok`] if the operation was successful, or [`OutOfBoundsError`] if `point` lies outside the model
     pub fn set_voxel(&mut self, voxel: Voxel, point: Vec3) -> Result<(), OutOfBoundsError> {
-        let position = self
-            .point_in_model(point.as_ivec3())
-            .ok_or(OutOfBoundsError)?;
+        let position = self.point_in_model(point.as_ivec3())?;
         let leading_padding = UVec3::splat(self.padding() / 2);
         let index = self.shape.linearize((position + leading_padding).into()) as usize;
         let raw_voxel: RawVoxel = voxel.into();

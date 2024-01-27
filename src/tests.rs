@@ -1,5 +1,9 @@
 use super::*;
-use crate::{model::RawVoxel, scene::VoxelModelInstance, VoxScenePlugin, VoxelRegion};
+use crate::{
+    model::{queryable::OutOfBoundsError, RawVoxel},
+    scene::VoxelModelInstance,
+    VoxScenePlugin, VoxelRegion,
+};
 use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
@@ -279,12 +283,12 @@ async fn test_modify_voxels() {
         .expect("retrieve model from Res<Assets>");
     assert_eq!(
         model.get_voxel_at_point(IVec3::splat(4)),
-        None,
+        Err(OutOfBoundsError),
         "Max coordinate should be 3,3,3"
     );
     assert_eq!(
         model.get_voxel_at_point(IVec3::splat(-1)),
-        None,
+        Err(OutOfBoundsError),
         "Min coordinate should be 0,0,0"
     );
     let voxel = model
