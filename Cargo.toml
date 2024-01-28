@@ -13,6 +13,18 @@ exclude = ["assets/*"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["modify_voxels"]
+modify_voxels = []
+
+[[example]]
+name = "modify-voxels"
+required-features = ["modify_voxels"]
+
+[[example]]
+name = "voxel-collisions"
+required-features = ["modify_voxels"]
+
 [dependencies]
 bevy = { version = "0.12.0", default-features = false, features = [
   "bevy_render",

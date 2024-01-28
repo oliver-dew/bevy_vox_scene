@@ -62,11 +62,12 @@ mod tests;
 pub use load::VoxLoaderSettings;
 #[doc(inline)]
 use load::VoxSceneLoader;
+#[cfg(feature = "modify_voxels")]
 pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
-    Voxel, VoxelData, VoxelModel,
 };
+pub use model::{Voxel, VoxelData, VoxelModel};
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,

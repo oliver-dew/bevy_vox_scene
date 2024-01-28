@@ -80,11 +80,8 @@ impl VoxelQueryable for VoxelModel {
 }
 
 impl VoxelQueryable for VoxelData {
-    /// The size of the voxel model.
     fn size(&self) -> IVec3 {
-        let raw_size: UVec3 = self.shape.as_array().into();
-        let padded = raw_size - UVec3::splat(self.padding());
-        IVec3::try_from(padded).unwrap_or(IVec3::ZERO)
+        self._size()
     }
 
     fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {

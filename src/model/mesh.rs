@@ -8,8 +8,6 @@ use bevy::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
-use crate::VoxelQueryable;
-
 use super::{voxel::VisibleVoxel, VoxelData};
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
@@ -23,7 +21,7 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
         &quads_config.faces,
         &mut greedy_quads_buffer,
     );
-    let extents = data.size();
+    let extents = data._size();
     let half_extents = Vec3::new(extents.x as f32, extents.y as f32, extents.z as f32) * 0.5;
     let leading_padding = (data.padding() / 2) as f32;
 

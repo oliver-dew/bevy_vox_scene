@@ -1,9 +1,9 @@
 use super::*;
-use crate::{
-    model::{queryable::OutOfBoundsError, RawVoxel},
-    scene::VoxelModelInstance,
-    VoxScenePlugin, VoxelRegion,
-};
+
+#[cfg(feature = "modify_voxels")]
+use crate::{model::queryable::OutOfBoundsError, VoxelRegion};
+
+use crate::{model::RawVoxel, scene::VoxelModelInstance, VoxScenePlugin};
 use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
@@ -257,6 +257,7 @@ async fn test_spawn_system() {
     app.update(); // fire the hooks
 }
 
+#[cfg(feature = "modify_voxels")]
 #[async_std::test]
 async fn test_modify_voxels() {
     let mut app = App::new();
@@ -297,6 +298,7 @@ async fn test_modify_voxels() {
     assert_eq!(voxel.0, 7, "Voxel material should've been changed to 7");
 }
 
+#[cfg(feature = "modify_voxels")]
 fn modify_voxels(mut commands: Commands, models: Res<Assets<VoxelModel>>) {
     let id = models
         .iter()
