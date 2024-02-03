@@ -3,10 +3,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
-    log::info,
-    pbr::StandardMaterial,
-    utils::{hashbrown::HashMap, BoxedFuture},
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, log::info, pbr::StandardMaterial, render::color::Color, utils::{hashbrown::HashMap, BoxedFuture}
 };
 use parse_model::load_from_model;
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
@@ -14,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{VoxelModel, VoxelPalette},
+    model::{MaterialProperty, VoxelModel, VoxelPalette},
     scene::{LayerInfo, VoxelNode, VoxelScene},
 };
 
@@ -104,8 +101,6 @@ impl VoxSceneLoader {
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
         let ior_for_voxel = palette.ior_for_voxel();
-        let palette_handle =
-            load_context.add_labeled_asset("material-palette".to_string(), palette);
         let opaque_material_handle =
             load_context.labeled_asset_scope("material".to_string(), |_| {
                 let mut opaque_material = translucent_material.clone();
@@ -113,6 +108,16 @@ impl VoxSceneLoader {
                 opaque_material.specular_transmission = 0.0;
                 opaque_material
             });
+        if palette.emission == MaterialProperty::VariesPerElement {
+            load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
+                let mut non_emissive = translucent_material.clone();
+                non_emissive.emissive_texture = None;
+                non_emissive.emissive = Color::BLACK;
+                non_emissive
+            });
+        }
+        let palette_handle =
+            load_context.add_labeled_asset("material-palette".to_string(), palette);
         // Scene graph
 
         let root = parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);

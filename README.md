@@ -101,3 +101,8 @@ Forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_
 Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-engine/dot_vox) to parse the vox files and the greedy mesher from [`block-mesh-rs`] (https://github.com/bonsairobo/block-mesh-rs) to create efficient meshes.
 
 `VoxelSceneHook` is adapted from [bevy-scene-hook](https://github.com/nicopap/bevy-scene-hook) by Nicola Papale.
+
+## TODO
+- use ModelCollection in VoxelScene
+- Make iorforvoxel plus material handles part of VoxelPalette
+- 

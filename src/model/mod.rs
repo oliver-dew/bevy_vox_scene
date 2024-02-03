@@ -13,7 +13,7 @@ use ndshape::{RuntimeShape, Shape};
 use self::voxel::VisibleVoxel;
 pub use self::voxel::Voxel;
 pub(crate) use voxel::RawVoxel;
-
+pub(crate) use palette::MaterialProperty;
 pub(super) mod mesh;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod modify;

@@ -12,13 +12,33 @@ use bevy::{
 use dot_vox::DotVoxData;
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
-#[derive(Asset, TypePath, Default)]
+#[derive(Asset, TypePath)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
+    pub(crate) emission: MaterialProperty,
+    pub(crate) metalness: MaterialProperty,
+    pub(crate) roughness: MaterialProperty,
+    pub(crate) transmission: MaterialProperty,
     // material_opaque: Handle<StandardMaterial>,
     // material_translucent: Handle<StandardMaterial>,
 }
 
+#[derive(PartialEq)]
+pub(crate) enum MaterialProperty {
+    VariesPerElement,
+    Constant(f32)
+}
+
+impl MaterialProperty {
+    fn from_slice(slice: &Vec<f32>) -> Self {
+        let max_element = slice.max_element();
+        if max_element - slice.min_element() < 0.001 {
+            MaterialProperty::Constant(max_element)
+        } else {
+            MaterialProperty::VariesPerElement
+        }
+    }
+}
 /// This can be thought of as a voxel material. A type of Voxel brick modelled with physical properties such as color, roughness and so on.
 pub struct VoxelElement {
     /// The base color of the voxel
@@ -51,8 +71,19 @@ impl Default for VoxelElement {
 impl VoxelPalette {
     /// Create a new [`VoxelPalette`] from the supplied [`VoxelElement`]s
     pub fn new(mut elements: Vec<VoxelElement>) -> Self {
+        let emission_data: Vec<f32> = elements.iter().map(|e| e.emission).collect();
+        let roughness_data: Vec<f32> = elements.iter().map(|e| e.roughness).collect();
+        let metalness_data: Vec<f32> = elements.iter().map(|e| e.metalness).collect();
+        let translucency_data: Vec<f32> = elements.iter().map(|e| e.translucency).collect();
+
         elements.resize_with(256, VoxelElement::default);
-        VoxelPalette { elements }
+        VoxelPalette { 
+            elements,
+            emission: MaterialProperty::from_slice(&emission_data),
+            metalness: MaterialProperty::from_slice(&metalness_data),
+            roughness: MaterialProperty::from_slice(&roughness_data),
+            transmission: MaterialProperty::from_slice(&translucency_data),
+        }
     }
 
     /// Create a new [`VoxelPalette`] from the supplied [`Color`]s
@@ -128,16 +159,12 @@ impl VoxelPalette {
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
         let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
-        //let refraction_data: Vec<f32> = self.elements.iter().map(|e| e.refraction_index).collect();
-        let max_roughness = roughness_data.max_element();
-        let max_metalness = metalness_data.max_element();
-        let max_translucency = translucency_data.max_element();
 
-        let has_emission = emission_data.max_element() > 0.0;
-        let has_roughness = max_roughness - roughness_data.min_element() > 0.001;
-        let has_metalness = max_metalness - metalness_data.min_element() > 0.001;
+        let has_emission = self.emission == MaterialProperty::VariesPerElement;
+        let has_roughness = self.roughness == MaterialProperty::VariesPerElement;
+        let has_metalness = self.metalness == MaterialProperty::VariesPerElement;
         let has_roughness_metalness = has_roughness || has_metalness;
-        let has_translucency = max_translucency - translucency_data.min_element() > 0.001;
+        let has_translucency = self.transmission == MaterialProperty::VariesPerElement;
 
         let base_color_texture = Some(get_handle(
             "material_color",
@@ -227,21 +254,18 @@ impl VoxelPalette {
                 Color::BLACK
             },
             emissive_texture,
-            perceptual_roughness: if has_roughness_metalness {
-                1.0
-            } else {
-                max_roughness
+            perceptual_roughness: match (has_roughness_metalness, &self.roughness) {
+                (true, _) | (_, MaterialProperty::VariesPerElement)  => 1.0,
+                (false, MaterialProperty::Constant(roughness)) => *roughness,
             },
-            metallic: if has_roughness_metalness {
-                1.0
-            } else {
-                max_metalness
+            metallic: match (has_roughness_metalness, &self.metalness) {
+                (true, _) | (false, MaterialProperty::VariesPerElement)  => 1.0,
+                (false, MaterialProperty::Constant(metalness)) => *metalness,
             },
             metallic_roughness_texture,
-            specular_transmission: if has_translucency {
-                1.0
-            } else {
-                max_translucency
+            specular_transmission: match self.transmission {
+                MaterialProperty::Constant(transmission) => transmission,
+                MaterialProperty::VariesPerElement => 1.0
             },
             specular_transmission_texture,
             ..default()
