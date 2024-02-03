@@ -3,10 +3,11 @@ use bevy::{
     ecs::system::{Command, Commands},
     math::{IVec3, Vec3},
     render::mesh::Mesh,
+    utils::HashMap,
 };
 use ndshape::Shape;
 
-use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 
 /// Command that programatically modifies the voxels in a model.
 ///
@@ -96,8 +97,10 @@ impl Command for ModifyVoxelModel {
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
             let mut models = cell.get_resource_mut::<Assets<VoxelModel>>()?;
+            let palettes = cell.get_resource::<Assets<VoxelPalette>>()?;
             let model = models.get_mut(self.model)?;
-            modify_model(model, &self, &mut meshes);
+            let ior_for_voxel = palettes.get(model.palette.id())?.ior_for_voxel();
+            modify_model(model, &self, &mut meshes, &ior_for_voxel);
             Some(())
         };
         perform();
@@ -150,7 +153,12 @@ impl VoxelRegion {
     }
 }
 
-fn modify_model(model: &mut VoxelModel, modifier: &ModifyVoxelModel, meshes: &mut Assets<Mesh>) {
+fn modify_model(
+    model: &mut VoxelModel,
+    modifier: &ModifyVoxelModel,
+    meshes: &mut Assets<Mesh>,
+    ior_for_voxel: &HashMap<u8, f32>,
+) {
     let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
     let model_size = model.size();
     let region = modifier.region.clamped(model_size);
@@ -171,6 +179,6 @@ fn modify_model(model: &mut VoxelModel, modifier: &ModifyVoxelModel, meshes: &mu
         }
     }
     model.data.voxels = updated;
-    meshes.insert(&model.mesh, model.data.remesh());
+    meshes.insert(&model.mesh, model.data.remesh(ior_for_voxel));
     // TODO: also update material if transparency has changed
 }

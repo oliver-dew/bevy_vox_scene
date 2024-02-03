@@ -67,7 +67,10 @@ pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
-pub use model::{Voxel, VoxelData, VoxelModel};
+pub use model::{
+    sdf::SDF, ModelCollection, Voxel, VoxelData, VoxelElement, VoxelModel,
+    VoxelPalette,
+};
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
@@ -82,6 +85,7 @@ impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModel>()
+            .init_asset::<VoxelPalette>()
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,

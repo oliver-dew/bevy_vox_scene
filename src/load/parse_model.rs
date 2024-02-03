@@ -1,15 +1,10 @@
-use bevy::utils::HashMap;
 use dot_vox::Model;
 use ndshape::{RuntimeShape, Shape};
 
 use crate::model::{RawVoxel, VoxelData};
 
 /// Ingest Magica Voxel data and perform coordinate conversion from MV's left-handed Z-up to bevy's right-handed Y-up
-pub(super) fn load_from_model(
-    model: &Model,
-    ior_for_voxel: &HashMap<u8, f32>,
-    mesh_outer_faces: bool,
-) -> VoxelData {
+pub(super) fn load_from_model(model: &Model, mesh_outer_faces: bool) -> VoxelData {
     let padding: u32 = if mesh_outer_faces { 2 } else { 0 };
     let shape = RuntimeShape::<u32, 3>::new([
         model.size.x + padding,
@@ -32,7 +27,6 @@ pub(super) fn load_from_model(
     VoxelData {
         shape,
         voxels,
-        ior_for_voxel: ior_for_voxel.clone(),
         mesh_outer_faces,
     }
 }

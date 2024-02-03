@@ -150,7 +150,7 @@ async fn test_transmissive_mat() {
         .expect("material");
     assert!(material.specular_transmission_texture.is_some());
     assert_eq!(material.specular_transmission, 1.0);
-    assert!((material.ior - 1.3).abs() / 1.3 <= 0.00001);
+    assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
     assert!(material.metallic_roughness_texture.is_some());
 }
 

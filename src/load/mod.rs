@@ -6,11 +6,6 @@ use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
     log::info,
     pbr::StandardMaterial,
-    render::{
-        color::Color,
-        render_resource::{Extent3d, TextureDimension, TextureFormat},
-        texture::Image,
-    },
     utils::{hashbrown::HashMap, BoxedFuture},
 };
 use parse_model::load_from_model;
@@ -19,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::VoxelModel,
+    model::{VoxelModel, VoxelPalette},
     scene::{LayerInfo, VoxelNode, VoxelScene},
 };
 
@@ -100,253 +95,24 @@ impl VoxSceneLoader {
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
         info!("Loading {}", load_context.asset_path());
-        // Color
-        let color_handle =
-            load_context.labeled_asset_scope("material_base_color".to_string(), |_| {
-                let color_data: Vec<u8> = file
-                    .palette
-                    .iter()
-                    .flat_map(|c| {
-                        let rgba: [u8; 4] = c.into();
-                        rgba
-                    })
-                    .collect();
-                Image::new(
-                    Extent3d {
-                        width: 16,
-                        height: 16,
-                        depth_or_array_layers: 1,
-                    },
-                    TextureDimension::D2,
-                    color_data,
-                    if settings.uses_srgb {
-                        TextureFormat::Rgba8UnormSrgb
-                    } else {
-                        TextureFormat::Rgba8Unorm
-                    },
-                )
-            });
 
-        // Emissive
-        let emissive_data: Vec<Option<f32>> = file
-            .materials
-            .iter()
-            .map(|m| {
-                if let Some(emission) = m.emission() {
-                    if let Some(radiance) = m.radiant_flux() {
-                        Some(emission * (radiance + 1.0))
-                    } else {
-                        Some(emission)
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let has_emissive = !emissive_data
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<f32>>()
-            .is_empty();
-        let emissive_texture: Option<Handle<Image>> = if has_emissive {
-            let emissive_handle =
-                load_context.labeled_asset_scope("material_emission".to_string(), |_| {
-                    let emissive_raw: Vec<u8> = emissive_data
-                        .iter()
-                        .zip(file.palette.iter())
-                        .flat_map(|(emission, color)| {
-                            if let Some(value) = emission {
-                                let rgba: [u8; 4] = color.into();
-                                let output: Vec<u8> = rgba
-                                    .iter()
-                                    .flat_map(|b| {
-                                        ((*b as f32 / u8::MAX as f32) * value).to_le_bytes()
-                                    })
-                                    .collect();
-                                output
-                            } else {
-                                let rgba: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
-                                let output: Vec<u8> =
-                                    rgba.iter().flat_map(|b| b.to_le_bytes()).collect();
-                                output
-                            }
-                        })
-                        .collect();
-                    Image::new(
-                        Extent3d {
-                            width: 16,
-                            height: 16,
-                            depth_or_array_layers: 1,
-                        },
-                        TextureDimension::D2,
-                        emissive_raw,
-                        TextureFormat::Rgba32Float,
-                    )
-                });
-            Some(emissive_handle)
-        } else {
-            None
-        };
-
-        // Roughness/ Metalness
-        let roughness: Vec<f32> = file
-            .materials
-            .iter()
-            .map(|m| {
-                if m.material_type() == Some("_diffuse") {
-                    return settings.diffuse_roughness;
-                };
-                m.roughness().unwrap_or(0.0)
-            })
-            .collect();
-        let max_roughness = roughness
-            .iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap();
-        let has_varying_roughness = max_roughness
-            - roughness
-                .iter()
-                .cloned()
-                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-                .unwrap()
-            > 0.001;
-
-        let metalness: Vec<f32> = file
-            .materials
-            .iter()
-            .map(|m| m.metalness().unwrap_or(0.0))
-            .collect();
-        let max_metalness = metalness
-            .iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap();
-        let has_varying_metalness = max_metalness
-            - metalness
-                .iter()
-                .cloned()
-                .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-                .unwrap()
-            > 0.001;
-        let has_metallic_roughness = has_varying_roughness || has_varying_metalness;
-        let metallic_roughness_texture: Option<Handle<Image>> = if has_metallic_roughness {
-            let handle =
-                load_context.labeled_asset_scope("material_metallic_roughness".to_string(), |_| {
-                    let raw: Vec<u8> = roughness
-                        .iter()
-                        .zip(metalness.iter())
-                        .flat_map(|(rough, metal)| {
-                            let output: Vec<u8> = [0.0, *rough, *metal, 0.0]
-                                .iter()
-                                .flat_map(|b| ((b * u16::MAX as f32) as u16).to_le_bytes())
-                                .collect();
-                            output
-                        })
-                        .collect();
-                    Image::new(
-                        Extent3d {
-                            width: 16,
-                            height: 16,
-                            depth_or_array_layers: 1,
-                        },
-                        TextureDimension::D2,
-                        raw,
-                        TextureFormat::Rgba16Unorm,
-                    )
-                });
-            Some(handle)
-        } else {
-            None
-        };
-
-        // Specular transmission
-        let transparency_data: Vec<Option<f32>> =
-            file.materials.iter().map(|m| m.opacity()).collect();
-        let has_transparency = !transparency_data
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<f32>>()
-            .is_empty();
-        let specular_transmission_texture: Option<Handle<Image>> = if has_transparency {
-            let handle = load_context.labeled_asset_scope(
-                "material_specular_transmission".to_string(),
-                |_| {
-                    let raw: Vec<u8> = transparency_data
-                        .iter()
-                        .flat_map(|t| ((t.unwrap_or(0.0) * u16::MAX as f32) as u16).to_le_bytes())
-                        .collect();
-                    Image::new(
-                        Extent3d {
-                            width: 16,
-                            height: 16,
-                            depth_or_array_layers: 1,
-                        },
-                        TextureDimension::D2,
-                        raw,
-                        TextureFormat::R16Unorm,
-                    )
-                },
-            );
-            Some(handle)
-        } else {
-            None
-        };
-        let mut translucent_voxels: HashMap<u8, f32> = HashMap::new();
-        for (index, material) in file.materials.iter().enumerate() {
-            if material.opacity().is_some() {
-                if let Some(ior) = material.refractive_index() {
-                    translucent_voxels.insert(index as u8, ior);
-                }
-            }
-        }
-
-        // Material
+        // Palette
+        let palette = VoxelPalette::new_from_data(
+            &file,
+            settings.diffuse_roughness,
+            settings.emission_strength,
+        );
+        let translucent_material = palette.create_material_in_load_context(load_context);
+        let ior_for_voxel = palette.ior_for_voxel();
+        let palette_handle =
+            load_context.add_labeled_asset("material-palette".to_string(), palette);
         let opaque_material_handle =
-            load_context.labeled_asset_scope("material".to_string(), |_| StandardMaterial {
-                base_color_texture: Some(color_handle.clone()),
-                emissive: if has_emissive {
-                    Color::WHITE * settings.emission_strength
-                } else {
-                    Color::BLACK
-                },
-                emissive_texture: emissive_texture.clone(),
-                perceptual_roughness: if has_metallic_roughness {
-                    1.0
-                } else {
-                    max_roughness
-                },
-                metallic: if has_metallic_roughness {
-                    1.0
-                } else {
-                    max_metalness
-                },
-                metallic_roughness_texture: metallic_roughness_texture.clone(),
-                ..Default::default()
+            load_context.labeled_asset_scope("material".to_string(), |_| {
+                let mut opaque_material = translucent_material.clone();
+                opaque_material.specular_transmission_texture = None;
+                opaque_material.specular_transmission = 0.0;
+                opaque_material
             });
-
-        if has_emissive {
-            load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
-                StandardMaterial {
-                    base_color_texture: Some(color_handle.clone()),
-                    perceptual_roughness: if has_metallic_roughness {
-                        1.0
-                    } else {
-                        max_roughness
-                    },
-                    metallic: if has_metallic_roughness {
-                        1.0
-                    } else {
-                        max_metalness
-                    },
-                    metallic_roughness_texture: metallic_roughness_texture.clone(),
-                    ..Default::default()
-                }
-            });
-        }
-
         // Scene graph
 
         let root = parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
@@ -370,39 +136,19 @@ impl VoxSceneLoader {
             .enumerate()
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data = load_from_model(&model, &translucent_voxels, settings.mesh_outer_faces);
-                let (visible_voxels, ior) = data.visible_voxels();
+                let data = load_from_model(&model, settings.mesh_outer_faces);
+                let (visible_voxels, ior) = data.visible_voxels(&ior_for_voxel);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                     crate::model::mesh::mesh_model(&visible_voxels, &data)
                 });
 
                 let material: Handle<StandardMaterial> = if let Some(ior) = ior {
                     load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                        StandardMaterial {
-                            base_color_texture: Some(color_handle.clone()),
-                            emissive: if has_emissive {
-                                Color::WHITE * settings.emission_strength
-                            } else {
-                                Color::BLACK
-                            },
-                            emissive_texture: emissive_texture.clone(),
-                            perceptual_roughness: if has_metallic_roughness {
-                                1.0
-                            } else {
-                                max_roughness
-                            },
-                            metallic: if has_metallic_roughness {
-                                1.0
-                            } else {
-                                max_metalness
-                            },
-                            metallic_roughness_texture: metallic_roughness_texture.clone(),
-                            specular_transmission: 1.0,
-                            specular_transmission_texture: specular_transmission_texture.clone(),
-                            ior,
-                            thickness: model.size.x.min(model.size.y.min(model.size.z)) as f32,
-                            ..Default::default()
-                        }
+                        let mut material = translucent_material.clone();
+                        material.ior = ior;
+                        material.thickness =
+                            model.size.x.min(model.size.y.min(model.size.z)) as f32;
+                        material
                     })
                 } else {
                     opaque_material_handle.clone()
@@ -411,6 +157,7 @@ impl VoxSceneLoader {
                     data,
                     mesh,
                     material,
+                    palette: palette_handle.clone(),
                 })
             })
             .collect();
