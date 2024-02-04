@@ -3,7 +3,11 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, log::info, pbr::StandardMaterial, render::color::Color, utils::{hashbrown::HashMap, BoxedFuture}
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
+    log::info,
+    pbr::StandardMaterial,
+    render::color::Color,
+    utils::{hashbrown::HashMap, BoxedFuture},
 };
 use parse_model::load_from_model;
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
@@ -11,8 +15,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{MaterialProperty, VoxelModel, VoxelPalette},
-    scene::{LayerInfo, VoxelNode, VoxelScene},
+    model::{MaterialProperty, VoxelModel, VoxelPalette}, scene::{LayerInfo, VoxelNode, VoxelScene}, VoxelQueryable
 };
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
@@ -100,7 +103,6 @@ impl VoxSceneLoader {
             settings.emission_strength,
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
-        let ior_for_voxel = palette.ior_for_voxel();
         let opaque_material_handle =
             load_context.labeled_asset_scope("material".to_string(), |_| {
                 let mut opaque_material = translucent_material.clone();
@@ -116,8 +118,10 @@ impl VoxSceneLoader {
                 non_emissive
             });
         }
+        let indices_of_refraction = palette.indices_of_refraction.clone();
         let palette_handle =
             load_context.add_labeled_asset("material-palette".to_string(), palette);
+
         // Scene graph
 
         let root = parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
@@ -142,7 +146,7 @@ impl VoxSceneLoader {
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
                 let data = load_from_model(&model, settings.mesh_outer_faces);
-                let (visible_voxels, ior) = data.visible_voxels(&ior_for_voxel);
+                let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                     crate::model::mesh::mesh_model(&visible_voxels, &data)
                 });
@@ -151,8 +155,7 @@ impl VoxSceneLoader {
                     load_context.labeled_asset_scope(format!("{}@material", name), |_| {
                         let mut material = translucent_material.clone();
                         material.ior = ior;
-                        material.thickness =
-                            model.size.x.min(model.size.y.min(model.size.z)) as f32;
+                        material.thickness = data.size().min_element() as f32;
                         material
                     })
                 } else {

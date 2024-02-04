@@ -3,7 +3,6 @@ use bevy::{
     ecs::system::{Command, Commands},
     math::{IVec3, Vec3},
     render::mesh::Mesh,
-    utils::HashMap,
 };
 use ndshape::Shape;
 
@@ -99,8 +98,8 @@ impl Command for ModifyVoxelModel {
             let mut models = cell.get_resource_mut::<Assets<VoxelModel>>()?;
             let palettes = cell.get_resource::<Assets<VoxelPalette>>()?;
             let model = models.get_mut(self.model)?;
-            let ior_for_voxel = palettes.get(model.palette.id())?.ior_for_voxel();
-            modify_model(model, &self, &mut meshes, &ior_for_voxel);
+            let refraction_indices = &palettes.get(model.palette.id())?.indices_of_refraction;
+            modify_model(model, &self, &mut meshes, refraction_indices);
             Some(())
         };
         perform();
@@ -157,7 +156,7 @@ fn modify_model(
     model: &mut VoxelModel,
     modifier: &ModifyVoxelModel,
     meshes: &mut Assets<Mesh>,
-    ior_for_voxel: &HashMap<u8, f32>,
+    refraction_indices: &[Option<f32>],
 ) {
     let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
     let model_size = model.size();
@@ -179,6 +178,7 @@ fn modify_model(
         }
     }
     model.data.voxels = updated;
-    meshes.insert(&model.mesh, model.data.remesh(ior_for_voxel));
-    // TODO: also update material if transparency has changed
+    let (mesh, average_ior) = model.data.remesh(refraction_indices);
+    meshes.insert(&model.mesh, mesh);
+    // TODO: also update material if transparency has changed. VoxelScene would need to use MeshCollection
 }

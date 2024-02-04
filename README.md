@@ -104,5 +104,3 @@ Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-
 
 ## TODO
 - use ModelCollection in VoxelScene
-- Make iorforvoxel plus material handles part of VoxelPalette
-- 

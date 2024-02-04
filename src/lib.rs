@@ -68,8 +68,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{
-    sdf::SDF, ModelCollection, Voxel, VoxelData, VoxelElement, VoxelModel,
-    VoxelPalette,
+    sdf::SDF, ModelCollection, Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette,
 };
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,

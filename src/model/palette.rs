@@ -7,7 +7,6 @@ use bevy::{
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
     },
-    utils::{default, HashMap},
 };
 use dot_vox::DotVoxData;
 
@@ -19,6 +18,7 @@ pub struct VoxelPalette {
     pub(crate) metalness: MaterialProperty,
     pub(crate) roughness: MaterialProperty,
     pub(crate) transmission: MaterialProperty,
+    pub(crate) indices_of_refraction: Vec<Option<f32>>,
     // material_opaque: Handle<StandardMaterial>,
     // material_translucent: Handle<StandardMaterial>,
 }
@@ -26,11 +26,11 @@ pub struct VoxelPalette {
 #[derive(PartialEq)]
 pub(crate) enum MaterialProperty {
     VariesPerElement,
-    Constant(f32)
+    Constant(f32),
 }
 
 impl MaterialProperty {
-    fn from_slice(slice: &Vec<f32>) -> Self {
+    fn from_slice(slice: &[f32]) -> Self {
         let max_element = slice.max_element();
         if max_element - slice.min_element() < 0.001 {
             MaterialProperty::Constant(max_element)
@@ -39,7 +39,7 @@ impl MaterialProperty {
         }
     }
 }
-/// This can be thought of as a voxel material. A type of Voxel brick modelled with physical properties such as color, roughness and so on.
+/// A material for a type of voxel brick modelled with physical properties such as color, roughness and so on.
 pub struct VoxelElement {
     /// The base color of the voxel
     pub color: Color,
@@ -77,12 +77,23 @@ impl VoxelPalette {
         let translucency_data: Vec<f32> = elements.iter().map(|e| e.translucency).collect();
 
         elements.resize_with(256, VoxelElement::default);
-        VoxelPalette { 
+        let indices_of_refraction: Vec<Option<f32>> = elements
+            .iter()
+            .map(|e| {
+                if e.translucency > 0.0 {
+                    Some(e.refraction_index)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        VoxelPalette {
             elements,
             emission: MaterialProperty::from_slice(&emission_data),
             metalness: MaterialProperty::from_slice(&metalness_data),
             roughness: MaterialProperty::from_slice(&roughness_data),
             transmission: MaterialProperty::from_slice(&translucency_data),
+            indices_of_refraction,
         }
     }
 
@@ -93,7 +104,7 @@ impl VoxelPalette {
                 .iter()
                 .map(|color| VoxelElement {
                     color: *color,
-                    ..default()
+                    ..Default::default()
                 })
                 .collect(),
         )
@@ -255,31 +266,21 @@ impl VoxelPalette {
             },
             emissive_texture,
             perceptual_roughness: match (has_roughness_metalness, &self.roughness) {
-                (true, _) | (_, MaterialProperty::VariesPerElement)  => 1.0,
+                (true, _) | (_, MaterialProperty::VariesPerElement) => 1.0,
                 (false, MaterialProperty::Constant(roughness)) => *roughness,
             },
             metallic: match (has_roughness_metalness, &self.metalness) {
-                (true, _) | (false, MaterialProperty::VariesPerElement)  => 1.0,
+                (true, _) | (false, MaterialProperty::VariesPerElement) => 1.0,
                 (false, MaterialProperty::Constant(metalness)) => *metalness,
             },
             metallic_roughness_texture,
             specular_transmission: match self.transmission {
                 MaterialProperty::Constant(transmission) => transmission,
-                MaterialProperty::VariesPerElement => 1.0
+                MaterialProperty::VariesPerElement => 1.0,
             },
             specular_transmission_texture,
-            ..default()
+            ..Default::default()
         }
-    }
-
-    pub(crate) fn ior_for_voxel(&self) -> HashMap<u8, f32> {
-        let mut result = HashMap::new();
-        for (index, element) in self.elements.iter().enumerate() {
-            if element.translucency > 0.0 {
-                result.insert(index as u8, element.refraction_index);
-            }
-        }
-        result
     }
 }
 
@@ -290,6 +291,22 @@ trait VecComparable<T> {
 }
 
 impl VecComparable<f32> for Vec<f32> {
+    fn max_element(&self) -> f32 {
+        self.iter()
+            .cloned()
+            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+            .unwrap()
+    }
+
+    fn min_element(&self) -> f32 {
+        self.iter()
+            .cloned()
+            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+            .unwrap()
+    }
+}
+
+impl VecComparable<f32> for &[f32] {
     fn max_element(&self) -> f32 {
         self.iter()
             .cloned()
