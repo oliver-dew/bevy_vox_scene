@@ -10,7 +10,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::model::VoxelModel;
+use crate::{model::VoxelModel, ModelCollection};
 pub use hook::VoxelSceneHook;
 
 /// A component bundle for spawning Voxel Scenes.
@@ -106,7 +106,7 @@ pub struct VoxelSceneHookBundle {
 pub struct VoxelScene {
     pub(crate) root: VoxelNode,
     pub(crate) layers: Vec<LayerInfo>,
-    pub(crate) models: Vec<Handle<VoxelModel>>,
+    pub(crate) model_collection: ModelCollection,
 }
 
 #[derive(Debug, Clone, Default)]

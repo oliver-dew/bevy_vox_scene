@@ -9,13 +9,14 @@ use bevy::{
     render::color::Color,
     utils::{hashbrown::HashMap, BoxedFuture},
 };
-use parse_model::load_from_model;
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{MaterialProperty, VoxelModel, VoxelPalette}, scene::{LayerInfo, VoxelNode, VoxelScene}, VoxelQueryable
+    model::{MaterialProperty, VoxelModel, VoxelPalette},
+    scene::{LayerInfo, VoxelNode, VoxelScene},
+    ModelCollection, VoxelData, VoxelQueryable,
 };
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
@@ -145,7 +146,7 @@ impl VoxSceneLoader {
             .enumerate()
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data = load_from_model(&model, settings.mesh_outer_faces);
+                let data = VoxelData::from_model(&model, settings.mesh_outer_faces);
                 let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                     crate::model::mesh::mesh_model(&visible_voxels, &data)
@@ -170,17 +171,25 @@ impl VoxSceneLoader {
             })
             .collect();
 
+        let transmissive_material_handle = load_context
+            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
+        let model_collection = ModelCollection {
+            palette: palette_handle,
+            models,
+            opaque_material: opaque_material_handle,
+            transmissive_material: transmissive_material_handle,
+        };
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
                 root: node,
                 layers: layers.clone(),
-                models: models.clone(),
+                model_collection: model_collection.clone(),
             });
         }
         Ok(VoxelScene {
             root,
             layers,
-            models,
+            model_collection,
         })
     }
 }

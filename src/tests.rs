@@ -137,6 +137,7 @@ async fn test_transmissive_mat() {
         .resource::<Assets<VoxelModel>>()
         .get(
             scene
+                .model_collection
                 .models
                 .get(model_id)
                 .expect("Walls has a model handle"),
@@ -170,7 +171,13 @@ async fn test_opaque_mat() {
     let model = app
         .world
         .resource::<Assets<VoxelModel>>()
-        .get(scene.models.get(model_id).expect("Dice has a model handle"))
+        .get(
+            scene
+                .model_collection
+                .models
+                .get(model_id)
+                .expect("Dice has a model handle"),
+        )
         .expect("retrieve model from Res<Assets>");
     let mat_handle = &model.material;
     let material = app
@@ -277,6 +284,7 @@ async fn test_modify_voxels() {
         .resource::<Assets<VoxelModel>>()
         .get(
             scene
+                .model_collection
                 .models
                 .get(model_id)
                 .expect("root should have model handle"),

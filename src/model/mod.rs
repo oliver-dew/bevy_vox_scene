@@ -36,11 +36,12 @@ pub struct VoxelModel {
 }
 
 /// A collection of [`VoxelModel`]s with a shared [`VoxelPalette`]
+#[derive(Debug, Clone)]
 pub struct ModelCollection {
-    palette: Handle<VoxelPalette>,
-    models: Vec<Handle<VoxelModel>>,
-    opaque_material: Handle<StandardMaterial>,
-    transmissive_material: Handle<StandardMaterial>,
+    pub(crate) palette: Handle<VoxelPalette>,
+    pub(crate) models: Vec<Handle<VoxelModel>>,
+    pub(crate) opaque_material: Handle<StandardMaterial>,
+    pub(crate) transmissive_material: Handle<StandardMaterial>,
 }
 
 impl ModelCollection {
