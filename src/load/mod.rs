@@ -120,8 +120,6 @@ impl VoxSceneLoader {
             });
         }
         let indices_of_refraction = palette.indices_of_refraction.clone();
-        let palette_handle =
-            load_context.add_labeled_asset("material-palette".to_string(), palette);
 
         // Scene graph
 
@@ -140,7 +138,7 @@ impl VoxSceneLoader {
         let mut model_names: Vec<Option<String>> = vec![None; file.models.len()];
         find_model_names(&mut model_names, &root);
 
-        let models: Vec<Handle<VoxelModel>> = model_names
+        let models: Vec<VoxelModel> = model_names
             .iter()
             .zip(file.models)
             .enumerate()
@@ -162,23 +160,26 @@ impl VoxSceneLoader {
                 } else {
                     opaque_material_handle.clone()
                 };
-                load_context.labeled_asset_scope(format!("{}@model", name), |_| VoxelModel {
+                VoxelModel {
                     data,
                     mesh,
                     material,
-                    palette: palette_handle.clone(),
-                })
+                }
             })
             .collect();
 
-        let transmissive_material_handle = load_context
-            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-        let model_collection = ModelCollection {
-            palette: palette_handle,
-            models,
-            opaque_material: opaque_material_handle,
-            transmissive_material: transmissive_material_handle,
-        };
+        let model_collection =
+            load_context.labeled_asset_scope("model-collection".to_string(), |context| {
+                let transmissive_material_handle = context
+                    .add_labeled_asset("material-transmissive".to_string(), translucent_material);
+                ModelCollection {
+                    palette,
+                    models,
+                    opaque_material: opaque_material_handle,
+                    transmissive_material: transmissive_material_handle,
+                }
+            });
+
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
                 root: node,

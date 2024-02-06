@@ -78,7 +78,7 @@ fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Flo
         size: IVec3::new(64, 8, 64),
     };
     commands.modify_voxel_model(
-        instance.0.id(),
+        instance.clone(),
         VoxelRegionMode::Box(region),
         |pos, voxel, model| {
             if *voxel != Voxel::EMPTY {

@@ -1,4 +1,4 @@
-use crate::VoxelSceneHook;
+use crate::{ModelCollection, VoxelSceneHook};
 use bevy::{
     asset::{Assets, Handle},
     core::Name,
@@ -15,7 +15,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::scene::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelNode, VoxelScene};
+use crate::scene::{VoxelLayer, VoxelModelInstance, VoxelNode, VoxelScene};
 
 pub(crate) fn spawn_vox_scenes(
     mut commands: Commands,
@@ -26,19 +26,19 @@ pub(crate) fn spawn_vox_scenes(
         Option<&Visibility>,
     )>,
     vox_scenes: Res<Assets<VoxelScene>>,
-    vox_models: Res<Assets<VoxelModel>>,
+    collections: Res<Assets<ModelCollection>>,
 ) {
     for (root, scene_handle, transform, visibility) in query.iter() {
-        if let Some(scene) = vox_scenes.get(scene_handle) {
-            spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, &vox_models);
-            let mut entity = commands.entity(root);
-            entity.remove::<Handle<VoxelScene>>();
-            if let Some(transform) = transform {
-                entity.insert(*transform);
-            }
-            if let Some(visibility) = visibility {
-                entity.insert(*visibility);
-            }
+        let Some(scene) = vox_scenes.get(scene_handle) else { continue };
+        let Some(collection) = collections.get(scene.model_collection.id()) else { continue };
+        spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, collection);
+        let mut entity = commands.entity(root);
+        entity.remove::<Handle<VoxelScene>>();
+        if let Some(transform) = transform {
+            entity.insert(*transform);
+        }
+        if let Some(visibility) = visibility {
+            entity.insert(*visibility);
         }
     }
 }
@@ -48,19 +48,19 @@ fn spawn_voxel_node_recursive(
     voxel_node: &VoxelNode,
     entity: Entity,
     scene: &VoxelScene,
-    vox_models: &Res<Assets<VoxelModel>>,
+    model_collection: &ModelCollection,
 ) {
     let mut entity_commands = commands.entity(entity);
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
-    if let Some(model_handle) = &voxel_node
-        .model_id
-        .and_then(|id| scene.model_collection.models.get(id))
-    {
-        if let Some(model) = vox_models.get(*model_handle) {
+    if let Some(model_index) = &voxel_node.model_id {
+        if let Some(model) = model_collection.models.get(*model_index) {
             entity_commands.insert((
-                VoxelModelInstance((**model_handle).clone()),
+                VoxelModelInstance {
+                    collection: scene.model_collection.clone(),
+                    model_index: *model_index,
+                },
                 PbrBundle {
                     mesh: model.mesh.clone(),
                     material: model.material.clone(),
@@ -68,7 +68,7 @@ fn spawn_voxel_node_recursive(
                 },
             ));
         } else {
-            warn!("Model not found, omitting: {:?}", model_handle);
+            warn!("Model not found, omitting: {:?}", model_index);
             entity_commands.insert(SpatialBundle::default());
         }
     } else {
@@ -94,7 +94,13 @@ fn spawn_voxel_node_recursive(
             for child in &voxel_node.children {
                 let mut child_entity = builder.spawn_empty();
                 let id = child_entity.id();
-                spawn_voxel_node_recursive(child_entity.commands(), child, id, scene, vox_models);
+                spawn_voxel_node_recursive(
+                    child_entity.commands(),
+                    child,
+                    id,
+                    scene,
+                    model_collection,
+                );
             }
         });
 }

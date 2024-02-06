@@ -10,7 +10,7 @@ use bevy::{
     transform::components::Transform,
 };
 
-use crate::{model::VoxelModel, ModelCollection};
+use crate::ModelCollection;
 pub use hook::VoxelSceneHook;
 
 /// A component bundle for spawning Voxel Scenes.
@@ -106,7 +106,7 @@ pub struct VoxelSceneHookBundle {
 pub struct VoxelScene {
     pub(crate) root: VoxelNode,
     pub(crate) layers: Vec<LayerInfo>,
-    pub(crate) model_collection: ModelCollection,
+    pub(crate) model_collection: Handle<ModelCollection>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -128,8 +128,13 @@ pub(crate) struct LayerInfo {
 /// Component wrapping the handle to the [`VoxelModel`]
 ///
 /// When the scene is spawned this component gets added to entities with a voxel mesh.
-#[derive(Component)]
-pub struct VoxelModelInstance(pub Handle<VoxelModel>);
+#[derive(Component, Clone)]
+pub struct VoxelModelInstance {
+    /// Handle to the collection that this model is instanced from
+    pub collection: Handle<ModelCollection>,
+    /// The index of the model within the collection
+    pub model_index: usize,
+}
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///

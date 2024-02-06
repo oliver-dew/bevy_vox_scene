@@ -1,7 +1,6 @@
 use bevy::{
-    asset::{Asset, Assets, Handle, LoadContext},
+    asset::{Assets, Handle, LoadContext},
     pbr::StandardMaterial,
-    reflect::TypePath,
     render::{
         color::Color,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
@@ -11,7 +10,6 @@ use bevy::{
 use dot_vox::DotVoxData;
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
-#[derive(Asset, TypePath)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
     pub(crate) emission: MaterialProperty,

@@ -1,12 +1,14 @@
 use bevy::{
-    asset::{AssetId, Assets},
+    asset::Assets,
     ecs::system::{Command, Commands},
     math::{IVec3, Vec3},
     render::mesh::Mesh,
 };
 use ndshape::Shape;
 
-use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
+use crate::{ModelCollection, VoxelModelInstance};
+
+use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
 
 /// Command that programatically modifies the voxels in a model.
 ///
@@ -15,9 +17,9 @@ use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 /// ### Example
 /// ```no_run
 /// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModel, ModifyVoxelCommandsExt, VoxelRegionMode, VoxelRegion, Voxel};
+/// # use bevy_vox_scene::{VoxelModelInstance, ModifyVoxelCommandsExt, VoxelRegionMode, VoxelRegion, Voxel};
 /// # let mut commands: Commands = panic!();
-/// # let model_handle: Handle<VoxelModel> = panic!();
+/// # let model_instance: VoxelModelInstance = panic!();
 /// // cut a sphere-shaped hole out of the loaded model
 /// let sphere_center = IVec3::new(10, 10, 10);
 /// let radius = 10;
@@ -27,7 +29,7 @@ use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 ///     size: IVec3::splat(1 + (radius * 2)),
 /// };
 /// commands.modify_voxel_model(
-///     model_handle.id(),
+///     model_instance.clone(),
 ///     VoxelRegionMode::Box(region),
 ///     move | position, voxel, model | {
 ///         // a signed-distance function for a sphere:
@@ -60,7 +62,7 @@ pub trait ModifyVoxelCommandsExt {
         F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
     >(
         &mut self,
-        model: AssetId<VoxelModel>,
+        model: VoxelModelInstance,
         region: VoxelRegionMode,
         modify: F,
     ) -> &mut Self;
@@ -71,7 +73,7 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
         F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
     >(
         &mut self,
-        model: AssetId<VoxelModel>,
+        model: VoxelModelInstance,
         region: VoxelRegionMode,
         modify: F,
     ) -> &mut Self {
@@ -85,7 +87,7 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
 }
 
 struct ModifyVoxelModel {
-    model: AssetId<VoxelModel>,
+    model: VoxelModelInstance,
     region: VoxelRegionMode,
     modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
 }
@@ -95,10 +97,10 @@ impl Command for ModifyVoxelModel {
         let cell = world.cell();
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
-            let mut models = cell.get_resource_mut::<Assets<VoxelModel>>()?;
-            let palettes = cell.get_resource::<Assets<VoxelPalette>>()?;
-            let model = models.get_mut(self.model)?;
-            let refraction_indices = &palettes.get(model.palette.id())?.indices_of_refraction;
+            let mut collections = cell.get_resource_mut::<Assets<ModelCollection>>()?;
+            let collection = collections.get_mut(self.model.collection.id())?;
+            let model = collection.models.get_mut(self.model.model_index)?;
+            let refraction_indices = &collection.palette.indices_of_refraction;
             modify_model(model, &self, &mut meshes, refraction_indices);
             Some(())
         };

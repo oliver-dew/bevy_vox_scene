@@ -83,8 +83,7 @@ pub struct VoxScenePlugin;
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
-            .init_asset::<VoxelModel>()
-            .init_asset::<VoxelPalette>()
+            .init_asset::<ModelCollection>()
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,

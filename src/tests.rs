@@ -44,14 +44,13 @@ async fn test_load_scene() {
         .resource::<Assets<VoxelScene>>()
         .get(handle)
         .expect("retrieve test.vox from Res<Assets>");
-    let all_models: Vec<&VoxelModel> = app
+    let collection = app
         .world
-        .resource::<Assets<VoxelModel>>()
-        .iter()
-        .map(|(_, asset)| asset)
-        .collect();
+        .resource::<Assets<ModelCollection>>()
+        .get(scene.model_collection.id())
+        .expect("Retrieve collection");
     assert_eq!(
-        all_models.len(),
+        collection.models.len(),
         3,
         "Same 3 models are instanced through the scene"
     );
@@ -132,17 +131,12 @@ async fn test_transmissive_mat() {
         .expect("retrieve scene from Res<Assets>");
     let walls = &scene.root;
     let model_id = walls.model_id.expect("Walls has a model id");
-    let model = app
+    let collection = app
         .world
-        .resource::<Assets<VoxelModel>>()
-        .get(
-            scene
-                .model_collection
-                .models
-                .get(model_id)
-                .expect("Walls has a model handle"),
-        )
-        .expect("retrieve model from Res<Assets>");
+        .resource::<Assets<ModelCollection>>()
+        .get(scene.model_collection.id())
+        .expect("Retrieve collection");
+    let model = collection.models.get(model_id).expect("Walls has a model");
     let mat_handle = &model.material;
     let material = app
         .world
@@ -168,17 +162,15 @@ async fn test_opaque_mat() {
         .expect("retrieve scene from Res<Assets>");
     let dice = &scene.root;
     let model_id = dice.model_id.expect("Dice has a model id");
-    let model = app
+    let collection = app
         .world
-        .resource::<Assets<VoxelModel>>()
-        .get(
-            scene
-                .model_collection
-                .models
-                .get(model_id)
-                .expect("Dice has a model handle"),
-        )
-        .expect("retrieve model from Res<Assets>");
+        .resource::<Assets<ModelCollection>>()
+        .get(scene.model_collection.id())
+        .expect("Retrieve collection");
+    let model = collection
+        .models
+        .get(model_id)
+        .expect("retrieve model from collection");
     let mat_handle = &model.material;
     let material = app
         .world
@@ -236,9 +228,9 @@ async fn test_spawn_system() {
         4,
         "4 model instances spawned in this scene slice"
     );
-    let models: HashSet<Handle<VoxelModel>> = instance_query
+    let models: HashSet<usize> = instance_query
         .iter(&app.world)
-        .map(|c| c.0.clone())
+        .map(|c| c.model_index.clone())
         .collect();
     assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     assert_eq!(
@@ -279,16 +271,15 @@ async fn test_modify_voxels() {
         .get(handle)
         .expect("retrieve scene from Res<Assets>");
     let model_id = scene.root.model_id.expect("Root should have a model");
-    let model = app
+    let collection = app
         .world
-        .resource::<Assets<VoxelModel>>()
-        .get(
-            scene
-                .model_collection
-                .models
-                .get(model_id)
-                .expect("root should have model handle"),
-        )
+        .resource::<Assets<ModelCollection>>()
+        .get(scene.model_collection.id())
+        .expect("Retrieve collection");
+
+    let model = collection
+        .models
+        .get(model_id)
         .expect("retrieve model from Res<Assets>");
     assert_eq!(
         model.get_voxel_at_point(IVec3::splat(4)),
@@ -307,12 +298,23 @@ async fn test_modify_voxels() {
 }
 
 #[cfg(feature = "modify_voxels")]
-fn modify_voxels(mut commands: Commands, models: Res<Assets<VoxelModel>>) {
-    let id = models
+fn modify_voxels(
+    mut commands: Commands,
+    scenes: Res<Assets<VoxelScene>>,
+    models: Res<Assets<ModelCollection>>,
+) {
+    let (_, scene) = scenes.iter().next().expect("a scene has been added");
+    let collection_id = &scene.model_collection;
+    let collection = models
+        .get(collection_id.id())
+        .expect("A model collection has been added");
+    let model_index: usize = collection
+        .models
         .iter()
-        .filter_map(|(id, model)| {
+        .enumerate()
+        .filter_map(|(index, model)| {
             if model.size() == IVec3::splat(4) {
-                Some(id)
+                Some(index)
             } else {
                 None
             }
@@ -323,12 +325,17 @@ fn modify_voxels(mut commands: Commands, models: Res<Assets<VoxelModel>>) {
         origin: IVec3::splat(2),
         size: IVec3::ONE,
     };
-    commands.modify_voxel_model(id, VoxelRegionMode::Box(region), |_pos, _voxel, _model| {
-        Voxel(7)
-    });
+    let instance = VoxelModelInstance {
+        collection: collection_id.clone(),
+        model_index,
+    };
+    commands.modify_voxel_model(
+        instance,
+        VoxelRegionMode::Box(region),
+        |_pos, _voxel, _model| Voxel(7),
+    );
 }
 
-/// `await` the response from this and then call `app.update()`
 async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<VoxelScene> {
     app.add_plugins((
         MinimalPlugins,
