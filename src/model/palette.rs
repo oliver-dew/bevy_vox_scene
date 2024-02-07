@@ -10,6 +10,7 @@ use bevy::{
 use dot_vox::DotVoxData;
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
+#[derive(Clone)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
     pub(crate) emission: MaterialProperty,
@@ -17,11 +18,9 @@ pub struct VoxelPalette {
     pub(crate) roughness: MaterialProperty,
     pub(crate) transmission: MaterialProperty,
     pub(crate) indices_of_refraction: Vec<Option<f32>>,
-    // material_opaque: Handle<StandardMaterial>,
-    // material_translucent: Handle<StandardMaterial>,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub(crate) enum MaterialProperty {
     VariesPerElement,
     Constant(f32),
@@ -38,6 +37,7 @@ impl MaterialProperty {
     }
 }
 /// A material for a type of voxel brick modelled with physical properties such as color, roughness and so on.
+#[derive(Clone)]
 pub struct VoxelElement {
     /// The base color of the voxel
     pub color: Color,

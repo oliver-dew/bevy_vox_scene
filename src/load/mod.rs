@@ -16,7 +16,7 @@ use thiserror::Error;
 use crate::{
     model::{MaterialProperty, VoxelModel, VoxelPalette},
     scene::{LayerInfo, VoxelNode, VoxelScene},
-    ModelCollection, VoxelData, VoxelQueryable,
+    VoxelModelCollection, VoxelData, VoxelQueryable,
 };
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.
@@ -137,6 +137,7 @@ impl VoxSceneLoader {
 
         let mut model_names: Vec<Option<String>> = vec![None; file.models.len()];
         find_model_names(&mut model_names, &root);
+        let mut index_for_model_name: HashMap<String, usize> = HashMap::new();
 
         let models: Vec<VoxelModel> = model_names
             .iter()
@@ -144,6 +145,7 @@ impl VoxSceneLoader {
             .enumerate()
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
+                index_for_model_name.insert(name.to_string(), index);
                 let data = VoxelData::from_model(&model, settings.mesh_outer_faces);
                 let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
@@ -161,9 +163,11 @@ impl VoxSceneLoader {
                     opaque_material_handle.clone()
                 };
                 VoxelModel {
+                    name,
                     data,
                     mesh,
                     material,
+                    has_translucency: ior.is_some(),
                 }
             })
             .collect();
@@ -172,9 +176,10 @@ impl VoxSceneLoader {
             load_context.labeled_asset_scope("model-collection".to_string(), |context| {
                 let transmissive_material_handle = context
                     .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-                ModelCollection {
+                VoxelModelCollection {
                     palette,
                     models,
+                    index_for_model_name,
                     opaque_material: opaque_material_handle,
                     transmissive_material: transmissive_material_handle,
                 }

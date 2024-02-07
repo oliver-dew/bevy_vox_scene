@@ -103,4 +103,5 @@ Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-
 `VoxelSceneHook` is adapted from [bevy-scene-hook](https://github.com/nicopap/bevy-scene-hook) by Nicola Papale.
 
 ## TODO
-- use ModelCollection in VoxelScene
+- [ ] remove refraction indices from palette, just make VoxelElemet. refraction optional?
+- [ ] put sdf behind a cargo feature

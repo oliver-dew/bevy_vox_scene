@@ -1,4 +1,4 @@
-use crate::{ModelCollection, VoxelSceneHook};
+use crate::{VoxelModelCollection, VoxelSceneHook};
 use bevy::{
     asset::{Assets, Handle},
     core::Name,
@@ -26,7 +26,7 @@ pub(crate) fn spawn_vox_scenes(
         Option<&Visibility>,
     )>,
     vox_scenes: Res<Assets<VoxelScene>>,
-    collections: Res<Assets<ModelCollection>>,
+    collections: Res<Assets<VoxelModelCollection>>,
 ) {
     for (root, scene_handle, transform, visibility) in query.iter() {
         let Some(scene) = vox_scenes.get(scene_handle) else { continue };
@@ -48,7 +48,7 @@ fn spawn_voxel_node_recursive(
     voxel_node: &VoxelNode,
     entity: Entity,
     scene: &VoxelScene,
-    model_collection: &ModelCollection,
+    model_collection: &VoxelModelCollection,
 ) {
     let mut entity_commands = commands.entity(entity);
     if let Some(name) = &voxel_node.name {
@@ -59,7 +59,7 @@ fn spawn_voxel_node_recursive(
             entity_commands.insert((
                 VoxelModelInstance {
                     collection: scene.model_collection.clone(),
-                    model_index: *model_index,
+                    model_name: model.name.clone(),
                 },
                 PbrBundle {
                     mesh: model.mesh.clone(),

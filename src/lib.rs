@@ -68,7 +68,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{
-    sdf::SDF, ModelCollection, Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette,
+    sdf::SDF, VoxelModelCollection, Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette,
 };
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
@@ -83,7 +83,7 @@ pub struct VoxScenePlugin;
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
-            .init_asset::<ModelCollection>()
+            .init_asset::<VoxelModelCollection>()
             .register_asset_loader(VoxSceneLoader)
             .add_systems(
                 SpawnScene,

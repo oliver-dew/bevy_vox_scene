@@ -1,7 +1,7 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    ModelCollection, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelPalette, SDF,
+    VoxelModelCollection, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelPalette, SDF,
 };
 
 fn main() {
@@ -45,14 +45,18 @@ fn setup(world: &mut World) {
             x if x >= 0.0 => Voxel::EMPTY,
             _ => Voxel::EMPTY,
         });
-    let Some(mut collection) = ModelCollection::new(world, palette) else { return };
-    let Some(model) = collection.add(data, world) else { return };
+    let Some((mut collection, collection_handle)) = VoxelModelCollection::new(world, palette) else { return };
+    let model_name = "my sdf model";
+    let Some(model) = collection.add(data, "my sdf model", world) else { return };
     world.spawn((
         PbrBundle {
             mesh: model.mesh,
             material: model.material,
             ..default()
         },
-        // VoxelModelInstance(model_handle),
+        VoxelModelInstance {
+            collection: collection_handle,
+            model_name: model_name.to_string(),
+        },
     ));
 }

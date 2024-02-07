@@ -7,7 +7,7 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    ModelCollection, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance,
+    VoxelModelCollection, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance,
     VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
 };
@@ -97,7 +97,7 @@ fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
-    model_collections: Res<Assets<ModelCollection>>,
+    model_collections: Res<Assets<VoxelModelCollection>>,
 ) {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
@@ -109,7 +109,7 @@ fn update_snow(
         }
         for (item_xform, item_instance) in scenery.iter() {
             let Some(collection) = model_collections.get(item_instance.collection.id()) else { continue };
-            let Some(model) = collection.models.get(item_instance.model_index) else { continue  };
+            let Some(model) = collection.model(&item_instance.model_name) else { continue  };
             let vox_pos =
                 model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
             // check whether snowflake has landed on something solid

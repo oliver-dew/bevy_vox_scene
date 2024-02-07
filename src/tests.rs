@@ -46,7 +46,7 @@ async fn test_load_scene() {
         .expect("retrieve test.vox from Res<Assets>");
     let collection = app
         .world
-        .resource::<Assets<ModelCollection>>()
+        .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
     assert_eq!(
@@ -133,7 +133,7 @@ async fn test_transmissive_mat() {
     let model_id = walls.model_id.expect("Walls has a model id");
     let collection = app
         .world
-        .resource::<Assets<ModelCollection>>()
+        .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
     let model = collection.models.get(model_id).expect("Walls has a model");
@@ -164,7 +164,7 @@ async fn test_opaque_mat() {
     let model_id = dice.model_id.expect("Dice has a model id");
     let collection = app
         .world
-        .resource::<Assets<ModelCollection>>()
+        .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
     let model = collection
@@ -228,9 +228,9 @@ async fn test_spawn_system() {
         4,
         "4 model instances spawned in this scene slice"
     );
-    let models: HashSet<usize> = instance_query
+    let models: HashSet<String> = instance_query
         .iter(&app.world)
-        .map(|c| c.model_index.clone())
+        .map(|c| c.model_name.clone())
         .collect();
     assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     assert_eq!(
@@ -273,7 +273,7 @@ async fn test_modify_voxels() {
     let model_id = scene.root.model_id.expect("Root should have a model");
     let collection = app
         .world
-        .resource::<Assets<ModelCollection>>()
+        .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
 
@@ -298,36 +298,16 @@ async fn test_modify_voxels() {
 }
 
 #[cfg(feature = "modify_voxels")]
-fn modify_voxels(
-    mut commands: Commands,
-    scenes: Res<Assets<VoxelScene>>,
-    models: Res<Assets<ModelCollection>>,
-) {
+fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
     let (_, scene) = scenes.iter().next().expect("a scene has been added");
     let collection_id = &scene.model_collection;
-    let collection = models
-        .get(collection_id.id())
-        .expect("A model collection has been added");
-    let model_index: usize = collection
-        .models
-        .iter()
-        .enumerate()
-        .filter_map(|(index, model)| {
-            if model.size() == IVec3::splat(4) {
-                Some(index)
-            } else {
-                None
-            }
-        })
-        .next()
-        .expect("There should be a dice model the size of which is 4 x 4 x 4");
     let region = VoxelRegion {
         origin: IVec3::splat(2),
         size: IVec3::ONE,
     };
     let instance = VoxelModelInstance {
         collection: collection_id.clone(),
-        model_index,
+        model_name: "outer-group/inner-group/dice".to_string(),
     };
     commands.modify_voxel_model(
         instance,

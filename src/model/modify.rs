@@ -1,12 +1,13 @@
 use bevy::{
-    asset::Assets,
+    asset::{Assets, Handle},
     ecs::system::{Command, Commands},
     math::{IVec3, Vec3},
+    pbr::StandardMaterial,
     render::mesh::Mesh,
 };
 use ndshape::Shape;
 
-use crate::{ModelCollection, VoxelModelInstance};
+use crate::{VoxelModelCollection, VoxelModelInstance};
 
 use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
 
@@ -97,14 +98,74 @@ impl Command for ModifyVoxelModel {
         let cell = world.cell();
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
-            let mut collections = cell.get_resource_mut::<Assets<ModelCollection>>()?;
+            let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
+            let mut collections = cell.get_resource_mut::<Assets<VoxelModelCollection>>()?;
             let collection = collections.get_mut(self.model.collection.id())?;
-            let model = collection.models.get_mut(self.model.model_index)?;
+            let index = collection
+                .index_for_model_name
+                .get(&self.model.model_name)?;
+            let model = collection.models.get_mut(*index)?;
             let refraction_indices = &collection.palette.indices_of_refraction;
-            modify_model(model, &self, &mut meshes, refraction_indices);
+            self.modify_model(
+                model,
+                &mut meshes,
+                &mut materials,
+                collection.opaque_material.clone(),
+                collection.transmissive_material.clone(),
+                refraction_indices,
+            );
             Some(())
         };
         perform();
+    }
+}
+
+impl ModifyVoxelModel {
+    fn modify_model(
+        &self,
+        model: &mut VoxelModel,
+        meshes: &mut Assets<Mesh>,
+        materials: &mut Assets<StandardMaterial>,
+        opaque_material: Handle<StandardMaterial>,
+        transmissive_material: Handle<StandardMaterial>,
+        refraction_indices: &[Option<f32>],
+    ) {
+        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+        let model_size = model.size();
+        let region = self.region.clamped(model_size);
+        let start = leading_padding + region.origin;
+        let end = start + region.size;
+        let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
+        for x in start.x..end.x {
+            for y in start.y..end.y {
+                for z in start.z..end.z {
+                    let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
+                    let source: Voxel = model.data.voxels[index].clone().into();
+                    updated[index] = RawVoxel::from((self.modify)(
+                        IVec3::new(x, y, z) - leading_padding,
+                        &source,
+                        model,
+                    ));
+                }
+            }
+        }
+        model.data.voxels = updated;
+        let (mesh, average_ior) = model.data.remesh(refraction_indices);
+        meshes.insert(&model.mesh, mesh);
+        let has_translucency_old_value = model.has_translucency;
+        model.has_translucency = average_ior.is_some();
+        match (has_translucency_old_value, average_ior) {
+            (true, Some(..)) | (false, None) => (), // no change in model's translucency
+            (true, None) => {
+                model.material = opaque_material;
+            }
+            (false, Some(ior)) => {
+                let Some(mut translucent_material) = materials.get(transmissive_material).cloned() else { return };
+                translucent_material.ior = ior;
+                translucent_material.thickness = model.size().min_element() as f32;
+                model.material = materials.add(translucent_material);
+            }
+        }
     }
 }
 
@@ -152,35 +213,4 @@ impl VoxelRegion {
         let size = Vec3::new(self.size.x as f32, self.size.y as f32, self.size.z as f32);
         origin + (size * 0.5)
     }
-}
-
-fn modify_model(
-    model: &mut VoxelModel,
-    modifier: &ModifyVoxelModel,
-    meshes: &mut Assets<Mesh>,
-    refraction_indices: &[Option<f32>],
-) {
-    let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
-    let model_size = model.size();
-    let region = modifier.region.clamped(model_size);
-    let start = leading_padding + region.origin;
-    let end = start + region.size;
-    let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
-    for x in start.x..end.x {
-        for y in start.y..end.y {
-            for z in start.z..end.z {
-                let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
-                let source: Voxel = model.data.voxels[index].clone().into();
-                updated[index] = RawVoxel::from((modifier.modify)(
-                    IVec3::new(x, y, z) - leading_padding,
-                    &source,
-                    model,
-                ));
-            }
-        }
-    }
-    model.data.voxels = updated;
-    let (mesh, average_ior) = model.data.remesh(refraction_indices);
-    meshes.insert(&model.mesh, mesh);
-    // TODO: also update material if transparency has changed. VoxelScene would need to use MeshCollection
 }
