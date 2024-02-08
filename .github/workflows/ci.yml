@@ -43,9 +43,9 @@ jobs:
           args: '-- --ignore-tests --test-threads 1'
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v1
