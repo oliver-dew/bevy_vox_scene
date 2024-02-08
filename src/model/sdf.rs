@@ -1,4 +1,4 @@
-use bevy::math::{UVec3, Vec3};
+use bevy::math::{Quat, UVec3, Vec3};
 
 use crate::{Voxel, VoxelData};
 
@@ -52,13 +52,15 @@ impl SDF {
         Self::new(move |point| self.distance(point + delta))
     }
 
+    /// Rotates the input to the field
+    pub fn rotate(self, rotation: Quat) -> Self {
+        let inverse = rotation.inverse();
+        Self::new(move |point| self.distance(inverse.mul_vec3(point)))
+    }
+
     /// Warps the input to the field using the supplied function
     pub fn warp<F: Fn(Vec3) -> Vec3 + Send + Sync + 'static>(self, warp: F) -> Self {
         Self::new(move |point| self.distance(warp(point)))
-    }
-
-    fn warp2(self, warp: impl Fn(Vec3) -> Vec3 + Send + Sync + 'static) -> Self {
-        Self::new(move |point| self.distance((warp)(point)))
     }
 
     /// Converts the SDF to [`VoxelData`] by sampling it at each position.
