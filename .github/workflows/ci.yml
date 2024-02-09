@@ -19,7 +19,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+
       - name: Cache
+        id: cache
         uses: actions/cache@v3
         with:
           path: |
@@ -29,18 +31,19 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
+
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
-      - name: Run cargo test
-        run: cargo test --lib --verbose
 
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.22.0'
-          args: '--ignore-tests -- --test-threads 1'
+      - name: Install cargo-tarpaulin
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-tarpaulin
+
+      - name: Run tests
+        run: cargo tarpaulin --ignore-tests -- --verbose
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
