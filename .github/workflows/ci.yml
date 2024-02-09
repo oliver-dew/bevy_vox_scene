@@ -39,10 +39,11 @@ jobs:
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
 
       - name: Install cargo-tarpaulin
+        if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install cargo-tarpaulin
 
       - name: Run tests
-        run: cargo tarpaulin --ignore-tests
+        run: cargo tarpaulin --ignore-tests --out Xml
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
