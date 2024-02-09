@@ -42,7 +42,6 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Run tests
-        if: steps.cache.outputs.cache-hit != 'true'
         run: cargo tarpaulin --ignore-tests
 
       - name: Upload to codecov.io
