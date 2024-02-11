@@ -1,127 +1,111 @@
 use bevy::{
     asset::{Asset, Assets, Handle},
-    ecs::system::ResMut,
-    math::{IVec3, UVec3},
+    ecs::world::World,
     pbr::StandardMaterial,
     reflect::TypePath,
-    render::mesh::Mesh,
+    render::{mesh::Mesh, texture::Image},
     utils::HashMap,
 };
-use block_mesh::VoxelVisibility;
-use ndshape::{RuntimeShape, Shape};
 
-use self::voxel::VisibleVoxel;
-pub use self::voxel::Voxel;
+pub use self::{data::VoxelData, voxel::Voxel};
+pub(crate) use palette::MaterialProperty;
 pub(crate) use voxel::RawVoxel;
-
+pub(super) mod data;
 pub(super) mod mesh;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod modify;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod queryable;
+#[cfg(feature = "generate_voxels")]
+pub(super) mod sdf;
 #[cfg(feature = "modify_voxels")]
 pub use self::queryable::VoxelQueryable;
+mod palette;
+pub use palette::{VoxelElement, VoxelPalette};
 mod voxel;
 
-/// Asset containing the voxel data for a model, as well as handles to the mesh derived from that data and the material
-#[derive(Asset, TypePath, Default)]
+/// Contains the voxel data for a model, as well as handles to the mesh derived from that data and the material
+#[derive(Default, Clone)]
 pub struct VoxelModel {
+    /// Unique name of the model
+    pub name: String,
     /// The voxel data used to generate the mesh
     pub(crate) data: VoxelData,
     /// Handle to the model's mesh
-    pub(crate) mesh: Handle<Mesh>,
+    pub mesh: Handle<Mesh>,
     /// Handle to the model's material
-    pub(crate) material: Handle<StandardMaterial>,
+    pub material: Handle<StandardMaterial>,
+    /// True if the model contains translucent voxels.
+    pub(crate) has_translucency: bool,
 }
 
-impl VoxelModel {
-    /// Create a new VoxelModel from [`VoxelData`]
-    pub fn new(
-        data: VoxelData,
-        meshes: &mut ResMut<Assets<Mesh>>,
-        material: Handle<StandardMaterial>,
-    ) -> Self {
-        let mesh = data.remesh();
-        VoxelModel {
+/// A collection of [`VoxelModel`]s with a shared [`VoxelPalette`]
+#[derive(Asset, TypePath, Clone)]
+pub struct VoxelModelCollection {
+    /// The palette used by the models
+    pub palette: VoxelPalette,
+    /// The models in the collection
+    pub models: Vec<VoxelModel>,
+    pub(crate) index_for_model_name: HashMap<String, usize>,
+    pub(crate) opaque_material: Handle<StandardMaterial>,
+    pub(crate) transmissive_material: Handle<StandardMaterial>,
+}
+
+#[cfg(feature = "generate_voxels")]
+impl VoxelModelCollection {
+    /// Create a new collection with the supplied palette
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<(Self, Handle<Self>)> {
+        let cell = world.cell();
+        let mut images = cell.get_resource_mut::<Assets<Image>>()?;
+        let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
+        let material = palette.create_material(&mut images);
+        let mut opaque_material = material.clone();
+        opaque_material.specular_transmission_texture = None;
+        opaque_material.specular_transmission = 0.0;
+        let collection = VoxelModelCollection {
+            palette,
+            models: vec![],
+            index_for_model_name: HashMap::new(),
+            opaque_material: materials.add(opaque_material),
+            transmissive_material: materials.add(material),
+        };
+        let mut collections = cell.get_resource_mut::<Assets<VoxelModelCollection>>()?;
+        let collection_handle = collections.add(collection.clone());
+        Some((collection, collection_handle))
+    }
+
+    /// Adds a [`VoxelModel`] to the collection generated with the supplied [`VoxelData`]
+    pub fn add(&mut self, data: VoxelData, name: &str, world: &mut World) -> Option<VoxelModel> {
+        let cell = world.cell();
+        let (mesh, average_ior) = data.remesh(&self.palette.indices_of_refraction);
+        let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
+        let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
+        let material = if let Some(ior) = average_ior {
+            let mut transmissive_material = materials.get(self.transmissive_material.id())?.clone();
+            transmissive_material.ior = ior;
+            transmissive_material.thickness = data.size().min_element() as f32;
+            materials.add(transmissive_material)
+        } else {
+            self.opaque_material.clone()
+        };
+        let model = VoxelModel {
+            name: name.to_string(),
             data,
             mesh: meshes.add(mesh),
             material,
-        }
-    }
-}
-
-/// The voxel data used to create a mesh and a material.
-pub struct VoxelData {
-    pub(crate) shape: RuntimeShape<u32, 3>,
-    pub(crate) voxels: Vec<RawVoxel>,
-    pub(crate) ior_for_voxel: HashMap<u8, f32>,
-    pub(crate) mesh_outer_faces: bool,
-}
-
-impl Default for VoxelData {
-    fn default() -> Self {
-        Self {
-            shape: RuntimeShape::<u32, 3>::new([0, 0, 0]),
-            voxels: Default::default(),
-            ior_for_voxel: Default::default(),
-            mesh_outer_faces: true,
-        }
-    }
-}
-
-impl VoxelData {
-    /// The size of the voxel model.
-    pub(crate) fn _size(&self) -> IVec3 {
-        let raw_size: UVec3 = self.shape.as_array().into();
-        let padded = raw_size - UVec3::splat(self.padding());
-        IVec3::try_from(padded).unwrap_or(IVec3::ZERO)
-    }
-
-    /// If the outer faces are to be meshed, the mesher requires 1 voxel of padding around the edge of the model
-    pub(crate) fn padding(&self) -> u32 {
-        if self.mesh_outer_faces {
-            2
-        } else {
-            0
-        }
-    }
-
-    pub(crate) fn remesh(&self) -> Mesh {
-        let (visible_voxels, _) = self.visible_voxels();
-        mesh::mesh_model(&visible_voxels, self)
-    }
-
-    /// Returns the [`VoxelVisibility`] of each Voxel, and, if the model contains
-    /// translucent voxels, the average Index of Refraction.
-    pub(crate) fn visible_voxels(&self) -> (Vec<VisibleVoxel>, Option<f32>) {
-        let mut refraction_indices: Vec<f32> = Vec::new();
-        let voxels: Vec<VisibleVoxel> = self
-            .voxels
-            .iter()
-            .map(|v| VisibleVoxel {
-                index: v.0,
-                visibility: if *v == RawVoxel::EMPTY {
-                    VoxelVisibility::Empty
-                } else if let Some(ior) = self.ior_for_voxel.get(&v.0) {
-                    refraction_indices.push(*ior);
-                    VoxelVisibility::Translucent
-                } else {
-                    VoxelVisibility::Opaque
-                },
-            })
-            .collect();
-        let average_ior: Option<f32> = if refraction_indices.is_empty() {
-            None
-        } else {
-            let ior = 1.0
-                + (refraction_indices
-                    .iter()
-                    .cloned()
-                    .reduce(|acc, e| acc + e)
-                    .unwrap_or(0.0)
-                    / refraction_indices.len() as f32);
-            Some(ior)
+            has_translucency: average_ior.is_some(),
         };
-        (voxels, average_ior)
+        let index = self.models.len();
+        self.index_for_model_name.insert(name.to_string(), index);
+        self.models.push(model.clone());
+        Some(model)
+    }
+}
+
+impl VoxelModelCollection {
+    /// Retrieve a model from the collection by name
+    pub fn model(&self, name: &String) -> Option<&VoxelModel> {
+        let id = self.index_for_model_name.get(name)?;
+        self.models.get(*id)
     }
 }

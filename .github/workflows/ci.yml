@@ -19,7 +19,9 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+
       - name: Cache
+        id: cache
         uses: actions/cache@v3
         with:
           path: |
@@ -28,10 +30,28 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
-      - name: Run cargo test
-        run: cargo test --lib --verbose
+
+      - name: Install cargo-tarpaulin
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-tarpaulin
+
+      - name: Run tests
+        run: cargo tarpaulin --ignore-tests --out Xml
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v1
+        with:
+          name: code-coverage-report
+          path: cobertura.xml

@@ -99,7 +99,7 @@ impl VoxelData {
     ///
     /// ### Arguments
     /// * `voxel` - the [`Voxel`] to be written
-    /// * `point` - the position at which the voxel will be written
+    /// * `point` - the position at which the voxel will be written, in voxel space
     ///
     /// ### Returns
     /// [`Result::Ok`] if the operation was successful, or [`OutOfBoundsError`] if `point` lies outside the model
