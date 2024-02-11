@@ -7,7 +7,7 @@ use bevy::{
 };
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    VoxelModelCollection, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection, VoxelModelInstance,
     VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
     VoxelSceneHookBundle,
 };

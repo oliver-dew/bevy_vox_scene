@@ -1,3 +1,5 @@
+use std::f32::consts::FRAC_PI_2;
+
 use super::*;
 
 #[cfg(feature = "modify_voxels")]
@@ -10,9 +12,9 @@ use bevy::{
     core::Name,
     ecs::system::{Commands, Res, RunSystemOnce},
     hierarchy::Children,
-    math::IVec3,
+    math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::StandardMaterial,
-    render::{mesh::Mesh, texture::ImagePlugin},
+    render::{color::Color, mesh::Mesh, texture::ImagePlugin},
     utils::hashbrown::HashSet,
     MinimalPlugins,
 };
@@ -316,7 +318,94 @@ fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
     );
 }
 
+#[test]
+fn test_generate_voxels() {
+    let mut app = App::new();
+    setup_app(&mut app);
+    let palette = VoxelPalette::new_from_colors(vec![Color::GREEN]);
+    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).map_to_voxels(UVec3::new(6, 6, 6), |sd| {
+        if sd < 0.0 {
+            Voxel(1)
+        } else {
+            Voxel::EMPTY
+        }
+    });
+    let world = &mut app.world;
+    let (mut collection, collection_handle) =
+        VoxelModelCollection::new(world, palette).expect("create collection");
+    let tall_box_model = collection
+        .add(tall_box, "tall box", world)
+        .expect("Add box model");
+    assert_eq!(tall_box_model.name, "tall box");
+    assert_eq!(tall_box_model.has_translucency, false);
+    let mesh = app
+        .world
+        .resource::<Assets<Mesh>>()
+        .get(tall_box_model.mesh)
+        .expect("mesh generated");
+    assert_eq!(
+        mesh.compute_aabb().expect("aabb").half_extents,
+        Vec3A::new(0.5, 2.5, 0.5)
+    );
+    assert_eq!(
+        mesh.count_vertices(),
+        6 * 4,
+        "resulting mesh should have 6 quads"
+    );
+}
+
+#[test]
+fn test_sdf_intersect() {
+    let box_sphere = SDF::cuboid(Vec3::splat(2.0))
+        .intersect(SDF::sphere(2.5))
+        .voxelize(UVec3::splat(7), Voxel(1));
+    let sphere_box = SDF::sphere(2.5)
+        .intersect(SDF::cuboid(Vec3::splat(2.0)))
+        .voxelize(UVec3::splat(7), Voxel(1));
+    assert_eq!(box_sphere.voxels, sphere_box.voxels);
+}
+
+#[test]
+fn test_sdf_subtract() {
+    let thin_box = SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).voxelize(UVec3::splat(6), Voxel(1));
+    let halved_cube = SDF::cuboid(Vec3::new(2.0, 2.0, 2.0))
+        .subtract(SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).translate(Vec3::X))
+        .translate(Vec3::X)
+        .voxelize(UVec3::splat(6), Voxel(1));
+    assert_eq!(thin_box.voxels, halved_cube.voxels);
+}
+
+#[test]
+fn test_sdf_rotate() {
+    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
+    let deep_box_rotated = SDF::cuboid(Vec3::new(0.5, 0.5, 2.5))
+        .rotate(Quat::from_axis_angle(Vec3::X, FRAC_PI_2))
+        .voxelize(UVec3::splat(6), Voxel(1));
+    assert_eq!(tall_box.voxels, deep_box_rotated.voxels);
+}
+
+#[test]
+fn test_voxel_queryable() {
+    let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), Voxel(1));
+    assert!(data.point_in_model(IVec3::new(3, 0, 0)).is_ok());
+    assert!(data.point_in_model(IVec3::new(4, 0, 0)).is_err());
+    assert_eq!(
+        data.local_point_to_voxel_space(Vec3::ZERO),
+        IVec3::new(2, 2, 2)
+    );
+}
+
 async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<VoxelScene> {
+    setup_app(app);
+    let assets = app.world.resource::<AssetServer>();
+    assets
+        .load_untyped_async(filename)
+        .await
+        .expect(format!("Loaded {filename}").as_str())
+        .typed::<VoxelScene>()
+}
+
+fn setup_app(app: &mut App) {
     app.add_plugins((
         MinimalPlugins,
         AssetPlugin::default(),
@@ -325,10 +414,4 @@ async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Ha
     ))
     .init_asset::<StandardMaterial>()
     .init_asset::<Mesh>();
-    let assets = app.world.resource::<AssetServer>();
-    assets
-        .load_untyped_async(filename)
-        .await
-        .expect(format!("Loaded {filename}").as_str())
-        .typed::<VoxelScene>()
 }

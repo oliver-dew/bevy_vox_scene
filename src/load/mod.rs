@@ -16,7 +16,7 @@ use thiserror::Error;
 use crate::{
     model::{MaterialProperty, VoxelModel, VoxelPalette},
     scene::{LayerInfo, VoxelNode, VoxelScene},
-    VoxelModelCollection, VoxelData, VoxelQueryable,
+    VoxelData, VoxelModelCollection, VoxelQueryable,
 };
 
 /// An asset loader capable of loading models in `.vox` files as usable [`bevy::render::mesh::Mesh`]es.

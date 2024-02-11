@@ -7,6 +7,7 @@
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
 [![dependency status](https://deps.rs/crate/bevy_vox_scene/0.11.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.11.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
+[![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
 A plugin for [the Bevy Engine](https://bevyengine.org) which allows loading [Magica Voxel](https://ephtracy.github.io) `.vox` files directly into a Bevy scene graph.
 `bevy_vox_scene` is forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh).
@@ -103,5 +104,5 @@ Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-
 `VoxelSceneHook` is adapted from [bevy-scene-hook](https://github.com/nicopap/bevy-scene-hook) by Nicola Papale.
 
 ## TODO
-- [ ] remove refraction indices from palette, just make VoxelElemet. refraction optional?
+
 - [ ] put sdf behind a cargo feature

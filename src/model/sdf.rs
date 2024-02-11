@@ -79,4 +79,15 @@ impl SDF {
         }
         data
     }
+
+    /// Converts the SDF to [`VoxelData`] by filling every cell that is less than 0 with `fill`.
+    pub fn voxelize(self, size: UVec3, fill: Voxel) -> VoxelData {
+        self.map_to_voxels(size, |distance| {
+            if distance < 0.0 {
+                fill.clone()
+            } else {
+                Voxel::EMPTY
+            }
+        })
+    }
 }
