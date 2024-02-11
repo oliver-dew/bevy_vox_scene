@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.11.4"
+bevy_vox_scene = "0.12.0"
 ```
 
    Then in code:
@@ -76,7 +76,7 @@ cargo run --example <example name>
 
 | Bevy version | Magica Voxel version | `bevy-vox-scene` version | 
 | ------------ | -------------- | --- |
-| 0.12         | 0.99.6               | 0.9, 0.10, 0.11       | 
+| 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12       | 
 
 ## Limitations and workarounds
 
@@ -102,7 +102,3 @@ Forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_
 Like `bevy-vox-mesh`, `bevy-vox-scene` uses [`dot-vox`](https://github.com/dust-engine/dot_vox) to parse the vox files and the greedy mesher from [`block-mesh-rs`] (https://github.com/bonsairobo/block-mesh-rs) to create efficient meshes.
 
 `VoxelSceneHook` is adapted from [bevy-scene-hook](https://github.com/nicopap/bevy-scene-hook) by Nicola Papale.
-
-## TODO
-
-- [ ] put sdf behind a cargo feature

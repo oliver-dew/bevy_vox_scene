@@ -67,8 +67,10 @@ pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
+#[cfg(feature = "generate_voxels")]
+pub use model::sdf::SDF;
 pub use model::{
-    sdf::SDF, Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette,
+    Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette,
 };
 pub use scene::{
     VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,

@@ -16,6 +16,7 @@ pub(super) mod mesh;
 pub(super) mod modify;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod queryable;
+#[cfg(feature = "generate_voxels")]
 pub(super) mod sdf;
 #[cfg(feature = "modify_voxels")]
 pub use self::queryable::VoxelQueryable;
@@ -50,6 +51,7 @@ pub struct VoxelModelCollection {
     pub(crate) transmissive_material: Handle<StandardMaterial>,
 }
 
+#[cfg(feature = "generate_voxels")]
 impl VoxelModelCollection {
     /// Create a new collection with the supplied palette
     pub fn new(world: &mut World, palette: VoxelPalette) -> Option<(Self, Handle<Self>)> {
@@ -98,7 +100,9 @@ impl VoxelModelCollection {
         self.models.push(model.clone());
         Some(model)
     }
+}
 
+impl VoxelModelCollection {
     /// Retrieve a model from the collection by name
     pub fn model(&self, name: &String) -> Option<&VoxelModel> {
         let id = self.index_for_model_name.get(name)?;

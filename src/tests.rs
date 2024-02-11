@@ -318,6 +318,7 @@ fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
     );
 }
 
+#[cfg(feature = "generate_voxels")]
 #[test]
 fn test_generate_voxels() {
     let mut app = App::new();
@@ -354,6 +355,7 @@ fn test_generate_voxels() {
     );
 }
 
+#[cfg(feature = "generate_voxels")]
 #[test]
 fn test_sdf_intersect() {
     let box_sphere = SDF::cuboid(Vec3::splat(2.0))
@@ -365,6 +367,7 @@ fn test_sdf_intersect() {
     assert_eq!(box_sphere.voxels, sphere_box.voxels);
 }
 
+#[cfg(feature = "generate_voxels")]
 #[test]
 fn test_sdf_subtract() {
     let thin_box = SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).voxelize(UVec3::splat(6), Voxel(1));
@@ -375,6 +378,7 @@ fn test_sdf_subtract() {
     assert_eq!(thin_box.voxels, halved_cube.voxels);
 }
 
+#[cfg(feature = "generate_voxels")]
 #[test]
 fn test_sdf_rotate() {
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
@@ -384,6 +388,7 @@ fn test_sdf_rotate() {
     assert_eq!(tall_box.voxels, deep_box_rotated.voxels);
 }
 
+#[cfg(feature = "generate_voxels")]
 #[test]
 fn test_voxel_queryable() {
     let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), Voxel(1));
