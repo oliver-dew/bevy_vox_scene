@@ -63,7 +63,7 @@ impl SDF {
         Self::new(move |point| self.distance(warp(point)))
     }
 
-    /// Distorts the signed distance using the supplied funtion
+    /// Distorts the signed distance using the supplied function
     pub fn distort<F: Fn(f32, Vec3) -> f32 + Send + Sync + 'static>(self, distort: F) -> Self {
         Self::new(move |point| distort(self.distance(point), point))
     }
