@@ -201,7 +201,9 @@ async fn test_spawn_system() {
         .spawn(VoxelSceneHookBundle {
             scene: handle,
             hook: VoxelSceneHook::new(move |entity, _| {
-                let Some(name) = entity.get::<Name>() else { return };
+                let Some(name) = entity.get::<Name>() else {
+                    return;
+                };
                 let expected_names: [&'static str; 3] = [
                     "outer-group/inner-group",
                     "outer-group/inner-group/dice",

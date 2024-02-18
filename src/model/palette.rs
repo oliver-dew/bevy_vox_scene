@@ -3,6 +3,7 @@ use bevy::{
     pbr::StandardMaterial,
     render::{
         color::Color,
+        render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
     },
@@ -185,6 +186,7 @@ impl VoxelPalette {
                 TextureDimension::D2,
                 color_data,
                 TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
             ),
         ));
 
@@ -207,6 +209,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     emission_bytes,
                     TextureFormat::Rgba32Float,
+                    RenderAssetUsages::default(),
                 ),
             ))
         } else {
@@ -232,6 +235,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::Rgba16Unorm,
+                    RenderAssetUsages::default(),
                 ),
             );
             Some(handle)
@@ -251,6 +255,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::R16Unorm,
+                    RenderAssetUsages::default(),
                 ),
             );
             Some(handle)

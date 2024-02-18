@@ -66,6 +66,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
+            intensity: 500.0,
         },
     ));
     let asset_server = assets.clone();
@@ -75,7 +76,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
         // This closure will be run against every child Entity that gets spawned in the scene
         hook: VoxelSceneHook::new(move |entity, commands| {
-            let Some(name) = entity.get::<Name>() else { return };
+            let Some(name) = entity.get::<Name>() else {
+                return;
+            };
             match name.as_str() {
                 // Node names give the path to the asset, with components separated by /. Here, "black-light" belongs to the "tank" group
                 "tank/black-light" => {
@@ -100,13 +103,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn toggle_black_light(
     mut commands: Commands,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<(Entity, &mut EmissiveToggle)>,
 ) {
     if keys.get_just_pressed().next().is_none() {
         return;
     };
-    let Ok((entity, mut emissive_toggle)) = query.get_single_mut() else { return };
+    let Ok((entity, mut emissive_toggle)) = query.get_single_mut() else {
+        return;
+    };
     emissive_toggle.toggle();
     commands
         .entity(entity)

@@ -29,6 +29,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
+            intensity: 500.0,
         },
     ));
 }
@@ -46,9 +47,13 @@ fn setup(world: &mut World) {
                     x if x >= 0.0 => Voxel::EMPTY,
                     _ => Voxel::EMPTY,
                 });
-            let Some(mut collection) = VoxelModelCollection::new(world, palette) else { return };
+            let Some(mut collection) = VoxelModelCollection::new(world, palette) else {
+                return;
+            };
             let model_name = "my sdf model";
-            let Some(model) = collection.add(data, model_name, world) else { return };
+            let Some(model) = collection.add(data, model_name, world) else {
+                return;
+            };
             let collection_handle = collections.add(collection);
             // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
             world.spawn((

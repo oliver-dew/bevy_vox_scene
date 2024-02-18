@@ -44,12 +44,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
+            intensity: 500.0,
         },
     ));
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 5000.0,
             shadows_enabled: true,
             ..Default::default()
         },
@@ -60,7 +61,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(VoxelSceneHookBundle {
         scene: assets.load("study.vox"),
         hook: VoxelSceneHook::new(move |entity, commands| {
-            let Some(name) = entity.get::<Name>() else { return };
+            let Some(name) = entity.get::<Name>() else {
+                return;
+            };
             if name.as_str() == "floor" {
                 commands.insert(Floor);
             }
@@ -72,7 +75,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some(instance) = query.iter().next() else { return };
+    let Some(instance) = query.iter().next() else {
+        return;
+    };
     let region = VoxelRegion {
         origin: IVec3::new(0, 4, 0),
         size: IVec3::new(64, 8, 64),
