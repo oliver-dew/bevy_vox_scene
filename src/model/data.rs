@@ -4,6 +4,7 @@ use bevy::{
 };
 use block_mesh::VoxelVisibility;
 use ndshape::{RuntimeShape, Shape};
+use std::fmt::Debug;
 
 use super::{voxel::VisibleVoxel, RawVoxel};
 
@@ -22,6 +23,16 @@ impl Default for VoxelData {
             voxels: Default::default(),
             mesh_outer_faces: true,
         }
+    }
+}
+
+impl Debug for VoxelData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VoxelData")
+            .field("shape", &self.shape.as_array())
+            .field("voxels", &self.voxels.len())
+            .field("mesh_outer_faces", &self.mesh_outer_faces)
+            .finish()
     }
 }
 

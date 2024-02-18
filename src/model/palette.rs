@@ -10,7 +10,7 @@ use bevy::{
 use dot_vox::DotVoxData;
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
     pub(crate) emission: MaterialProperty,
@@ -20,7 +20,7 @@ pub struct VoxelPalette {
     pub(crate) indices_of_refraction: Vec<Option<f32>>,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub(crate) enum MaterialProperty {
     VariesPerElement,
     Constant(f32),
@@ -37,7 +37,7 @@ impl MaterialProperty {
     }
 }
 /// A material for a type of voxel brick modelled with physical properties such as color, roughness and so on.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VoxelElement {
     /// The base color of the voxel
     pub color: Color,
@@ -169,7 +169,10 @@ impl VoxelPalette {
         let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
         let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
 
-        let has_emission = self.emission == MaterialProperty::VariesPerElement;
+        let has_emission = match self.emission {
+            MaterialProperty::VariesPerElement => true,
+            MaterialProperty::Constant(emission) => emission > 0.0,
+        };
         let has_roughness = self.roughness == MaterialProperty::VariesPerElement;
         let has_metalness = self.metalness == MaterialProperty::VariesPerElement;
         let has_roughness_metalness = has_roughness || has_metalness;

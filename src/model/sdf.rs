@@ -63,16 +63,22 @@ impl SDF {
         Self::new(move |point| self.distance(warp(point)))
     }
 
+    /// Distorts the signed distance using the supplied funtion
+    pub fn distort<F: Fn(f32, Vec3) -> f32 + Send + Sync + 'static>(self, distort: F) -> Self {
+        Self::new(move |point| distort(self.distance(point), point))
+    }
+
     /// Converts the SDF to [`VoxelData`] by sampling it at each position.
-    pub fn map_to_voxels<F: Fn(f32) -> Voxel>(self, size: UVec3, map: F) -> VoxelData {
+    pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(self, size: UVec3, map: F) -> VoxelData {
         let mut data = VoxelData::new(size, true);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
         for x in 0..size.x {
             for y in 0..size.y {
                 for z in 0..size.z {
                     let pos = Vec3::new(x as f32, y as f32, z as f32);
-                    let distance = self.distance(pos - half_extent);
-                    let voxel = map(distance);
+                    let sdf_pos = pos - half_extent;
+                    let distance = self.distance(sdf_pos);
+                    let voxel = map(distance, sdf_pos);
                     let _ = data.set_voxel(voxel, pos);
                 }
             }
@@ -82,7 +88,7 @@ impl SDF {
 
     /// Converts the SDF to [`VoxelData`] by filling every cell that is less than 0 with `fill`.
     pub fn voxelize(self, size: UVec3, fill: Voxel) -> VoxelData {
-        self.map_to_voxels(size, |distance| {
+        self.map_to_voxels(size, |distance, _| {
             if distance < 0.0 {
                 fill.clone()
             } else {

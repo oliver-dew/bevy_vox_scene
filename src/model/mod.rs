@@ -25,7 +25,7 @@ pub use palette::{VoxelElement, VoxelPalette};
 mod voxel;
 
 /// Contains the voxel data for a model, as well as handles to the mesh derived from that data and the material
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct VoxelModel {
     /// Unique name of the model
     pub name: String,
@@ -40,7 +40,7 @@ pub struct VoxelModel {
 }
 
 /// A collection of [`VoxelModel`]s with a shared [`VoxelPalette`]
-#[derive(Asset, TypePath, Clone)]
+#[derive(Asset, TypePath, Clone, Debug)]
 pub struct VoxelModelCollection {
     /// The palette used by the models
     pub palette: VoxelPalette,
@@ -54,7 +54,7 @@ pub struct VoxelModelCollection {
 #[cfg(feature = "generate_voxels")]
 impl VoxelModelCollection {
     /// Create a new collection with the supplied palette
-    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<(Self, Handle<Self>)> {
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Self> {
         let cell = world.cell();
         let mut images = cell.get_resource_mut::<Assets<Image>>()?;
         let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
@@ -69,9 +69,7 @@ impl VoxelModelCollection {
             opaque_material: materials.add(opaque_material),
             transmissive_material: materials.add(material),
         };
-        let mut collections = cell.get_resource_mut::<Assets<VoxelModelCollection>>()?;
-        let collection_handle = collections.add(collection.clone());
-        Some((collection, collection_handle))
+        Some(collection)
     }
 
     /// Adds a [`VoxelModel`] to the collection generated with the supplied [`VoxelData`]

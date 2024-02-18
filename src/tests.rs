@@ -324,16 +324,9 @@ fn test_generate_voxels() {
     let mut app = App::new();
     setup_app(&mut app);
     let palette = VoxelPalette::new_from_colors(vec![Color::GREEN]);
-    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).map_to_voxels(UVec3::new(6, 6, 6), |sd| {
-        if sd < 0.0 {
-            Voxel(1)
-        } else {
-            Voxel::EMPTY
-        }
-    });
+    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
     let world = &mut app.world;
-    let (mut collection, collection_handle) =
-        VoxelModelCollection::new(world, palette).expect("create collection");
+    let mut collection = VoxelModelCollection::new(world, palette).expect("create collection");
     let tall_box_model = collection
         .add(tall_box, "tall box", world)
         .expect("Add box model");
