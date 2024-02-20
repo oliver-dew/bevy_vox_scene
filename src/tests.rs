@@ -328,10 +328,10 @@ fn test_generate_voxels() {
     let palette = VoxelPalette::new_from_colors(vec![Color::GREEN]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
     let world = &mut app.world;
-    let mut collection = VoxelModelCollection::new(world, palette).expect("create collection");
-    let tall_box_model = collection
-        .add(tall_box, "tall box", world)
-        .expect("Add box model");
+    let collection = VoxelModelCollection::new(world, palette).expect("create collection");
+    let tall_box_model =
+        VoxelModelCollection::add(world, tall_box, "tall box".to_string(), collection)
+            .expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);
     let mesh = app

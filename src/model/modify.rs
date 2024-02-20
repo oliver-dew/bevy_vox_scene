@@ -1,6 +1,6 @@
 use bevy::{
     asset::{Assets, Handle},
-    ecs::system::{Command, Commands},
+    ecs::{system::{Command, Commands}, world::World},
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
     render::mesh::Mesh,
@@ -94,7 +94,7 @@ struct ModifyVoxelModel {
 }
 
 impl Command for ModifyVoxelModel {
-    fn apply(self, world: &mut bevy::prelude::World) {
+    fn apply(self, world: &mut World) {
         let cell = world.cell();
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
