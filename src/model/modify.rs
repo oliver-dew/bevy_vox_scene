@@ -1,6 +1,9 @@
 use bevy::{
     asset::{Assets, Handle},
-    ecs::{system::{Command, Commands}, world::World},
+    ecs::{
+        system::{Command, Commands},
+        world::World,
+    },
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
     render::mesh::Mesh,
