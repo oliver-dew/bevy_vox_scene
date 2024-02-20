@@ -46,7 +46,7 @@ thiserror = "1.0.50"
 serde = "1.0.193"
 
 [dev-dependencies]
-bevy = { version = "0.13.0" }
-bevy_panorbit_camera = { git = "https://github.com/Plonq/bevy_panorbit_camera.git", branch = "bevy-0.13" }
+bevy = "0.13.0"
+bevy_panorbit_camera = "0.14.0"
 rand = "0.8.5"
 async-std = { version = "1.12.0", features = ["attributes"] }
