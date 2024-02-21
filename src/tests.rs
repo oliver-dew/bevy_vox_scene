@@ -325,7 +325,7 @@ fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
 fn test_generate_voxels() {
     let mut app = App::new();
     setup_app(&mut app);
-    let palette = VoxelPalette::new_from_colors(vec![Color::GREEN]);
+    let palette = VoxelPalette::from_colors(vec![Color::GREEN]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
     let world = &mut app.world;
     let collection = VoxelModelCollection::new(world, palette).expect("create collection");

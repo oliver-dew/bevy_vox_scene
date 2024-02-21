@@ -97,7 +97,7 @@ impl VoxelPalette {
     }
 
     /// Create a new [`VoxelPalette`] from the supplied [`Color`]s
-    pub fn new_from_colors(colors: Vec<Color>) -> Self {
+    pub fn from_colors(colors: Vec<Color>) -> Self {
         VoxelPalette::new(
             colors
                 .iter()
@@ -109,7 +109,7 @@ impl VoxelPalette {
         )
     }
 
-    pub(crate) fn new_from_data(
+    pub(crate) fn from_data(
         data: &DotVoxData,
         diffuse_roughness: f32,
         emission_strength: f32,

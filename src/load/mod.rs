@@ -98,7 +98,7 @@ impl VoxSceneLoader {
         info!("Loading {}", load_context.asset_path());
 
         // Palette
-        let palette = VoxelPalette::new_from_data(
+        let palette = VoxelPalette::from_data(
             &file,
             settings.diffuse_roughness,
             settings.emission_strength,
