@@ -58,11 +58,11 @@ pub struct VoxelModelCollection {
 impl VoxelModelCollection {
     /// Create a new collection with the supplied palette
     pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Handle<VoxelModelCollection>> {
-        let system_id = world.register_system(Self::new_model);
+        let system_id = world.register_system(Self::new_collection);
         world.run_system_with_input(system_id, palette).ok()
     }
 
-    fn new_model(
+    fn new_collection(
         In(palette): In<VoxelPalette>,
         mut images: ResMut<Assets<Image>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
