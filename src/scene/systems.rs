@@ -29,8 +29,12 @@ pub(crate) fn spawn_vox_scenes(
     collections: Res<Assets<VoxelModelCollection>>,
 ) {
     for (root, scene_handle, transform, visibility) in query.iter() {
-        let Some(scene) = vox_scenes.get(scene_handle) else { continue };
-        let Some(collection) = collections.get(scene.model_collection.id()) else { continue };
+        let Some(scene) = vox_scenes.get(scene_handle) else {
+            continue;
+        };
+        let Some(collection) = collections.get(scene.model_collection.id()) else {
+            continue;
+        };
         spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, collection);
         let mut entity = commands.entity(root);
         entity.remove::<Handle<VoxelScene>>();
@@ -95,7 +99,7 @@ fn spawn_voxel_node_recursive(
                 let mut child_entity = builder.spawn_empty();
                 let id = child_entity.id();
                 spawn_voxel_node_recursive(
-                    child_entity.commands(),
+                    &mut child_entity.commands(),
                     child,
                     id,
                     scene,
@@ -125,7 +129,9 @@ fn run_hook_recursive(
     let entity_ref = world.entity(entity);
     let mut entity_commands = commands.entity(entity);
     (scene_hook.hook)(&entity_ref, &mut entity_commands);
-    let Some(children) = entity_ref.get::<Children>() else { return };
+    let Some(children) = entity_ref.get::<Children>() else {
+        return;
+    };
     for child in children.as_ref() {
         run_hook_recursive(commands, world, *child, scene_hook);
     }

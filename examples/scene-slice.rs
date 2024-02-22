@@ -54,6 +54,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
+            intensity: 500.0,
         },
     ));
 

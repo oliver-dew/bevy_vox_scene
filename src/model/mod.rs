@@ -1,6 +1,9 @@
 use bevy::{
     asset::{Asset, Assets, Handle},
-    ecs::world::World,
+    ecs::{
+        system::{In, ResMut},
+        world::World,
+    },
     pbr::StandardMaterial,
     reflect::TypePath,
     render::{mesh::Mesh, texture::Image},
@@ -54,10 +57,17 @@ pub struct VoxelModelCollection {
 #[cfg(feature = "generate_voxels")]
 impl VoxelModelCollection {
     /// Create a new collection with the supplied palette
-    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Self> {
-        let cell = world.cell();
-        let mut images = cell.get_resource_mut::<Assets<Image>>()?;
-        let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Handle<VoxelModelCollection>> {
+        let system_id = world.register_system(Self::new_collection);
+        world.run_system_with_input(system_id, palette).ok()
+    }
+
+    fn new_collection(
+        In(palette): In<VoxelPalette>,
+        mut images: ResMut<Assets<Image>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut collections: ResMut<Assets<VoxelModelCollection>>,
+    ) -> Handle<VoxelModelCollection> {
         let material = palette.create_material(&mut images);
         let mut opaque_material = material.clone();
         opaque_material.specular_transmission_texture = None;
@@ -69,33 +79,50 @@ impl VoxelModelCollection {
             opaque_material: materials.add(opaque_material),
             transmissive_material: materials.add(material),
         };
-        Some(collection)
+        collections.add(collection)
     }
 
-    /// Adds a [`VoxelModel`] to the collection generated with the supplied [`VoxelData`]
-    pub fn add(&mut self, data: VoxelData, name: &str, world: &mut World) -> Option<VoxelModel> {
-        let cell = world.cell();
-        let (mesh, average_ior) = data.remesh(&self.palette.indices_of_refraction);
-        let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
-        let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
+    /// Generates a [`VoxelModel`] from the supplied [`VoxelData`] and add it to the [`VoxelModelCollection`]
+    pub fn add(
+        world: &mut World,
+        data: VoxelData,
+        name: String,
+        collection: Handle<VoxelModelCollection>,
+    ) -> Option<VoxelModel> {
+        let system_id = world.register_system(Self::add_model);
+        world
+            .run_system_with_input(system_id, (data, name, collection))
+            .ok()?
+    }
+
+    fn add_model(
+        In((data, name, collection_handle)): In<(VoxelData, String, Handle<VoxelModelCollection>)>,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut collections: ResMut<Assets<VoxelModelCollection>>,
+    ) -> Option<VoxelModel> {
+        let collection = collections.get_mut(collection_handle)?;
+        let (mesh, average_ior) = data.remesh(&collection.palette.indices_of_refraction);
         let material = if let Some(ior) = average_ior {
-            let mut transmissive_material = materials.get(self.transmissive_material.id())?.clone();
+            let mut transmissive_material = materials
+                .get(collection.transmissive_material.id())?
+                .clone();
             transmissive_material.ior = ior;
             transmissive_material.thickness = data.size().min_element() as f32;
             materials.add(transmissive_material)
         } else {
-            self.opaque_material.clone()
+            collection.opaque_material.clone()
         };
         let model = VoxelModel {
-            name: name.to_string(),
+            name: name.clone(),
             data,
             mesh: meshes.add(mesh),
             material,
             has_translucency: average_ior.is_some(),
         };
-        let index = self.models.len();
-        self.index_for_model_name.insert(name.to_string(), index);
-        self.models.push(model.clone());
+        let index = collection.models.len();
+        collection.index_for_model_name.insert(name, index);
+        collection.models.push(model.clone());
         Some(model)
     }
 }

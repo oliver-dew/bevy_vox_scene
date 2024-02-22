@@ -2,6 +2,7 @@ use bevy::{
     math::Vec3,
     render::{
         mesh::{Indices, Mesh, VertexAttributeValues},
+        render_asset::RenderAssetUsages,
         render_resource::PrimitiveTopology,
     },
 };
@@ -33,7 +34,10 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut normals = Vec::with_capacity(num_vertices);
     let mut uvs = Vec::with_capacity(num_vertices);
 
-    let mut render_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let mut render_mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
 
     for (group, face) in greedy_quads_buffer
         .quads
@@ -74,7 +78,7 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     );
     render_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
 
-    render_mesh.set_indices(Some(Indices::U32(indices.clone())));
+    render_mesh.insert_indices(Indices::U32(indices.clone()));
 
     render_mesh
 }

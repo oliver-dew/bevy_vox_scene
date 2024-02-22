@@ -201,7 +201,9 @@ async fn test_spawn_system() {
         .spawn(VoxelSceneHookBundle {
             scene: handle,
             hook: VoxelSceneHook::new(move |entity, _| {
-                let Some(name) = entity.get::<Name>() else { return };
+                let Some(name) = entity.get::<Name>() else {
+                    return;
+                };
                 let expected_names: [&'static str; 3] = [
                     "outer-group/inner-group",
                     "outer-group/inner-group/dice",
@@ -323,13 +325,13 @@ fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
 fn test_generate_voxels() {
     let mut app = App::new();
     setup_app(&mut app);
-    let palette = VoxelPalette::new_from_colors(vec![Color::GREEN]);
+    let palette = VoxelPalette::from_colors(vec![Color::GREEN]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
     let world = &mut app.world;
-    let mut collection = VoxelModelCollection::new(world, palette).expect("create collection");
-    let tall_box_model = collection
-        .add(tall_box, "tall box", world)
-        .expect("Add box model");
+    let collection = VoxelModelCollection::new(world, palette).expect("create collection");
+    let tall_box_model =
+        VoxelModelCollection::add(world, tall_box, "tall box".to_string(), collection)
+            .expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);
     let mesh = app

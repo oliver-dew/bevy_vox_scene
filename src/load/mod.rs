@@ -45,7 +45,7 @@ impl Default for VoxLoaderSettings {
     fn default() -> Self {
         Self {
             mesh_outer_faces: true,
-            emission_strength: 2.0,
+            emission_strength: 4000.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
         }
@@ -98,7 +98,7 @@ impl VoxSceneLoader {
         info!("Loading {}", load_context.asset_path());
 
         // Palette
-        let palette = VoxelPalette::new_from_data(
+        let palette = VoxelPalette::from_data(
             &file,
             settings.diffuse_roughness,
             settings.emission_strength,

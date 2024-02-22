@@ -52,6 +52,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
+            intensity: 500.0,
         },
     ));
     commands.insert_resource(Scenes {
@@ -108,13 +109,19 @@ fn update_snow(
             continue;
         }
         for (item_xform, item_instance) in scenery.iter() {
-            let Some(collection) = model_collections.get(item_instance.collection.id()) else { continue };
-            let Some(model) = collection.model(&item_instance.model_name) else { continue  };
+            let Some(collection) = model_collections.get(item_instance.collection.id()) else {
+                continue;
+            };
+            let Some(model) = collection.model(&item_instance.model_name) else {
+                continue;
+            };
             let vox_pos =
                 model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
             // check whether snowflake has landed on something solid
             let pos_below_snowflake = vox_pos - IVec3::Y;
-            let Ok(voxel) = model.get_voxel_at_point(pos_below_snowflake) else { continue };
+            let Ok(voxel) = model.get_voxel_at_point(pos_below_snowflake) else {
+                continue;
+            };
             if voxel == Voxel::EMPTY {
                 continue;
             };

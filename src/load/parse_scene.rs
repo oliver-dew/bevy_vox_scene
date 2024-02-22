@@ -141,7 +141,9 @@ fn parse_bool(value: Option<String>) -> bool {
 }
 
 fn transform_from_frame(frame: &Frame) -> Mat4 {
-    let Some(position) = frame.position() else { return Mat4::IDENTITY };
+    let Some(position) = frame.position() else {
+        return Mat4::IDENTITY;
+    };
     let position = [-position.x as f32, position.z as f32, position.y as f32];
     let translation = Mat4::from_translation(Vec3::from_array(position));
     let rotation = if let Some(orientation) = frame.orientation() {

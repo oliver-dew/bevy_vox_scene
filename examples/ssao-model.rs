@@ -56,6 +56,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             EnvironmentMapLight {
                 diffuse_map: asset_server.load("pisa_diffuse.ktx2"),
                 specular_map: asset_server.load("pisa_specular.ktx2"),
+                intensity: 500.0,
             },
             SSAOVisible(true),
         ))
@@ -70,10 +71,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn toggle_ssao(
     mut commands: Commands,
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<(Entity, &mut SSAOVisible)>,
 ) {
-    let Ok((entity, mut ssao_visible)) = query.get_single_mut() else { return };
+    let Ok((entity, mut ssao_visible)) = query.get_single_mut() else {
+        return;
+    };
     if keys.get_just_pressed().next().is_some() {
         ssao_visible.0 = !ssao_visible.0;
         match ssao_visible.0 {

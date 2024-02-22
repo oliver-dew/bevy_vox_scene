@@ -3,6 +3,7 @@ use bevy::{
     pbr::StandardMaterial,
     render::{
         color::Color,
+        render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
     },
@@ -96,7 +97,7 @@ impl VoxelPalette {
     }
 
     /// Create a new [`VoxelPalette`] from the supplied [`Color`]s
-    pub fn new_from_colors(colors: Vec<Color>) -> Self {
+    pub fn from_colors(colors: Vec<Color>) -> Self {
         VoxelPalette::new(
             colors
                 .iter()
@@ -108,7 +109,7 @@ impl VoxelPalette {
         )
     }
 
-    pub(crate) fn new_from_data(
+    pub(crate) fn from_data(
         data: &DotVoxData,
         diffuse_roughness: f32,
         emission_strength: f32,
@@ -185,6 +186,7 @@ impl VoxelPalette {
                 TextureDimension::D2,
                 color_data,
                 TextureFormat::Rgba8UnormSrgb,
+                RenderAssetUsages::default(),
             ),
         ));
 
@@ -207,6 +209,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     emission_bytes,
                     TextureFormat::Rgba32Float,
+                    RenderAssetUsages::default(),
                 ),
             ))
         } else {
@@ -232,6 +235,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::Rgba16Unorm,
+                    RenderAssetUsages::default(),
                 ),
             );
             Some(handle)
@@ -251,6 +255,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::R16Unorm,
+                    RenderAssetUsages::default(),
                 ),
             );
             Some(handle)

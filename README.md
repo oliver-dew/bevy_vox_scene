@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.12.0"
+bevy_vox_scene = "0.13.0"
 ```
 
    Then in code:
@@ -76,7 +76,8 @@ cargo run --example <example name>
 
 | Bevy version | Magica Voxel version | `bevy-vox-scene` version | 
 | ------------ | -------------- | --- |
-| 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12       | 
+| 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12    | 
+| 0.13         |                      | 0.13                     |
 
 ## Limitations and workarounds
 

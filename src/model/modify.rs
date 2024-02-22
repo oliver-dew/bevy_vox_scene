@@ -1,6 +1,9 @@
 use bevy::{
     asset::{Assets, Handle},
-    ecs::system::{Command, Commands},
+    ecs::{
+        system::{Command, Commands},
+        world::World,
+    },
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
     render::mesh::Mesh,
@@ -94,7 +97,7 @@ struct ModifyVoxelModel {
 }
 
 impl Command for ModifyVoxelModel {
-    fn apply(self, world: &mut bevy::prelude::World) {
+    fn apply(self, world: &mut World) {
         let cell = world.cell();
         let perform = || -> Option<()> {
             let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
@@ -160,7 +163,10 @@ impl ModifyVoxelModel {
                 model.material = opaque_material;
             }
             (false, Some(ior)) => {
-                let Some(mut translucent_material) = materials.get(transmissive_material).cloned() else { return };
+                let Some(mut translucent_material) = materials.get(transmissive_material).cloned()
+                else {
+                    return;
+                };
                 translucent_material.ior = ior;
                 translucent_material.thickness = model.size().min_element() as f32;
                 model.material = materials.add(translucent_material);
