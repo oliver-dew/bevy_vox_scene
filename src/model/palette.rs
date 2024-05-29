@@ -1,12 +1,10 @@
 use bevy::{
-    asset::{Assets, Handle, LoadContext},
-    pbr::StandardMaterial,
-    render::{
+    asset::{Assets, Handle, LoadContext}, math::FloatExt, pbr::StandardMaterial, render::{
         color::Color,
         render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
-    },
+    }
 };
 use dot_vox::DotVoxData;
 
@@ -109,6 +107,28 @@ impl VoxelPalette {
         )
     }
 
+    /// Create a new [`VoxelPalette`] by interpolating between the [`VoxelElement`] in the gradient stops
+    pub fn from_gradient(stops: &[(u8, VoxelElement)]) -> Self {
+        let mut elements = vec![VoxelElement::default(); 256];
+        for (index, (stop, element)) in stops.iter().enumerate() {
+            let default = (u8::MAX - 1, element.clone());
+            let (next_stop, next_element) = stops.get(index + 1).unwrap_or(&default);
+            let distance = (next_stop - stop) as f32;
+            for i in *stop..*next_stop {
+                let fraction = (i - stop) as f32 / distance;
+                elements[i as usize] = VoxelElement {
+                    color: element.color.lerp(next_element.color, fraction),
+                    emission: element.emission.lerp(next_element.emission, fraction),
+                    roughness: element.roughness.lerp(next_element.roughness, fraction),
+                    metalness: element.metalness.lerp(next_element.metalness, fraction),
+                    translucency: element.translucency.lerp(next_element.translucency, fraction),
+                    refraction_index: element.refraction_index.lerp(next_element.refraction_index, fraction),
+                };
+            }
+        }
+        VoxelPalette::new(elements)
+    }
+    
     pub(crate) fn from_data(
         data: &DotVoxData,
         diffuse_roughness: f32,
@@ -296,6 +316,18 @@ trait VecComparable<T> {
     fn min_element(&self) -> T;
 }
 
+trait Lerpable {
+    fn lerp(&self, rhs: Self, amount: f32) -> Self;
+}
+
+impl Lerpable for Color {
+    fn lerp(&self, rhs: Self, amount: f32) -> Self {
+        let lhs = self.as_rgba_f32();
+        let rhs = rhs.as_rgba_f32();
+        let mixed: [f32; 4] = std::array::from_fn(|i| lhs[i].lerp(rhs[i], amount));
+        Color::rgba_from_array(mixed)
+    }
+}
 impl VecComparable<f32> for Vec<f32> {
     fn max_element(&self) -> f32 {
         self.iter()
