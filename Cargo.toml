@@ -1,3 +1,4 @@
+workspace = { members = ["utilities"] }
 [package]
 name = "bevy_vox_scene"
 description = "A Bevy engine plugin for loading Magica Voxel world files and render materials directly in Bevy as a scene graph."
@@ -47,6 +48,6 @@ serde = "1.0.193"
 
 [dev-dependencies]
 bevy = "0.13.0"
-bevy_panorbit_camera = "0.14.0"
+utilities = { path = "utilities" }
 rand = "0.8.5"
 async-std = { version = "1.12.0", features = ["attributes"] }

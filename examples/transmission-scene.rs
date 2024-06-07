@@ -7,7 +7,7 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
 
 fn main() {

@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
     time::common_conditions::on_timer,
 };
-use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
     VoxelRegionMode, VoxelSceneHook, VoxelSceneHookBundle,

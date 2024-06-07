@@ -8,7 +8,7 @@ use bevy::{
     input::keyboard::KeyboardInput,
     prelude::*,
 };
-use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneHook, VoxelSceneHookBundle};
 use rand::Rng;
 use std::f32::consts::PI;
