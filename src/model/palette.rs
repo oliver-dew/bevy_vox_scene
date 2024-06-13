@@ -1,6 +1,5 @@
 use bevy::{
-    asset::{Assets, Handle, LoadContext}, math::FloatExt, pbr::StandardMaterial, render::{
-        color::Color,
+    asset::{Assets, Handle, LoadContext}, color::{Color, ColorToComponents, LinearRgba}, math::FloatExt, pbr::StandardMaterial, render::{
         render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
@@ -55,7 +54,7 @@ pub struct VoxelElement {
 impl Default for VoxelElement {
     fn default() -> Self {
         Self {
-            color: Color::PINK,
+            color: Color::LinearRgba(LinearRgba::RED),
             emission: 0.0,
             roughness: 0.5,
             metalness: 0.0,
@@ -72,18 +71,18 @@ impl VoxelPalette {
         let roughness_data: Vec<f32> = elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = elements.iter().map(|e| e.metalness).collect();
         let translucency_data: Vec<f32> = elements.iter().map(|e| e.translucency).collect();
-
+        
         elements.resize_with(256, VoxelElement::default);
         let indices_of_refraction: Vec<Option<f32>> = elements
-            .iter()
-            .map(|e| {
-                if e.translucency > 0.0 {
-                    Some(e.refraction_index)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        .iter()
+        .map(|e| {
+            if e.translucency > 0.0 {
+                Some(e.refraction_index)
+            } else {
+                None
+            }
+        })
+        .collect();
         VoxelPalette {
             elements,
             emission: MaterialProperty::from_slice(&emission_data),
@@ -93,20 +92,20 @@ impl VoxelPalette {
             indices_of_refraction,
         }
     }
-
+    
     /// Create a new [`VoxelPalette`] from the supplied [`Color`]s
     pub fn from_colors(colors: Vec<Color>) -> Self {
         VoxelPalette::new(
             colors
-                .iter()
-                .map(|color| VoxelElement {
-                    color: *color,
-                    ..Default::default()
-                })
-                .collect(),
+            .iter()
+            .map(|color| VoxelElement {
+                color: *color,
+                ..Default::default()
+            })
+            .collect(),
         )
     }
-
+    
     /// Create a new [`VoxelPalette`] by interpolating between the [`VoxelElement`] in the gradient stops
     pub fn from_gradient(stops: &[(u8, VoxelElement)]) -> Self {
         let mut elements = vec![VoxelElement::default(); 256];
@@ -117,7 +116,7 @@ impl VoxelPalette {
             for i in *stop..*next_stop {
                 let fraction = (i - stop) as f32 / distance;
                 elements[i as usize] = VoxelElement {
-                    color: element.color.lerp(next_element.color, fraction),
+                    color: Color::LinearRgba(element.color.linear().lerp(next_element.color.linear(), fraction)),
                     emission: element.emission.lerp(next_element.emission, fraction),
                     roughness: element.roughness.lerp(next_element.roughness, fraction),
                     metalness: element.metalness.lerp(next_element.metalness, fraction),
@@ -136,41 +135,41 @@ impl VoxelPalette {
     ) -> Self {
         VoxelPalette::new(
             data.palette
-                .iter()
-                .zip(data.materials.iter())
-                .map(|(color, material)| VoxelElement {
-                    color: Color::rgba_u8(color.r, color.g, color.b, color.a),
-                    emission: material.emission().unwrap_or(0.0)
-                        * (material.radiant_flux().unwrap_or(0.0) + 1.0)
-                        * emission_strength,
-                    roughness: if material.material_type() == Some("_diffuse") {
-                        diffuse_roughness
-                    } else {
-                        material.roughness().unwrap_or(0.0)
-                    },
-                    metalness: material.metalness().unwrap_or(0.0),
-                    translucency: material.opacity().unwrap_or(0.0),
-                    refraction_index: if material.material_type() == Some("_glass") {
-                        1.0 + material.refractive_index().unwrap_or(0.0)
-                    } else {
-                        0.0
-                    },
-                })
-                .collect(),
+            .iter()
+            .zip(data.materials.iter())
+            .map(|(color, material)| VoxelElement {
+                color: Color::srgba_u8(color.r, color.g, color.b, color.a),
+                emission: material.emission().unwrap_or(0.0)
+                * (material.radiant_flux().unwrap_or(0.0) + 1.0)
+                * emission_strength,
+                roughness: if material.material_type() == Some("_diffuse") {
+                    diffuse_roughness
+                } else {
+                    material.roughness().unwrap_or(0.0)
+                },
+                metalness: material.metalness().unwrap_or(0.0),
+                translucency: material.opacity().unwrap_or(0.0),
+                refraction_index: if material.material_type() == Some("_glass") {
+                    1.0 + material.refractive_index().unwrap_or(0.0)
+                } else {
+                    0.0
+                },
+            })
+            .collect(),
         )
     }
-
+    
     pub(crate) fn create_material_in_load_context(
         &self,
         load_context: &mut LoadContext,
     ) -> StandardMaterial {
         self._create_material(|name, image| load_context.add_labeled_asset(name.to_string(), image))
     }
-
+    
     pub(crate) fn create_material(&self, images: &mut Assets<Image>) -> StandardMaterial {
         self._create_material(|_, image| images.add(image))
     }
-
+    
     fn _create_material(
         &self,
         mut get_handle: impl FnMut(&str, Image) -> Handle<Image>,
@@ -181,15 +180,21 @@ impl VoxelPalette {
             depth_or_array_layers: 1,
         };
         let color_data: Vec<u8> = self
-            .elements
-            .iter()
-            .flat_map(|e| e.color.as_rgba_u8())
-            .collect();
+        .elements
+        .iter()
+        .flat_map(|e| -> [u8; 4] {
+            let color = e.color.linear();
+            [(color.red * 255.0) as u8,
+            (color.green * 255.0) as u8,
+            (color.blue * 255.0) as u8,
+            (color.alpha * 255.0) as u8]
+        })
+        .collect();
         let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
         let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
-
+        
         let has_emission = match self.emission {
             MaterialProperty::VariesPerElement => true,
             MaterialProperty::Constant(emission) => emission > 0.0,
@@ -198,7 +203,7 @@ impl VoxelPalette {
         let has_metalness = self.metalness == MaterialProperty::VariesPerElement;
         let has_roughness_metalness = has_roughness || has_metalness;
         let has_translucency = self.transmission == MaterialProperty::VariesPerElement;
-
+        
         let base_color_texture = Some(get_handle(
             "material_color",
             Image::new(
@@ -209,19 +214,19 @@ impl VoxelPalette {
                 RenderAssetUsages::default(),
             ),
         ));
-
+        
         let emissive_texture = if has_emission {
             let emission_bytes: Vec<u8> = emission_data
+            .iter()
+            .zip(self.elements.iter().map(|e| e.color))
+            .flat_map(|(emission, color)| {
+                (color.linear() * *emission)
+                .to_f32_array()
                 .iter()
-                .zip(self.elements.iter().map(|e| e.color))
-                .flat_map(|(emission, color)| {
-                    (color * *emission)
-                        .as_rgba_f32()
-                        .iter()
-                        .flat_map(|c| c.to_le_bytes())
-                        .collect::<Vec<u8>>()
-                })
-                .collect();
+                .flat_map(|c| c.to_le_bytes())
+                .collect::<Vec<u8>>()
+            })
+            .collect();
             Some(get_handle(
                 "material_emission",
                 Image::new(
@@ -235,19 +240,19 @@ impl VoxelPalette {
         } else {
             None
         };
-
+        
         let metallic_roughness_texture: Option<Handle<Image>> = if has_roughness_metalness {
             let raw: Vec<u8> = roughness_data
+            .iter()
+            .zip(metalness_data.iter())
+            .flat_map(|(rough, metal)| {
+                let output: Vec<u8> = [0.0, *rough, *metal, 0.0]
                 .iter()
-                .zip(metalness_data.iter())
-                .flat_map(|(rough, metal)| {
-                    let output: Vec<u8> = [0.0, *rough, *metal, 0.0]
-                        .iter()
-                        .flat_map(|b| ((b * u16::MAX as f32) as u16).to_le_bytes())
-                        .collect();
-                    output
-                })
+                .flat_map(|b| ((b * u16::MAX as f32) as u16).to_le_bytes())
                 .collect();
+                output
+            })
+            .collect();
             let handle = get_handle(
                 "material_metallic_roughness",
                 Image::new(
@@ -262,12 +267,12 @@ impl VoxelPalette {
         } else {
             None
         };
-
+        
         let specular_transmission_texture: Option<Handle<Image>> = if has_translucency {
             let raw: Vec<u8> = translucency_data
-                .iter()
-                .flat_map(|t| ((t * u16::MAX as f32) as u16).to_le_bytes())
-                .collect();
+            .iter()
+            .flat_map(|t| ((t * u16::MAX as f32) as u16).to_le_bytes())
+            .collect();
             let handle = get_handle(
                 "material_specular_transmission",
                 Image::new(
@@ -282,13 +287,13 @@ impl VoxelPalette {
         } else {
             None
         };
-
+        
         StandardMaterial {
             base_color_texture,
             emissive: if has_emission {
-                Color::WHITE
+                LinearRgba::WHITE
             } else {
-                Color::BLACK
+                LinearRgba::BLACK
             },
             emissive_texture,
             perceptual_roughness: match (has_roughness_metalness, &self.roughness) {
@@ -312,7 +317,7 @@ impl VoxelPalette {
 
 trait VecComparable<T> {
     fn max_element(&self) -> T;
-
+    
     fn min_element(&self) -> T;
 }
 
@@ -320,42 +325,43 @@ trait Lerpable {
     fn lerp(&self, rhs: Self, amount: f32) -> Self;
 }
 
-impl Lerpable for Color {
+impl Lerpable for LinearRgba {
     fn lerp(&self, rhs: Self, amount: f32) -> Self {
-        let lhs = self.as_rgba_f32();
-        let rhs = rhs.as_rgba_f32();
+        let lhs = self.to_f32_array();//as_rgba_f32();
+        let rhs = rhs.to_f32_array();
         let mixed: [f32; 4] = std::array::from_fn(|i| lhs[i].lerp(rhs[i], amount));
-        Color::rgba_from_array(mixed)
+        LinearRgba::from_f32_array(mixed)
+        //Color::rgba_from_array(mixed)
     }
 }
 impl VecComparable<f32> for Vec<f32> {
     fn max_element(&self) -> f32 {
         self.iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+        .unwrap()
     }
-
+    
     fn min_element(&self) -> f32 {
         self.iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+        .cloned()
+        .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+        .unwrap()
     }
 }
 
 impl VecComparable<f32> for &[f32] {
     fn max_element(&self) -> f32 {
         self.iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+        .unwrap()
     }
-
+    
     fn min_element(&self) -> f32 {
         self.iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
+        .cloned()
+        .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
+        .unwrap()
     }
 }

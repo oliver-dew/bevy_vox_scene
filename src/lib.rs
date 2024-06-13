@@ -42,7 +42,7 @@
 //! #     if all_names.is_empty() { return };
 //! #     let expected_names: HashSet<&str> = ["snowflake", "wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
 //! #     assert_eq!(all_names, expected_names);
-//! #     exit.send(AppExit);
+//! #     exit.send(AppExit::Success);
 //! # }
 //!```
 

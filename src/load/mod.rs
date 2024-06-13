@@ -3,11 +3,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
-    log::info,
-    pbr::StandardMaterial,
-    render::color::Color,
-    utils::{hashbrown::HashMap, BoxedFuture},
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, utils::{hashbrown::HashMap, BoxedFuture}
 };
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
@@ -45,7 +41,7 @@ impl Default for VoxLoaderSettings {
     fn default() -> Self {
         Self {
             mesh_outer_faces: true,
-            emission_strength: 4000.0,
+            emission_strength: 10.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
         }
@@ -115,7 +111,7 @@ impl VoxSceneLoader {
             load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
                 let mut non_emissive = translucent_material.clone();
                 non_emissive.emissive_texture = None;
-                non_emissive.emissive = Color::BLACK;
+                non_emissive.emissive = LinearRgba::BLACK;
                 non_emissive
             });
         }

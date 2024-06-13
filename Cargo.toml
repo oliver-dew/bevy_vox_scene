@@ -32,7 +32,7 @@ name = "voxel-generation"
 required-features = ["generate_voxels"]
 
 [dependencies]
-bevy = { version = "0.13.0", default-features = false, features = [
+bevy = { version = "0.14.0-rc.2", default-features = false, features = [
   "bevy_render",
   "bevy_asset",
   "bevy_pbr",
@@ -47,7 +47,7 @@ thiserror = "1.0.50"
 serde = "1.0.193"
 
 [dev-dependencies]
-bevy = "0.13.0"
+bevy = "0.14.0-rc.2"
 utilities = { path = "utilities" }
 rand = "0.8.5"
 async-std = { version = "1.12.0", features = ["attributes"] }

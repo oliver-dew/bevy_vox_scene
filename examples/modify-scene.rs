@@ -126,7 +126,7 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
             || (x_direction > 0.5 && transform.translation.x > tank_half_extents.x)
         {
             // change direction at tank edges
-            transform.rotate_axis(Vec3::Y, PI);
+            transform.rotate_axis(Dir3::Y, PI);
         }
         // slow down when near the edge
         let slow_down = 1.0

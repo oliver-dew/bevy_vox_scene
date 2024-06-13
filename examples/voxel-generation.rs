@@ -35,7 +35,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn setup(world: &mut World) {
-    let palette = VoxelPalette::from_colors(vec![Color::BLUE, Color::ALICE_BLUE, Color::BISQUE]);
+    let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::BLUE.into(), bevy::color::palettes::css::ALICE_BLUE.into(), bevy::color::palettes::css::BISQUE.into()]);
     let data = SDF::cuboid(Vec3::splat(13.0))
         .subtract(SDF::sphere(16.0))
         .map_to_voxels(UVec3::splat(32), |d, _| match d {
