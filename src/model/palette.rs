@@ -327,11 +327,10 @@ trait Lerpable {
 
 impl Lerpable for LinearRgba {
     fn lerp(&self, rhs: Self, amount: f32) -> Self {
-        let lhs = self.to_f32_array();//as_rgba_f32();
+        let lhs = self.to_f32_array();
         let rhs = rhs.to_f32_array();
         let mixed: [f32; 4] = std::array::from_fn(|i| lhs[i].lerp(rhs[i], amount));
         LinearRgba::from_f32_array(mixed)
-        //Color::rgba_from_array(mixed)
     }
 }
 impl VecComparable<f32> for Vec<f32> {
