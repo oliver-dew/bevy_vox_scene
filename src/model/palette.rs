@@ -1,5 +1,5 @@
 use bevy::{
-    asset::{Assets, Handle, LoadContext}, color::{Color, ColorToComponents, LinearRgba}, math::FloatExt, pbr::StandardMaterial, render::{
+    asset::{Assets, Handle, LoadContext}, color::{Color, ColorToComponents, ColorToPacked, LinearRgba}, math::FloatExt, pbr::StandardMaterial, render::{
         render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
@@ -116,7 +116,7 @@ impl VoxelPalette {
             for i in *stop..*next_stop {
                 let fraction = (i - stop) as f32 / distance;
                 elements[i as usize] = VoxelElement {
-                    color: Color::LinearRgba(element.color.linear().lerp(next_element.color.linear(), fraction)),
+                    color: Color::LinearRgba(element.color.to_linear().lerp(next_element.color.to_linear(), fraction)),
                     emission: element.emission.lerp(next_element.emission, fraction),
                     roughness: element.roughness.lerp(next_element.roughness, fraction),
                     metalness: element.metalness.lerp(next_element.metalness, fraction),
@@ -182,13 +182,7 @@ impl VoxelPalette {
         let color_data: Vec<u8> = self
         .elements
         .iter()
-        .flat_map(|e| -> [u8; 4] {
-            let color = e.color.linear();
-            [(color.red * 255.0) as u8,
-            (color.green * 255.0) as u8,
-            (color.blue * 255.0) as u8,
-            (color.alpha * 255.0) as u8]
-        })
+        .flat_map(|e| e.color.to_linear().to_u8_array())
         .collect();
         let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
@@ -220,7 +214,7 @@ impl VoxelPalette {
             .iter()
             .zip(self.elements.iter().map(|e| e.color))
             .flat_map(|(emission, color)| {
-                (color.linear() * *emission)
+                (color.to_linear() * *emission)
                 .to_f32_array()
                 .iter()
                 .flat_map(|c| c.to_le_bytes())
