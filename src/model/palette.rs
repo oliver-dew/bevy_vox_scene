@@ -138,7 +138,7 @@ impl VoxelPalette {
             .iter()
             .zip(data.materials.iter())
             .map(|(color, material)| VoxelElement {
-                color: Color::srgba_u8(color.r, color.g, color.b, color.a),
+                color: Color::linear_rgba(color.r as f32 / 255., color.g as f32 / 255., color.b as f32 / 255., color.a as f32 / 255.),//srgba_u8(color.r, color.g, color.b, color.a),
                 emission: material.emission().unwrap_or(0.0)
                 * (material.radiant_flux().unwrap_or(0.0) + 1.0)
                 * emission_strength,
