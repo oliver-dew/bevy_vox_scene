@@ -3,7 +3,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, utils::{hashbrown::HashMap, BoxedFuture}
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, utils::hashbrown::HashMap
 };
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
