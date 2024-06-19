@@ -41,14 +41,21 @@ pub trait VoxelQueryable {
     /// ### Returns
     /// A voxel coordinate
     fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
-        let size = self.size();
-        let half_extents = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
+        let half_extents = self.size().as_vec3() * 0.5;
         let voxel_postition = local_point + half_extents;
-        IVec3::new(
-            voxel_postition.x as i32,
-            voxel_postition.y as i32,
-            voxel_postition.z as i32,
-        )
+        voxel_postition.as_ivec3()
+    }
+
+    /// Converts a voxel coordinate to a point in local space
+    ///
+    /// ### Arguments
+    /// * `voxel_coord` - a voxel coordinate
+    ///
+    /// ### Returns
+    /// the point in the local space of the entity that owns this [`crate::VoxelModelInstance`]
+    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
+        let half_extents = self.size().as_vec3() * 0.5;
+        voxel_coord.as_vec3() - half_extents
     }
 
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
