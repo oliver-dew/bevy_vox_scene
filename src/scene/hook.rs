@@ -63,7 +63,7 @@ use bevy::{
 /// #     let expected_names: HashSet<&str> = ["tank/tetra", "tank/goldfish"].into();
 /// #     let all_names: HashSet<&str> = HashSet::from_iter(all_fish);
 /// #     assert_eq!(expected_names, all_names);
-/// #     exit.send(AppExit);
+/// #     exit.send(AppExit::Success);
 /// # }
 /// ```
 #[derive(Component)]

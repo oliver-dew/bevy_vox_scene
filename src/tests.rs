@@ -10,11 +10,11 @@ use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
     core::Name,
-    ecs::system::{Commands, Res, RunSystemOnce},
+    ecs::system::{Commands, Res},
     hierarchy::Children,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::StandardMaterial,
-    render::{color::Color, mesh::Mesh, texture::ImagePlugin},
+    render::{mesh::Mesh, texture::ImagePlugin},
     utils::hashbrown::HashSet,
     MinimalPlugins,
 };
@@ -42,12 +42,12 @@ async fn test_load_scene() {
     let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
     app.update();
     let scene = app
-        .world
+        .world()
         .resource::<Assets<VoxelScene>>()
-        .get(handle)
+        .get(handle.id())
         .expect("retrieve test.vox from Res<Assets>");
     let collection = app
-        .world
+        .world()
         .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
@@ -89,9 +89,9 @@ async fn test_load_scene_slice() {
     let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
     app.update();
     let scene = app
-        .world
+        .world()
         .resource::<Assets<VoxelScene>>()
-        .get(handle)
+        .get(handle.id())
         .expect("retrieve test.vox from Res<Assets>");
     assert_eq!(scene.layers.len(), 8);
     assert_eq!(
@@ -127,21 +127,21 @@ async fn test_transmissive_mat() {
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
     app.update();
     let scene = app
-        .world
+        .world()
         .resource::<Assets<VoxelScene>>()
-        .get(handle)
+        .get(handle.id())
         .expect("retrieve scene from Res<Assets>");
     let walls = &scene.root;
     let model_id = walls.model_id.expect("Walls has a model id");
     let collection = app
-        .world
+        .world()
         .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
     let model = collection.models.get(model_id).expect("Walls has a model");
     let mat_handle = &model.material;
     let material = app
-        .world
+        .world()
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
@@ -158,14 +158,14 @@ async fn test_opaque_mat() {
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
     app.update();
     let scene = app
-        .world
+        .world()
         .resource::<Assets<VoxelScene>>()
-        .get(handle)
+        .get(handle.id())
         .expect("retrieve scene from Res<Assets>");
     let dice = &scene.root;
     let model_id = dice.model_id.expect("Dice has a model id");
     let collection = app
-        .world
+        .world()
         .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
@@ -175,7 +175,7 @@ async fn test_opaque_mat() {
         .expect("retrieve model from collection");
     let mat_handle = &model.material;
     let material = app
-        .world
+        .world()
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
@@ -191,13 +191,13 @@ async fn test_spawn_system() {
     app.update();
 
     assert_eq!(
-        app.world
+        app.world()
             .resource::<AssetServer>()
-            .load_state(handle.clone()),
+            .load_state(handle.id()),
         LoadState::Loaded
     );
     let entity = app
-        .world
+        .world_mut()
         .spawn(VoxelSceneHookBundle {
             scene: handle,
             hook: VoxelSceneHook::new(move |entity, _| {
@@ -215,43 +215,43 @@ async fn test_spawn_system() {
         })
         .id();
     app.update();
-    assert!(app.world.get::<Handle<VoxelScene>>(entity).is_none());
+    assert!(app.world().get::<Handle<VoxelScene>>(entity).is_none());
     assert_eq!(
-        app.world.query::<&VoxelLayer>().iter(&app.world).len(),
+        app.world_mut().query::<&VoxelLayer>().iter(&app.world()).len(),
         5,
         "5 voxel nodes spawned in this scene slice"
     );
     assert_eq!(
-        app.world.query::<&Name>().iter(&app.world).len(),
+        app.world_mut().query::<&Name>().iter(&app.world()).len(),
         3,
         "But only 3 of the voxel nodes are named"
     );
-    let mut instance_query = app.world.query::<&VoxelModelInstance>();
+    let mut instance_query = app.world_mut().query::<&VoxelModelInstance>();
     assert_eq!(
-        instance_query.iter(&app.world).len(),
+        instance_query.iter(&app.world()).len(),
         4,
         "4 model instances spawned in this scene slice"
     );
     let models: HashSet<String> = instance_query
-        .iter(&app.world)
+        .iter(&app.world())
         .map(|c| c.model_name.clone())
         .collect();
     assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     assert_eq!(
-        app.world
+        app.world()
             .get::<Name>(entity)
             .expect("Name component")
             .as_str(),
         "outer-group/inner-group"
     );
     let children = app
-        .world
+        .world()
         .get::<Children>(entity)
         .expect("children of inner-group")
         .as_ref();
     assert_eq!(children.len(), 4, "inner-group has 4 children");
     assert_eq!(
-        app.world
+        app.world()
             .get::<Name>(*children.last().expect("last child"))
             .expect("Name component")
             .as_str(),
@@ -263,20 +263,22 @@ async fn test_spawn_system() {
 #[cfg(feature = "modify_voxels")]
 #[async_std::test]
 async fn test_modify_voxels() {
+    use bevy::ecs::system::RunSystemOnce;
+
     let mut app = App::new();
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
     app.update();
-    app.world.run_system_once(modify_voxels);
+    app.world_mut().run_system_once(modify_voxels);
     app.update();
     let scene = app
-        .world
+        .world()
         .resource::<Assets<VoxelScene>>()
-        .get(handle)
+        .get(handle.id())
         .expect("retrieve scene from Res<Assets>");
     let model_id = scene.root.model_id.expect("Root should have a model");
     let collection = app
-        .world
+        .world()
         .resource::<Assets<VoxelModelCollection>>()
         .get(scene.model_collection.id())
         .expect("Retrieve collection");
@@ -325,9 +327,9 @@ fn modify_voxels(mut commands: Commands, scenes: Res<Assets<VoxelScene>>) {
 fn test_generate_voxels() {
     let mut app = App::new();
     setup_app(&mut app);
-    let palette = VoxelPalette::from_colors(vec![Color::GREEN]);
+    let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), Voxel(1));
-    let world = &mut app.world;
+    let world = app.world_mut();
     let collection = VoxelModelCollection::new(world, palette).expect("create collection");
     let tall_box_model =
         VoxelModelCollection::add(world, tall_box, "tall box".to_string(), collection)
@@ -335,9 +337,9 @@ fn test_generate_voxels() {
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);
     let mesh = app
-        .world
+        .world()
         .resource::<Assets<Mesh>>()
-        .get(tall_box_model.mesh)
+        .get(tall_box_model.mesh.id())
         .expect("mesh generated");
     assert_eq!(
         mesh.compute_aabb().expect("aabb").half_extents,
@@ -397,7 +399,7 @@ fn test_voxel_queryable() {
 
 async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<VoxelScene> {
     setup_app(app);
-    let assets = app.world.resource::<AssetServer>();
+    let assets = app.world().resource::<AssetServer>();
     assets
         .load_untyped_async(filename)
         .await

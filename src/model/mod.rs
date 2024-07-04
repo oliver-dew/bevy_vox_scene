@@ -101,7 +101,7 @@ impl VoxelModelCollection {
         mut materials: ResMut<Assets<StandardMaterial>>,
         mut collections: ResMut<Assets<VoxelModelCollection>>,
     ) -> Option<VoxelModel> {
-        let collection = collections.get_mut(collection_handle)?;
+        let collection = collections.get_mut(collection_handle.id())?;
         let (mesh, average_ior) = data.remesh(&collection.palette.indices_of_refraction);
         let material = if let Some(ior) = average_ior {
             let mut transmissive_material = materials

@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
-    prelude::*,
-    time::common_conditions::on_timer,
+    core_pipeline::{bloom::BloomSettings, dof::{DepthOfFieldMode, DepthOfFieldSettings}, tonemapping::Tonemapping}, gizmos::gizmos, prelude::*, time::common_conditions::on_timer
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
@@ -21,9 +19,12 @@ fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
         .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (spawn_snow.run_if(on_timer(snow_spawn_freq)), update_snow),
+        .add_systems(Update,
+            (
+                spawn_snow.run_if(on_timer(snow_spawn_freq)), 
+                update_snow,
+                focus_camera,
+            ),
         )
         .run();
 }
@@ -54,6 +55,12 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
         },
+        DepthOfFieldSettings {
+            mode: DepthOfFieldMode::Bokeh,
+            focal_distance: 8.,
+            aperture_f_stops: 0.003,
+            ..default()
+        },
     ));
     commands.insert_resource(Scenes {
         snowflake: assets.load("study.vox#snowflake"),
@@ -66,6 +73,12 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             if entity.get::<VoxelModelInstance>().is_some() {
                 commands.insert(Scenery);
             }
+            if let Some(name) = entity.get::<Name>() {
+                if name.as_str() == "workstation/computer" {
+                    // Focus on the computer screen
+                    commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
+                }
+            }
         }),
         ..default()
     });
@@ -76,6 +89,9 @@ struct Snowflake(Quat);
 
 #[derive(Component)]
 struct Scenery;
+
+#[derive(Component)]
+struct FocalPoint(Vec3);
 
 fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     let mut rng = rand::thread_rng();
@@ -151,4 +167,15 @@ fn update_snow(
             commands.entity(snowflake).despawn();
         }
     }
+}
+
+// Focus the camera on the focal point when the camera moves
+fn focus_camera(
+    mut camera: Query<(&mut DepthOfFieldSettings, &GlobalTransform), Changed<Transform>>,
+    target: Query<(&GlobalTransform, &FocalPoint)>,
+) {
+    let Some((target_xform, focal_point)) = target.iter().next() else { return };
+    let Ok((mut dof, camera_xform)) = camera.get_single_mut() else { return };
+    let target_point = target_xform.transform_point(focal_point.0);
+    dof.focal_distance = camera_xform.translation().distance(target_point);
 }

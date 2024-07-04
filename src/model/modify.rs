@@ -1,8 +1,8 @@
 use bevy::{
     asset::{Assets, Handle},
     ecs::{
-        system::{Command, Commands},
-        world::World,
+        system::{Commands, ResMut, SystemState},
+        world::{Command, World},
     },
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
@@ -98,11 +98,13 @@ struct ModifyVoxelModel {
 
 impl Command for ModifyVoxelModel {
     fn apply(self, world: &mut World) {
-        let cell = world.cell();
-        let perform = || -> Option<()> {
-            let mut meshes = cell.get_resource_mut::<Assets<Mesh>>()?;
-            let mut materials = cell.get_resource_mut::<Assets<StandardMaterial>>()?;
-            let mut collections = cell.get_resource_mut::<Assets<VoxelModelCollection>>()?;
+        let mut perform = || -> Option<()> {
+            let mut system_state: SystemState<(
+                ResMut<Assets<Mesh>>,
+                ResMut<Assets<StandardMaterial>>,
+                ResMut<Assets<VoxelModelCollection>>,
+            )> = SystemState::new(world);
+            let (mut meshes, mut materials, mut collections) = system_state.get_mut(world);
             let collection = collections.get_mut(self.model.collection.id())?;
             let index = collection
                 .index_for_model_name
@@ -163,7 +165,7 @@ impl ModifyVoxelModel {
                 model.material = opaque_material;
             }
             (false, Some(ior)) => {
-                let Some(mut translucent_material) = materials.get(transmissive_material).cloned()
+                let Some(mut translucent_material) = materials.get(transmissive_material.id()).cloned()
                 else {
                     return;
                 };

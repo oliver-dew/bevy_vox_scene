@@ -16,7 +16,7 @@ fn main() {
 
     app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
         .insert_resource(AmbientLight {
-            color: Color::rgb_u8(128, 126, 124),
+            color: Color::srgb_u8(128, 126, 124),
             brightness: 0.5,
         })
         .add_systems(Startup, setup)

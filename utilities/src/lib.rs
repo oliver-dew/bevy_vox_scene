@@ -36,7 +36,7 @@ fn on_spawn_camera(
     }
 }
 
-/// Pan the camera with middle mouse click, zoom with scroll wheel, orbit with right mouse click.
+/// Pan the camera with right mouse click, zoom with scroll wheel, orbit with left mouse click.
 fn pan_orbit_camera(
     window_query: Query<&Window, With<PrimaryWindow>>,
     mut ev_motion: EventReader<MouseMotion>,

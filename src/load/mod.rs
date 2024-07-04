@@ -3,11 +3,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
-    log::info,
-    pbr::StandardMaterial,
-    render::color::Color,
-    utils::{hashbrown::HashMap, BoxedFuture},
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, utils::hashbrown::HashMap
 };
 use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
 use serde::{Deserialize, Serialize};
@@ -45,7 +41,7 @@ impl Default for VoxLoaderSettings {
     fn default() -> Self {
         Self {
             mesh_outer_faces: true,
-            emission_strength: 4000.0,
+            emission_strength: 10.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
         }
@@ -62,23 +58,21 @@ impl AssetLoader for VoxSceneLoader {
     type Asset = VoxelScene;
     type Settings = VoxLoaderSettings;
     type Error = VoxLoaderError;
-
-    fn load<'a>(
+    
+    async fn load<'a>(
         &'a self,
-        reader: &'a mut Reader,
-        _settings: &'a Self::Settings,
-        load_context: &'a mut LoadContext,
-    ) -> BoxedFuture<'a, Result<Self::Asset, VoxLoaderError>> {
-        Box::pin(async move {
-            let mut bytes = Vec::new();
-            reader
-                .read_to_end(&mut bytes)
-                .await
-                .map_err(|e| VoxLoaderError::InvalidAsset(anyhow!(e)))?;
-            self.process_vox_file(&bytes, load_context, _settings)
-        })
+        reader: &'a mut Reader<'_>,
+        _settings: &'a VoxLoaderSettings,
+        _load_context: &'a mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        reader
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|e| VoxLoaderError::InvalidAsset(anyhow!(e)))?;
+        self.process_vox_file(&bytes, _load_context, _settings)
     }
-
+    
     fn extensions(&self) -> &[&str] {
         &["vox"]
     }
@@ -96,7 +90,7 @@ impl VoxSceneLoader {
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
         info!("Loading {}", load_context.asset_path());
-
+        
         // Palette
         let palette = VoxelPalette::from_data(
             &file,
@@ -105,86 +99,86 @@ impl VoxSceneLoader {
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
         let opaque_material_handle =
-            load_context.labeled_asset_scope("material".to_string(), |_| {
-                let mut opaque_material = translucent_material.clone();
-                opaque_material.specular_transmission_texture = None;
-                opaque_material.specular_transmission = 0.0;
-                opaque_material
-            });
+        load_context.labeled_asset_scope("material".to_string(), |_| {
+            let mut opaque_material = translucent_material.clone();
+            opaque_material.specular_transmission_texture = None;
+            opaque_material.specular_transmission = 0.0;
+            opaque_material
+        });
         if palette.emission == MaterialProperty::VariesPerElement {
             load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
                 let mut non_emissive = translucent_material.clone();
                 non_emissive.emissive_texture = None;
-                non_emissive.emissive = Color::BLACK;
+                non_emissive.emissive = LinearRgba::BLACK;
                 non_emissive
             });
         }
         let indices_of_refraction = palette.indices_of_refraction.clone();
-
+        
         // Scene graph
-
+        
         let root = parse_xform_node(&file.scenes, &file.scenes[0], None, load_context);
         let layers: Vec<LayerInfo> = file
-            .layers
-            .iter()
-            .map(|layer| LayerInfo {
-                name: layer.name(),
-                is_hidden: layer.hidden(),
-            })
-            .collect();
+        .layers
+        .iter()
+        .map(|layer| LayerInfo {
+            name: layer.name(),
+            is_hidden: layer.hidden(),
+        })
+        .collect();
         let mut subasset_by_name: HashMap<String, VoxelNode> = HashMap::new();
         find_subasset_names(&mut subasset_by_name, &root);
-
+        
         let mut model_names: Vec<Option<String>> = vec![None; file.models.len()];
         find_model_names(&mut model_names, &root);
         let mut index_for_model_name: HashMap<String, usize> = HashMap::new();
-
+        
         let models: Vec<VoxelModel> = model_names
-            .iter()
-            .zip(file.models)
-            .enumerate()
-            .map(|(index, (maybe_name, model))| {
-                let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                index_for_model_name.insert(name.to_string(), index);
-                let data = VoxelData::from_model(&model, settings.mesh_outer_faces);
-                let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
-                let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
-                    crate::model::mesh::mesh_model(&visible_voxels, &data)
-                });
-
-                let material: Handle<StandardMaterial> = if let Some(ior) = ior {
-                    load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                        let mut material = translucent_material.clone();
-                        material.ior = ior;
-                        material.thickness = data.size().min_element() as f32;
-                        material
-                    })
-                } else {
-                    opaque_material_handle.clone()
-                };
-                VoxelModel {
-                    name,
-                    data,
-                    mesh,
-                    material,
-                    has_translucency: ior.is_some(),
-                }
-            })
-            .collect();
-
-        let model_collection =
-            load_context.labeled_asset_scope("model-collection".to_string(), |context| {
-                let transmissive_material_handle = context
-                    .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-                VoxelModelCollection {
-                    palette,
-                    models,
-                    index_for_model_name,
-                    opaque_material: opaque_material_handle,
-                    transmissive_material: transmissive_material_handle,
-                }
+        .iter()
+        .zip(file.models)
+        .enumerate()
+        .map(|(index, (maybe_name, model))| {
+            let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
+            index_for_model_name.insert(name.to_string(), index);
+            let data = VoxelData::from_model(&model, settings.mesh_outer_faces);
+            let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
+            let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
+                crate::model::mesh::mesh_model(&visible_voxels, &data)
             });
-
+            
+            let material: Handle<StandardMaterial> = if let Some(ior) = ior {
+                load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                    let mut material = translucent_material.clone();
+                    material.ior = ior;
+                    material.thickness = data.size().min_element() as f32;
+                    material
+                })
+            } else {
+                opaque_material_handle.clone()
+            };
+            VoxelModel {
+                name,
+                data,
+                mesh,
+                material,
+                has_translucency: ior.is_some(),
+            }
+        })
+        .collect();
+        
+        let model_collection =
+        load_context.labeled_asset_scope("model-collection".to_string(), |context| {
+            let transmissive_material_handle = context
+            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
+            VoxelModelCollection {
+                palette,
+                models,
+                index_for_model_name,
+                opaque_material: opaque_material_handle,
+                transmissive_material: transmissive_material_handle,
+            }
+        });
+        
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {
                 root: node,
