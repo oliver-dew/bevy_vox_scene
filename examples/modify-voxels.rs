@@ -6,7 +6,7 @@ use bevy::{
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
-    VoxelRegionMode, VoxelSceneHook, VoxelSceneHookBundle,
+    VoxelRegionMode, VoxelSceneBundle,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -14,7 +14,7 @@ use std::{ops::RangeInclusive, time::Duration};
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (register_hook, setup))
         .add_systems(
             Update,
             grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
@@ -58,18 +58,19 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         ..default()
     });
 
-    commands.spawn(VoxelSceneHookBundle {
+    commands.spawn(VoxelSceneBundle {
         scene: assets.load("study.vox"),
-        hook: VoxelSceneHook::new(move |entity, commands| {
-            let Some(name) = entity.get::<Name>() else {
-                return;
-            };
-            if name.as_str() == "floor" {
-                commands.insert(Floor);
-            }
-        }),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
+    });
+}
+
+fn register_hook(world: &mut World) {
+    world.register_component_hooks::<VoxelModelInstance>()
+    .on_add(|mut world, entity, _| { 
+        if world.get::<VoxelModelInstance>(entity).unwrap().model_name == "floor" {
+            world.commands().entity(entity).insert(Floor);
+        }
     });
 }
 

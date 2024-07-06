@@ -1,13 +1,12 @@
 use std::time::Duration;
 
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, dof::{DepthOfFieldMode, DepthOfFieldSettings}, tonemapping::Tonemapping}, gizmos::gizmos, prelude::*, time::common_conditions::on_timer
+    core_pipeline::{bloom::BloomSettings, dof::{DepthOfFieldMode, DepthOfFieldSettings}, tonemapping::Tonemapping}, prelude::*, time::common_conditions::on_timer
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection, VoxelModelInstance,
-    VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
-    VoxelSceneHookBundle,
+    VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
 };
 use rand::Rng;
 
@@ -17,21 +16,40 @@ fn main() {
     // don't all happen on the same frame
     let snow_spawn_freq = Duration::from_secs_f32(0.213);
     App::new()
-        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-        .add_systems(Startup, setup)
-        .add_systems(Update,
-            (
-                spawn_snow.run_if(on_timer(snow_spawn_freq)), 
-                update_snow,
-                focus_camera,
-            ),
-        )
-        .run();
+    .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+    .add_systems(Startup, (register_hook, setup))
+    .add_systems(Update,
+        (
+            spawn_snow.run_if(on_timer(snow_spawn_freq)), 
+            update_snow,
+            focus_camera,
+        ),
+    )
+    .run();
 }
 
 #[derive(Resource)]
 struct Scenes {
     snowflake: Handle<VoxelScene>,
+}
+
+fn register_hook(
+    world: &mut World,
+) {
+    world.register_component_hooks::<VoxelModelInstance>()
+    .on_add(|mut world, entity, _component_id| {
+        let name = world.get::<VoxelModelInstance>(entity).unwrap().model_name.as_str();
+        match name {
+            "snowflake" => return,
+            "workstation/computer" => {
+                // Focus on the computer screen
+                world.commands().entity(entity).insert(FocalPoint(Vec3::new(0., 0., 9.)));
+            }
+            _ => {}
+        }
+        world.commands().entity(entity).insert(Scenery);
+        
+    });
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
@@ -65,21 +83,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.insert_resource(Scenes {
         snowflake: assets.load("study.vox#snowflake"),
     });
-
-    commands.spawn(VoxelSceneHookBundle {
+    
+    commands.spawn(VoxelSceneBundle {
         // Load a slice of the scene
         scene: assets.load("study.vox#workstation"),
-        hook: VoxelSceneHook::new(|entity, commands| {
-            if entity.get::<VoxelModelInstance>().is_some() {
-                commands.insert(Scenery);
-            }
-            if let Some(name) = entity.get::<Name>() {
-                if name.as_str() == "workstation/computer" {
-                    // Focus on the computer screen
-                    commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
-                }
-            }
-        }),
         ..default()
     });
 }
@@ -96,9 +103,9 @@ struct FocalPoint(Vec3);
 fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     let mut rng = rand::thread_rng();
     let position = Vec3::new(rng.gen_range(-30.0..30.0), 80.0, rng.gen_range(-20.0..20.0)).round()
-        + Vec3::splat(0.5);
+    + Vec3::splat(0.5);
     let rotation_axis =
-        Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
+    Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
     let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
     commands.spawn((
         Snowflake(angular_velocity),
@@ -132,7 +139,7 @@ fn update_snow(
                 continue;
             };
             let vox_pos =
-                model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
+            model.global_point_to_voxel_space(snowflake_xform.translation, item_xform);
             // check whether snowflake has landed on something solid
             let pos_below_snowflake = vox_pos - IVec3::Y;
             let Ok(voxel) = model.get_voxel_at_point(pos_below_snowflake) else {

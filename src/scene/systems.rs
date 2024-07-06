@@ -58,6 +58,19 @@ fn spawn_voxel_node_recursive(
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
+    if let Some(layer_info) = scene.layers.get(voxel_node.layer_id as usize) {
+        entity_commands.insert((
+            VoxelLayer {
+                id: voxel_node.layer_id,
+                name: layer_info.name.clone(),
+            },
+            if voxel_node.is_hidden || layer_info.is_hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            },
+        ));
+    }
     if let Some(model_index) = &voxel_node.model_id {
         if let Some(model) = model_collection.models.get(*model_index) {
             entity_commands.insert((
@@ -77,20 +90,6 @@ fn spawn_voxel_node_recursive(
         }
     } else {
         entity_commands.insert(SpatialBundle::default());
-    }
-
-    if let Some(layer_info) = scene.layers.get(voxel_node.layer_id as usize) {
-        entity_commands.insert((
-            VoxelLayer {
-                id: voxel_node.layer_id,
-                name: layer_info.name.clone(),
-            },
-            if voxel_node.is_hidden || layer_info.is_hidden {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            },
-        ));
     }
     entity_commands
         .insert(Transform::from_matrix(voxel_node.transform))
