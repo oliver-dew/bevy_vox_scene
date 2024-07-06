@@ -14,7 +14,7 @@ use std::{ops::RangeInclusive, time::Duration};
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-        .add_systems(Startup, (register_hook, setup))
+        .add_systems(Startup, setup)
         .add_systems(
             Update,
             grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
@@ -63,15 +63,18 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
+    commands.observe(on_spawn_voxel_instance);
 }
 
-fn register_hook(world: &mut World) {
-    world.register_component_hooks::<VoxelModelInstance>()
-    .on_add(|mut world, entity, _| { 
-        if world.get::<VoxelModelInstance>(entity).unwrap().model_name == "floor" {
-            world.commands().entity(entity).insert(Floor);
-        }
-    });
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, VoxelModelInstance>,
+    model_query: Query<&VoxelModelInstance>,
+    mut commands: Commands,
+) {
+    let name = model_query.get(trigger.entity()).unwrap().model_name.as_str();
+    if name == "floor" {
+        commands.entity(trigger.entity()).insert(Floor);
+    }
 }
 
 fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {

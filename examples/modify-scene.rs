@@ -19,7 +19,7 @@ fn main() {
     let mut app = App::new();
     
     app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-    .add_systems(Startup, (register_hook, setup))
+    .add_systems(Startup, setup)
     .add_systems(
         Update,
         (
@@ -39,33 +39,6 @@ fn main() {
 }
 
 // Systems
-
-fn register_hook(world: &mut World) {
-    world.register_component_hooks::<VoxelModelInstance>()
-    .on_add(|mut world, entity, _component_id| {
-        let name = world.get::<VoxelModelInstance>(entity).unwrap().model_name.clone();
-        match name.as_str() {
-            // Node names give the path to the asset, with components separated by /. Here, "black-light" belongs to the "tank" group
-            "tank/black-light" => {
-                let assets = world.resource::<AssetServer>();
-                let on_material: Handle<StandardMaterial> = assets.load("study.vox#material"); // emissive texture
-                let off_material: Handle<StandardMaterial> = assets.load("study.vox#material-no-emission"); // non-emissive texture
-                world.commands().entity(entity).insert(EmissiveToggle {
-                    is_on: true,
-                    on_material,
-                    off_material,
-                });
-            }
-            "tank/goldfish" | "tank/tetra" => {
-                // Make fish go brrrrr
-                let mut rng = rand::thread_rng(); // random speed
-                world.commands().entity(entity).insert(Fish(rng.gen_range(5.0..10.0)));
-            }
-            _ => {}
-        }
-    });
-}
-
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
@@ -102,6 +75,33 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
+    commands.observe(on_spawn_voxel_instance);
+}
+
+// Will run against every child entity that gets spawned in the scene
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, VoxelModelInstance>,
+    model_query: Query<&VoxelModelInstance>, 
+    mut commands: Commands, 
+    assets: Res<AssetServer>
+) {
+    let mut entity_commands = commands.entity(trigger.entity());
+    let name = model_query.get(trigger.entity()).unwrap().model_name.as_str();
+    match name {
+        "tank/black-light" => {
+            entity_commands.insert(EmissiveToggle {
+                is_on: true,
+                on_material: assets.load("study.vox#material"), // emissive texture
+                off_material: assets.load("study.vox#material-no-emission"), // non-emissive texture
+            });
+        }
+        "tank/goldfish" | "tank/tetra" => {
+            // Make fish go brrrrr
+            let mut rng = rand::thread_rng(); // random speed
+            entity_commands.insert(Fish(rng.gen_range(5.0..10.0)));
+        }
+        _ => {}
+    }
 }
 
 fn toggle_black_light(

@@ -17,7 +17,7 @@ fn main() {
     let snow_spawn_freq = Duration::from_secs_f32(0.213);
     App::new()
     .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-    .add_systems(Startup, (register_hook, setup))
+    .add_systems(Startup, setup)
     .add_systems(Update,
         (
             spawn_snow.run_if(on_timer(snow_spawn_freq)), 
@@ -33,23 +33,22 @@ struct Scenes {
     snowflake: Handle<VoxelScene>,
 }
 
-fn register_hook(
-    world: &mut World,
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, VoxelModelInstance>,
+    model_query: Query<&VoxelModelInstance>,
+    mut commands: Commands,
 ) {
-    world.register_component_hooks::<VoxelModelInstance>()
-    .on_add(|mut world, entity, _component_id| {
-        let name = world.get::<VoxelModelInstance>(entity).unwrap().model_name.as_str();
-        match name {
-            "snowflake" => return,
-            "workstation/computer" => {
-                // Focus on the computer screen
-                world.commands().entity(entity).insert(FocalPoint(Vec3::new(0., 0., 9.)));
-            }
-            _ => {}
+    let mut entity_commands = commands.entity(trigger.entity());
+    let name = model_query.get(trigger.entity()).unwrap().model_name.as_str();
+    match name {
+        "snowflake" => return,
+        "workstation/computer" => {
+            // Focus on the computer screen
+            entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
-        world.commands().entity(entity).insert(Scenery);
-        
-    });
+        _ => {}
+    }
+    entity_commands.insert(Scenery);
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
@@ -89,6 +88,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         scene: assets.load("study.vox#workstation"),
         ..default()
     });
+    commands.observe(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]
