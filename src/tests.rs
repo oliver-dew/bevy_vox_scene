@@ -197,7 +197,6 @@ async fn test_spawn_system() {
             .load_state(handle.id()),
         LoadState::Loaded
     );
-    print!("hi");
     app.observe(
         |trigger: Trigger<OnAdd, VoxelModelInstance>, query: Query<&VoxelModelInstance>| {
             let name = query.get(trigger.entity()).unwrap().model_name.as_str();
