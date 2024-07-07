@@ -67,7 +67,7 @@ Take a look in the `examples/` directory for complete working examples. To run a
 cargo run --example <example name>
 ```
 
-- To modify entities within a scene hierarchy using scene hooks, see the [`modify-scene` example](/examples/modify-scene.rs).
+- To modify entities within a scene hierarchy using bevy observers, see the [`modify-scene` example](/examples/modify-scene.rs).
 - If you want glowing emissive voxels, add an HDR and bloom-enabled camera. See the [`emissive-model` example](/examples/emissive-model.rs).
 - Enabling Screen-Space Ambient Occlusion can give your voxel scenes more pop. See the [`ssao-model` example](/examples/ssao-model.rs).
 - If you want glass voxels to refract other objects in the scene, enable specular transmission on your camera3d. See the [`transmission-scene` example](/examples/transmission-scene.rs).

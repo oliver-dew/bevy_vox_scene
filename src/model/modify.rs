@@ -165,7 +165,8 @@ impl ModifyVoxelModel {
                 model.material = opaque_material;
             }
             (false, Some(ior)) => {
-                let Some(mut translucent_material) = materials.get(transmissive_material.id()).cloned()
+                let Some(mut translucent_material) =
+                    materials.get(transmissive_material.id()).cloned()
                 else {
                     return;
                 };

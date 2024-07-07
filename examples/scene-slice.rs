@@ -7,8 +7,8 @@ use bevy::{
     },
     prelude::*,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Asset labels aren't just for loading individual models within a scene, they can load any named group within a scene, a "slice" of the scene
 /// Here, just the workstation is loaded from the example scene

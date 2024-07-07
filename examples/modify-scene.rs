@@ -8,33 +8,33 @@ use bevy::{
     input::keyboard::KeyboardInput,
     prelude::*,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelModelInstance, VoxelSceneBundle};
 use rand::Rng;
 use std::f32::consts::PI;
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Uses the [`bevy_vox_scene::VoxelSceneHook`] component to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
 fn main() {
     let mut app = App::new();
-    
+
     app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-    .add_systems(Startup, setup)
-    .add_systems(
-        Update,
-        (
-            toggle_black_light.run_if(on_event::<KeyboardInput>()),
-            swim_fish,
-        ),
-    );
-    
+        .add_systems(Startup, setup)
+        .add_systems(
+            Update,
+            (
+                toggle_black_light.run_if(on_event::<KeyboardInput>()),
+                swim_fish,
+            ),
+        );
+
     // *Note:* TAA is not _required_ for specular transmission, but
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
     app.insert_resource(Msaa::Off)
-    .add_plugins(TemporalAntiAliasPlugin);
-    
+        .add_plugins(TemporalAntiAliasPlugin);
+
     app.run();
 }
 
@@ -81,12 +81,16 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 // Will run against every child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
     trigger: Trigger<OnAdd, VoxelModelInstance>,
-    model_query: Query<&VoxelModelInstance>, 
-    mut commands: Commands, 
-    assets: Res<AssetServer>
+    model_query: Query<&VoxelModelInstance>,
+    mut commands: Commands,
+    assets: Res<AssetServer>,
 ) {
     let mut entity_commands = commands.entity(trigger.entity());
-    let name = model_query.get(trigger.entity()).unwrap().model_name.as_str();
+    let name = model_query
+        .get(trigger.entity())
+        .unwrap()
+        .model_name
+        .as_str();
     match name {
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {
@@ -117,8 +121,8 @@ fn toggle_black_light(
     };
     emissive_toggle.toggle();
     commands
-    .entity(entity)
-    .insert(emissive_toggle.material().clone());
+        .entity(entity)
+        .insert(emissive_toggle.material().clone());
 }
 
 fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
@@ -126,14 +130,14 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
     for (mut transform, fish) in query.iter_mut() {
         let x_direction = transform.forward().dot(Vec3::X);
         if (x_direction < -0.5 && transform.translation.x < -tank_half_extents.x)
-        || (x_direction > 0.5 && transform.translation.x > tank_half_extents.x)
+            || (x_direction > 0.5 && transform.translation.x > tank_half_extents.x)
         {
             // change direction at tank edges
             transform.rotate_axis(Dir3::Y, PI);
         }
         // slow down when near the edge
         let slow_down = 1.0
-        - ((transform.translation.x.abs() - (tank_half_extents.x - 4.2)) / 5.0).clamp(0.0, 1.0);
+            - ((transform.translation.x.abs() - (tank_half_extents.x - 4.2)) / 5.0).clamp(0.0, 1.0);
         let forward = transform.forward();
         transform.translation += forward * (time.delta_seconds() * fish.0 * slow_down);
         // make them weave up and down
@@ -154,7 +158,7 @@ impl EmissiveToggle {
     fn toggle(&mut self) {
         self.is_on = !self.is_on;
     }
-    
+
     fn material(&self) -> &Handle<StandardMaterial> {
         match self.is_on {
             true => &self.on_material,

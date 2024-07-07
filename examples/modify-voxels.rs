@@ -3,13 +3,13 @@ use bevy::{
     prelude::*,
     time::common_conditions::on_timer,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
     VoxelRegionMode, VoxelSceneBundle,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -71,7 +71,11 @@ fn on_spawn_voxel_instance(
     model_query: Query<&VoxelModelInstance>,
     mut commands: Commands,
 ) {
-    let name = model_query.get(trigger.entity()).unwrap().model_name.as_str();
+    let name = model_query
+        .get(trigger.entity())
+        .unwrap()
+        .model_name
+        .as_str();
     if name == "floor" {
         commands.entity(trigger.entity()).insert(Floor);
     }

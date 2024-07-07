@@ -7,8 +7,8 @@ use bevy::{
     pbr::ScreenSpaceAmbientOcclusionBundle,
     prelude::*,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press any key to toggle Screen Space Ambient Occlusion
 fn main() {

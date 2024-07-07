@@ -1,14 +1,12 @@
-use crate::{VoxelModelCollection, VoxelSceneHook};
+use crate::VoxelModelCollection;
 use bevy::{
     asset::{Assets, Handle},
     core::Name,
     ecs::{
         entity::Entity,
-        query::Without,
         system::{Commands, Query, Res},
-        world::World,
     },
-    hierarchy::{BuildChildren, Children},
+    hierarchy::BuildChildren,
     log::warn,
     pbr::PbrBundle,
     render::{prelude::SpatialBundle, view::Visibility},
@@ -106,32 +104,4 @@ fn spawn_voxel_node_recursive(
                 );
             }
         });
-}
-
-pub(crate) fn run_hooks(
-    mut commands: Commands,
-    world: &World,
-    query: Query<(Entity, &VoxelSceneHook), Without<Handle<VoxelScene>>>,
-) {
-    for (entity, scene_hook) in query.iter() {
-        run_hook_recursive(&mut commands, world, entity, scene_hook);
-        commands.entity(entity).remove::<VoxelSceneHook>();
-    }
-}
-
-fn run_hook_recursive(
-    commands: &mut Commands,
-    world: &World,
-    entity: Entity,
-    scene_hook: &VoxelSceneHook,
-) {
-    let entity_ref = world.entity(entity);
-    let mut entity_commands = commands.entity(entity);
-    (scene_hook.hook)(&entity_ref, &mut entity_commands);
-    let Some(children) = entity_ref.get::<Children>() else {
-        return;
-    };
-    for child in children.as_ref() {
-        run_hook_recursive(commands, world, *child, scene_hook);
-    }
 }
