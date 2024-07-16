@@ -16,6 +16,13 @@ use bevy_vox_scene::{
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
+#[derive(States, Debug, Clone, Default, Hash, Eq, PartialEq)]
+enum AppState {
+    #[default]
+    Loading,
+    Ready,
+}
+
 // When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
     // Making this frequency not cleanly divisible by the snowflake speed ensures that expensive collisions
@@ -30,8 +37,11 @@ fn main() {
                 spawn_snow.run_if(on_timer(snow_spawn_freq)),
                 update_snow,
                 focus_camera,
-            ),
+            )
+                .run_if(in_state(AppState::Ready)),
         )
+        .init_state::<AppState>()
+        .observe(on_assets_spawned)
         .run();
 }
 
@@ -60,6 +70,13 @@ fn on_spawn_voxel_instance(trigger: Trigger<DidSpawnVoxelChild>, mut commands: C
         _ => {}
     }
     entity_commands.insert(Scenery);
+}
+
+fn on_assets_spawned(
+    _trigger: Trigger<OnAdd, FocalPoint>,
+    mut app_state: ResMut<NextState<AppState>>,
+) {
+    app_state.set(AppState::Ready);
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
