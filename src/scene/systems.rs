@@ -1,4 +1,4 @@
-use crate::VoxelModelCollection;
+use crate::{DidSpawnVoxelChild, VoxelModelCollection};
 use bevy::{
     asset::{Assets, Handle},
     core::Name,
@@ -33,7 +33,7 @@ pub(crate) fn spawn_vox_scenes(
         let Some(collection) = collections.get(scene.model_collection.id()) else {
             continue;
         };
-        spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, collection);
+        spawn_voxel_node_recursive(&mut commands, &scene.root, root, root, scene, collection);
         let mut entity = commands.entity(root);
         entity.remove::<Handle<VoxelScene>>();
         if let Some(transform) = transform {
@@ -48,6 +48,7 @@ pub(crate) fn spawn_vox_scenes(
 fn spawn_voxel_node_recursive(
     commands: &mut Commands,
     voxel_node: &VoxelNode,
+    root: Entity,
     entity: Entity,
     scene: &VoxelScene,
     model_collection: &VoxelModelCollection,
@@ -56,7 +57,10 @@ fn spawn_voxel_node_recursive(
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
+    let mut layer_name: Option<String> = None;
+    let mut model_name: Option<String> = None;
     if let Some(layer_info) = scene.layers.get(voxel_node.layer_id as usize) {
+        layer_name = layer_info.name.clone();
         entity_commands.insert((
             VoxelLayer {
                 id: voxel_node.layer_id,
@@ -71,6 +75,7 @@ fn spawn_voxel_node_recursive(
     }
     if let Some(model_index) = &voxel_node.model_id {
         if let Some(model) = model_collection.models.get(*model_index) {
+            model_name = Some(model.name.clone());
             entity_commands.insert((
                 VoxelModelInstance {
                     collection: scene.model_collection.clone(),
@@ -98,10 +103,21 @@ fn spawn_voxel_node_recursive(
                 spawn_voxel_node_recursive(
                     &mut child_entity.commands(),
                     child,
+                    root,
                     id,
                     scene,
                     model_collection,
                 );
             }
         });
+    if let Some(model_name) = model_name {
+        commands.trigger_targets(
+            DidSpawnVoxelChild {
+                child: entity,
+                model_name,
+                layer_name,
+            },
+            root,
+        );
+    }
 }

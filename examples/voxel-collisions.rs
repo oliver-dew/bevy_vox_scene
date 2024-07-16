@@ -10,8 +10,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection, VoxelModelInstance,
-    VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
+    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection,
+    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -40,21 +40,21 @@ struct Scenes {
     snowflake: Handle<VoxelScene>,
 }
 
-fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, VoxelModelInstance>,
-    model_query: Query<&VoxelModelInstance>,
-    mut commands: Commands,
-) {
-    let mut entity_commands = commands.entity(trigger.entity());
-    let name = model_query
-        .get(trigger.entity())
-        .unwrap()
-        .model_name
-        .as_str();
+/// The [`DidSpawnVoxelChild`] event is targeted at the root of a specific [`VoxelScene`], and triggers
+/// once for each child [`VoxelModelInstance`] that gets spawned in that node graph.
+/// This is useful when we will be spawning other voxel scenes, so that we can scope the observer
+/// to one scene and not worry about adding in defensive code.
+/// The event also includes the [`model_name`] and [`layer_name`] so you need fewer queries in your observer.
+/// Compare with the observer triggered with [`Trigger<OnAdd, VoxelModelInstance>`] in [modify scene](./modify-scene.rs).
+fn on_spawn_voxel_instance(trigger: Trigger<DidSpawnVoxelChild>, mut commands: Commands) {
+    // Note that we're interested in the child entity, which is `trigger.event().child`
+    // Not the root entity, which is `trigger.entity()`
+    let mut entity_commands = commands.entity(trigger.event().child);
+    let name = trigger.event().model_name.as_str();
     match name {
-        "snowflake" => return,
+        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
         "workstation/computer" => {
-            // Focus on the computer screen
+            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
         _ => {}
@@ -94,12 +94,14 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         snowflake: assets.load("study.vox#snowflake"),
     });
 
-    commands.spawn(VoxelSceneBundle {
-        // Load a slice of the scene
-        scene: assets.load("study.vox#workstation"),
-        ..default()
-    });
-    commands.observe(on_spawn_voxel_instance);
+    // NB the `on_spawn_voxel_instance` observer is scoped to just this scene graph: we don't want it firing when snowflakes are spawned later on.
+    commands
+        .spawn(VoxelSceneBundle {
+            // Load a slice of the scene
+            scene: assets.load("study.vox#workstation"),
+            ..default()
+        })
+        .observe(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]
@@ -187,7 +189,7 @@ fn update_snow(
     }
 }
 
-// Focus the camera on the focal point when the camera moves
+// Focus the camera on the focal point when the camera is first added and when it moves
 fn focus_camera(
     mut camera: Query<(&mut DepthOfFieldSettings, &GlobalTransform), Changed<Transform>>,
     target: Query<(&GlobalTransform, &FocalPoint)>,

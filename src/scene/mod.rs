@@ -4,6 +4,7 @@ use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
     math::Mat4,
+    prelude::{Entity, Event},
     reflect::TypePath,
     render::view::Visibility,
     transform::components::Transform,
@@ -97,4 +98,15 @@ pub struct VoxelLayer {
     pub id: u32,
     /// An optional name for the Layer, assignable in Magica Voxel layer editor.
     pub name: Option<String>,
+}
+
+/// Event triggered against the root of a [`VoxelScene`] whenever a [`VoxelModelInstance`] is spawned in one of the descendents of the root
+#[derive(Event)]
+pub struct DidSpawnVoxelChild {
+    /// the child entity that contains the [`VoxelModelInstance`]
+    pub child: Entity,
+    /// the name of the model in the [`VoxelModelInstance`]
+    pub model_name: String,
+    /// the [`VoxelLayer`] name of the child entity
+    pub layer_name: Option<String>,
 }

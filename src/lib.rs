@@ -69,7 +69,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
-pub use scene::{VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle};
+pub use scene::{DidSpawnVoxelChild, VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
