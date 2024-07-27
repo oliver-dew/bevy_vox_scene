@@ -14,6 +14,7 @@ use bevy::{
     hierarchy::Children,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::StandardMaterial,
+    prelude::{OnAdd, Query, Trigger},
     render::{mesh::Mesh, texture::ImagePlugin},
     utils::hashbrown::HashSet,
     MinimalPlugins,
@@ -196,28 +197,31 @@ async fn test_spawn_system() {
             .load_state(handle.id()),
         LoadState::Loaded
     );
+    app.observe(
+        |trigger: Trigger<OnAdd, VoxelModelInstance>, query: Query<&VoxelModelInstance>| {
+            let name = query.get(trigger.entity()).unwrap().model_name.as_str();
+            let expected_names: [&'static str; 3] = [
+                "outer-group/inner-group",
+                "outer-group/inner-group/dice",
+                "outer-group/inner-group/walls",
+            ];
+            assert!(expected_names.contains(&name));
+        },
+    );
     let entity = app
         .world_mut()
-        .spawn(VoxelSceneHookBundle {
+        .spawn(VoxelSceneBundle {
             scene: handle,
-            hook: VoxelSceneHook::new(move |entity, _| {
-                let Some(name) = entity.get::<Name>() else {
-                    return;
-                };
-                let expected_names: [&'static str; 3] = [
-                    "outer-group/inner-group",
-                    "outer-group/inner-group/dice",
-                    "outer-group/inner-group/walls",
-                ];
-                assert!(expected_names.contains(&name.as_str()));
-            }),
             ..Default::default()
         })
         .id();
     app.update();
     assert!(app.world().get::<Handle<VoxelScene>>(entity).is_none());
     assert_eq!(
-        app.world_mut().query::<&VoxelLayer>().iter(&app.world()).len(),
+        app.world_mut()
+            .query::<&VoxelLayer>()
+            .iter(&app.world())
+            .len(),
         5,
         "5 voxel nodes spawned in this scene slice"
     );

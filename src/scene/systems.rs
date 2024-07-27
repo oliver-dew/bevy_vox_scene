@@ -1,14 +1,12 @@
-use crate::{VoxelModelCollection, VoxelSceneHook};
+use crate::{DidSpawnVoxelChild, VoxelModelCollection};
 use bevy::{
     asset::{Assets, Handle},
     core::Name,
     ecs::{
         entity::Entity,
-        query::Without,
         system::{Commands, Query, Res},
-        world::World,
     },
-    hierarchy::{BuildChildren, Children},
+    hierarchy::BuildChildren,
     log::warn,
     pbr::PbrBundle,
     render::{prelude::SpatialBundle, view::Visibility},
@@ -35,7 +33,7 @@ pub(crate) fn spawn_vox_scenes(
         let Some(collection) = collections.get(scene.model_collection.id()) else {
             continue;
         };
-        spawn_voxel_node_recursive(&mut commands, &scene.root, root, scene, collection);
+        spawn_voxel_node_recursive(&mut commands, &scene.root, root, root, scene, collection);
         let mut entity = commands.entity(root);
         entity.remove::<Handle<VoxelScene>>();
         if let Some(transform) = transform {
@@ -50,6 +48,7 @@ pub(crate) fn spawn_vox_scenes(
 fn spawn_voxel_node_recursive(
     commands: &mut Commands,
     voxel_node: &VoxelNode,
+    root: Entity,
     entity: Entity,
     scene: &VoxelScene,
     model_collection: &VoxelModelCollection,
@@ -58,8 +57,25 @@ fn spawn_voxel_node_recursive(
     if let Some(name) = &voxel_node.name {
         entity_commands.insert(Name::new(name.clone()));
     }
+    let mut layer_name: Option<String> = None;
+    let mut model_name: Option<String> = None;
+    if let Some(layer_info) = scene.layers.get(voxel_node.layer_id as usize) {
+        layer_name = layer_info.name.clone();
+        entity_commands.insert((
+            VoxelLayer {
+                id: voxel_node.layer_id,
+                name: layer_info.name.clone(),
+            },
+            if voxel_node.is_hidden || layer_info.is_hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            },
+        ));
+    }
     if let Some(model_index) = &voxel_node.model_id {
         if let Some(model) = model_collection.models.get(*model_index) {
+            model_name = Some(model.name.clone());
             entity_commands.insert((
                 VoxelModelInstance {
                     collection: scene.model_collection.clone(),
@@ -78,20 +94,6 @@ fn spawn_voxel_node_recursive(
     } else {
         entity_commands.insert(SpatialBundle::default());
     }
-
-    if let Some(layer_info) = scene.layers.get(voxel_node.layer_id as usize) {
-        entity_commands.insert((
-            VoxelLayer {
-                id: voxel_node.layer_id,
-                name: layer_info.name.clone(),
-            },
-            if voxel_node.is_hidden || layer_info.is_hidden {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            },
-        ));
-    }
     entity_commands
         .insert(Transform::from_matrix(voxel_node.transform))
         .with_children(|builder| {
@@ -101,38 +103,21 @@ fn spawn_voxel_node_recursive(
                 spawn_voxel_node_recursive(
                     &mut child_entity.commands(),
                     child,
+                    root,
                     id,
                     scene,
                     model_collection,
                 );
             }
         });
-}
-
-pub(crate) fn run_hooks(
-    mut commands: Commands,
-    world: &World,
-    query: Query<(Entity, &VoxelSceneHook), Without<Handle<VoxelScene>>>,
-) {
-    for (entity, scene_hook) in query.iter() {
-        run_hook_recursive(&mut commands, world, entity, scene_hook);
-        commands.entity(entity).remove::<VoxelSceneHook>();
-    }
-}
-
-fn run_hook_recursive(
-    commands: &mut Commands,
-    world: &World,
-    entity: Entity,
-    scene_hook: &VoxelSceneHook,
-) {
-    let entity_ref = world.entity(entity);
-    let mut entity_commands = commands.entity(entity);
-    (scene_hook.hook)(&entity_ref, &mut entity_commands);
-    let Some(children) = entity_ref.get::<Children>() else {
-        return;
-    };
-    for child in children.as_ref() {
-        run_hook_recursive(commands, world, *child, scene_hook);
+    if let Some(model_name) = model_name {
+        commands.trigger_targets(
+            DidSpawnVoxelChild {
+                child: entity,
+                model_name,
+                layer_name,
+            },
+            root,
+        );
     }
 }

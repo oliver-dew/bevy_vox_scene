@@ -8,10 +8,10 @@ use bevy::{
     input::keyboard::KeyboardInput,
     prelude::*,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneHook, VoxelSceneHookBundle};
+use bevy_vox_scene::{VoxScenePlugin, VoxelModelInstance, VoxelSceneBundle};
 use rand::Rng;
 use std::f32::consts::PI;
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Uses the [`bevy_vox_scene::VoxelSceneHook`] component to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
@@ -69,36 +69,43 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             intensity: 500.0,
         },
     ));
-    let asset_server = assets.clone();
-    commands.spawn((VoxelSceneHookBundle {
+    commands.spawn(VoxelSceneBundle {
         // "tank" is the name of the group containing the glass walls, the body of water, the scenery in the tank and the fish
         scene: assets.load("study.vox#tank"),
-
-        // This closure will be run against every child Entity that gets spawned in the scene
-        hook: VoxelSceneHook::new(move |entity, commands| {
-            let Some(name) = entity.get::<Name>() else {
-                return;
-            };
-            match name.as_str() {
-                // Node names give the path to the asset, with components separated by /. Here, "black-light" belongs to the "tank" group
-                "tank/black-light" => {
-                    commands.insert(EmissiveToggle {
-                        is_on: true,
-                        on_material: asset_server.load("study.vox#material"), // emissive texture
-                        off_material: asset_server.load("study.vox#material-no-emission"), // non-emissive texture
-                    });
-                }
-                "tank/goldfish" | "tank/tetra" => {
-                    // Make fish go brrrrr
-                    let mut rng = rand::thread_rng(); // random speed
-                    commands.insert(Fish(rng.gen_range(5.0..10.0)));
-                }
-                _ => {}
-            }
-        }),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
-    },));
+    });
+    commands.observe(on_spawn_voxel_instance);
+}
+
+// Will run against every child entity that gets spawned in the scene
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, VoxelModelInstance>,
+    model_query: Query<&VoxelModelInstance>,
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+) {
+    let mut entity_commands = commands.entity(trigger.entity());
+    let name = model_query
+        .get(trigger.entity())
+        .unwrap()
+        .model_name
+        .as_str();
+    match name {
+        "tank/black-light" => {
+            entity_commands.insert(EmissiveToggle {
+                is_on: true,
+                on_material: assets.load("study.vox#material"), // emissive texture
+                off_material: assets.load("study.vox#material-no-emission"), // non-emissive texture
+            });
+        }
+        "tank/goldfish" | "tank/tetra" => {
+            // Make fish go brrrrr
+            let mut rng = rand::thread_rng(); // random speed
+            entity_commands.insert(Fish(rng.gen_range(5.0..10.0)));
+        }
+        _ => {}
+    }
 }
 
 fn toggle_black_light(

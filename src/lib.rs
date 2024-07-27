@@ -49,7 +49,6 @@
 use bevy::{
     app::{App, Plugin, SpawnScene},
     asset::AssetApp,
-    ecs::schedule::IntoSystemConfigs,
 };
 
 mod load;
@@ -70,10 +69,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
-pub use scene::{
-    VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
-    VoxelSceneHookBundle,
-};
+pub use scene::{DidSpawnVoxelChild, VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -85,9 +81,6 @@ impl Plugin for VoxScenePlugin {
         app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModelCollection>()
             .register_asset_loader(VoxSceneLoader)
-            .add_systems(
-                SpawnScene,
-                (scene::systems::spawn_vox_scenes, scene::systems::run_hooks).chain(),
-            );
+            .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
     }
 }

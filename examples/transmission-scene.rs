@@ -1,24 +1,29 @@
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings, core_3d::ScreenSpaceTransmissionQuality, experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin}, tonemapping::Tonemapping
-    }, pbr::{VolumetricFogSettings, VolumetricLight}, prelude::*
+        bloom::BloomSettings,
+        core_3d::ScreenSpaceTransmissionQuality,
+        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        tonemapping::Tonemapping,
+    },
+    pbr::{VolumetricFogSettings, VolumetricLight},
+    prelude::*,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     let mut app = App::new();
-    
+
     app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-    .add_systems(Startup, setup);
-    
+        .add_systems(Startup, setup);
+
     // *Note:* TAA is not _required_ for specular transmission, but
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
     app.insert_resource(Msaa::Off)
-    .add_plugins(TemporalAntiAliasPlugin);
-    
+        .add_plugins(TemporalAntiAliasPlugin);
+
     app.run();
 }
 
@@ -52,7 +57,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         VolumetricFogSettings::default(),
     ));
-    
+
     commands.spawn((
         DirectionalLightBundle {
             directional_light: DirectionalLight {
@@ -65,7 +70,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         VolumetricLight,
     ));
-    
+
     commands.spawn(VoxelSceneBundle {
         scene: assets.load("study.vox"),
         transform: Transform::from_scale(Vec3::splat(0.05)),

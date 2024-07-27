@@ -1,17 +1,16 @@
-mod hook;
 pub(super) mod systems;
 
 use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
     math::Mat4,
+    prelude::{Entity, Event},
     reflect::TypePath,
     render::view::Visibility,
     transform::components::Transform,
 };
 
 use crate::VoxelModelCollection;
-pub use hook::VoxelSceneHook;
 
 /// A component bundle for spawning Voxel Scenes.
 ///
@@ -51,56 +50,9 @@ pub struct VoxelSceneBundle {
     pub visibility: Visibility,
 }
 
-/// A component bundle for spawning Voxel Scenes, with a [`VoxelSceneHook`].
-///
-/// The root of the spawned scene will be the entity that has this bundle.
-/// In addition to the standard components bevy uses to organise and render pbr meshes,
-/// spawned entities will also have [`VoxelLayer`] and [`VoxelModelInstance`] components added.
-/// The [`VoxelSceneHook`] allows you to modify entities spawned within the hierarchy.
-/// A typical use-case would be adding additional components based on an entity's [`bevy::core::Name`]
-/// or [`VoxelLayer`].
-/// ```
-/// # use bevy::{prelude::*, app::AppExit, utils::HashSet};
-/// # use bevy_vox_scene::{VoxelSceneHook, VoxelSceneHookBundle};
-/// #
-/// # #[derive(Component)]
-/// # struct Fish;
-/// #
-/// # fn setup(
-/// #     mut commands: Commands,
-/// #     assets: Res<AssetServer>,
-/// # ) {
-/// VoxelSceneHookBundle {
-///     scene: assets.load("study.vox#tank"),
-///     hook: VoxelSceneHook::new(move |entity, commands| {
-///         let Some(name) = entity.get::<Name>() else { return };
-///         match name.as_str() {
-///             "tank/goldfish" | "tank/tetra" => {
-///                 commands.insert(Fish);
-///             }
-///             _ => {},
-///         }
-///     }),
-///     ..default()
-/// };
-/// # }
-/// ```
-#[derive(Bundle, Default)]
-pub struct VoxelSceneHookBundle {
-    /// A handle to a [`VoxelScene`], typically loaded from a ".vox" file via the [`bevy::asset::AssetServer`].
-    /// This Entity will become the root of the spawned Voxel Scene.
-    pub scene: Handle<VoxelScene>,
-    /// A [`VoxelSceneHook`] allows you to specify a closure that will be run for each Entity spawned in the scene graph.
-    pub hook: VoxelSceneHook,
-    /// The transform of the scene root. This will override whatever the root transform is in the Magica Voxel scene.
-    pub transform: Transform,
-    /// The visibility of the scene root. This will override whatever the root visibility is in the Magical Voxel scene.
-    pub visibility: Visibility,
-}
-
 /// A representation of the Voxel Scene Graph.
 ///
-/// To spawn a voxel scene, add a [`Handle<VoxelScene>`](VoxelScene), [`VoxelSceneBundle`], or [`VoxelSceneHookBundle`] to an Entity.
+/// To spawn a voxel scene, add a [`Handle<VoxelScene>`](VoxelScene) or a [`VoxelSceneBundle`] to an Entity.
 /// Voxel Scenes can be loaded from Magica Voxel .vox files.
 #[derive(Asset, TypePath, Debug)]
 pub struct VoxelScene {
@@ -146,4 +98,15 @@ pub struct VoxelLayer {
     pub id: u32,
     /// An optional name for the Layer, assignable in Magica Voxel layer editor.
     pub name: Option<String>,
+}
+
+/// Event triggered against the root of a [`VoxelScene`] whenever a [`VoxelModelInstance`] is spawned in one of the descendents of the root
+#[derive(Event)]
+pub struct DidSpawnVoxelChild {
+    /// the child entity that contains the [`VoxelModelInstance`]
+    pub child: Entity,
+    /// the name of the model in the [`VoxelModelInstance`]
+    pub model_name: String,
+    /// the [`VoxelLayer`] name of the child entity
+    pub layer_name: Option<String>,
 }

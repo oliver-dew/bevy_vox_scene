@@ -1,15 +1,27 @@
 use std::time::Duration;
 
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, dof::{DepthOfFieldMode, DepthOfFieldSettings}, tonemapping::Tonemapping}, gizmos::gizmos, prelude::*, time::common_conditions::on_timer
+    core_pipeline::{
+        bloom::BloomSettings,
+        dof::{DepthOfFieldMode, DepthOfFieldSettings},
+        tonemapping::Tonemapping,
+    },
+    prelude::*,
+    time::common_conditions::on_timer,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection, VoxelModelInstance,
-    VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle, VoxelSceneHook,
-    VoxelSceneHookBundle,
+    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection,
+    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
 };
 use rand::Rng;
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+
+#[derive(States, Debug, Clone, Default, Hash, Eq, PartialEq)]
+enum AppState {
+    #[default]
+    Loading,
+    Ready,
+}
 
 // When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
@@ -19,19 +31,52 @@ fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
         .add_systems(Startup, setup)
-        .add_systems(Update,
+        .add_systems(
+            Update,
             (
-                spawn_snow.run_if(on_timer(snow_spawn_freq)), 
+                spawn_snow.run_if(on_timer(snow_spawn_freq)),
                 update_snow,
                 focus_camera,
-            ),
+            )
+                .run_if(in_state(AppState::Ready)),
         )
+        .init_state::<AppState>()
+        .observe(on_assets_spawned)
         .run();
 }
 
 #[derive(Resource)]
 struct Scenes {
     snowflake: Handle<VoxelScene>,
+}
+
+/// The [`DidSpawnVoxelChild`] event is targeted at the root of a specific [`VoxelScene`], and triggers
+/// once for each child [`VoxelModelInstance`] that gets spawned in that node graph.
+/// This is useful when we will be spawning other voxel scenes, so that we can scope the observer
+/// to one scene and not worry about adding in defensive code.
+/// The event also includes the [`model_name`] and [`layer_name`] so you need fewer queries in your observer.
+/// Compare with the observer triggered with [`Trigger<OnAdd, VoxelModelInstance>`] in [modify scene](./modify-scene.rs).
+fn on_spawn_voxel_instance(trigger: Trigger<DidSpawnVoxelChild>, mut commands: Commands) {
+    // Note that we're interested in the child entity, which is `trigger.event().child`
+    // Not the root entity, which is `trigger.entity()`
+    let mut entity_commands = commands.entity(trigger.event().child);
+    let name = trigger.event().model_name.as_str();
+    match name {
+        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "workstation/computer" => {
+            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
+            entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
+        }
+        _ => {}
+    }
+    entity_commands.insert(Scenery);
+}
+
+fn on_assets_spawned(
+    _trigger: Trigger<OnAdd, FocalPoint>,
+    mut app_state: ResMut<NextState<AppState>>,
+) {
+    app_state.set(AppState::Ready);
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
@@ -66,22 +111,14 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         snowflake: assets.load("study.vox#snowflake"),
     });
 
-    commands.spawn(VoxelSceneHookBundle {
-        // Load a slice of the scene
-        scene: assets.load("study.vox#workstation"),
-        hook: VoxelSceneHook::new(|entity, commands| {
-            if entity.get::<VoxelModelInstance>().is_some() {
-                commands.insert(Scenery);
-            }
-            if let Some(name) = entity.get::<Name>() {
-                if name.as_str() == "workstation/computer" {
-                    // Focus on the computer screen
-                    commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
-                }
-            }
-        }),
-        ..default()
-    });
+    // NB the `on_spawn_voxel_instance` observer is scoped to just this scene graph: we don't want it firing when snowflakes are spawned later on.
+    commands
+        .spawn(VoxelSceneBundle {
+            // Load a slice of the scene
+            scene: assets.load("study.vox#workstation"),
+            ..default()
+        })
+        .observe(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]
@@ -169,13 +206,17 @@ fn update_snow(
     }
 }
 
-// Focus the camera on the focal point when the camera moves
+// Focus the camera on the focal point when the camera is first added and when it moves
 fn focus_camera(
     mut camera: Query<(&mut DepthOfFieldSettings, &GlobalTransform), Changed<Transform>>,
     target: Query<(&GlobalTransform, &FocalPoint)>,
 ) {
-    let Some((target_xform, focal_point)) = target.iter().next() else { return };
-    let Ok((mut dof, camera_xform)) = camera.get_single_mut() else { return };
+    let Some((target_xform, focal_point)) = target.iter().next() else {
+        return;
+    };
+    let Ok((mut dof, camera_xform)) = camera.get_single_mut() else {
+        return;
+    };
     let target_point = target_xform.transform_point(focal_point.0);
     dof.focal_distance = camera_xform.translation().distance(target_point);
 }

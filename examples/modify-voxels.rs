@@ -3,13 +3,13 @@ use bevy::{
     prelude::*,
     time::common_conditions::on_timer,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
-    VoxelRegionMode, VoxelSceneHook, VoxelSceneHookBundle,
+    VoxelRegionMode, VoxelSceneBundle,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
+use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -58,19 +58,27 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         ..default()
     });
 
-    commands.spawn(VoxelSceneHookBundle {
+    commands.spawn(VoxelSceneBundle {
         scene: assets.load("study.vox"),
-        hook: VoxelSceneHook::new(move |entity, commands| {
-            let Some(name) = entity.get::<Name>() else {
-                return;
-            };
-            if name.as_str() == "floor" {
-                commands.insert(Floor);
-            }
-        }),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
+    commands.observe(on_spawn_voxel_instance);
+}
+
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, VoxelModelInstance>,
+    model_query: Query<&VoxelModelInstance>,
+    mut commands: Commands,
+) {
+    let name = model_query
+        .get(trigger.entity())
+        .unwrap()
+        .model_name
+        .as_str();
+    if name == "floor" {
+        commands.entity(trigger.entity()).insert(Floor);
+    }
 }
 
 fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
