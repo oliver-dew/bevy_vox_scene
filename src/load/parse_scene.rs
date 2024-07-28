@@ -1,5 +1,4 @@
 use bevy::{
-    asset::LoadContext,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
     utils::HashMap,
@@ -40,7 +39,7 @@ pub(super) fn parse_xform_node(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
-    load_context: &mut LoadContext,
+    scene_scale: f32,
 ) -> VoxelNode {
     match scene_node {
         SceneNode::Transform {
@@ -53,7 +52,7 @@ pub(super) fn parse_xform_node(
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
             let mut vox_node = VoxelNode {
                 name: node_name,
-                transform: transform_from_frame(&frames[0]),
+                transform: transform_from_frame(&frames[0], scene_scale),
                 is_hidden: parse_bool(attributes.get("_hidden").cloned()),
                 layer_id: *layer_id,
                 ..Default::default()
@@ -63,14 +62,14 @@ pub(super) fn parse_xform_node(
                 &graph[*child as usize],
                 &mut vox_node,
                 accumulated.as_ref(),
-                load_context,
+                scene_scale,
             );
             vox_node
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
             let mut vox_node = VoxelNode::default();
-            parse_xform_child(graph, scene_node, &mut vox_node, parent_name, load_context);
+            parse_xform_child(graph, scene_node, &mut vox_node, parent_name, scene_scale);
             vox_node
         }
     }
@@ -81,7 +80,7 @@ fn parse_xform_child(
     scene_node: &SceneNode,
     partial_node: &mut VoxelNode,
     parent_name: Option<&String>,
-    load_context: &mut LoadContext,
+    scene_scale: f32,
 ) {
     match scene_node {
         SceneNode::Transform { .. } => {
@@ -90,7 +89,7 @@ fn parse_xform_child(
                 graph,
                 scene_node,
                 parent_name,
-                load_context,
+                scene_scale,
             )];
         }
         SceneNode::Group {
@@ -100,7 +99,7 @@ fn parse_xform_child(
             partial_node.children = children
                 .iter()
                 .map(|child| {
-                    parse_xform_node(graph, &graph[*child as usize], parent_name, load_context)
+                    parse_xform_node(graph, &graph[*child as usize], parent_name, scene_scale)
                 })
                 .collect();
         }
@@ -140,12 +139,13 @@ fn parse_bool(value: Option<String>) -> bool {
     }
 }
 
-fn transform_from_frame(frame: &Frame) -> Mat4 {
+fn transform_from_frame(frame: &Frame, scene_scale: f32) -> Mat4 {
     let Some(position) = frame.position() else {
         return Mat4::IDENTITY;
     };
-    let position = [-position.x as f32, position.z as f32, position.y as f32];
-    let translation = Mat4::from_translation(Vec3::from_array(position));
+    let position =
+        Vec3::new(-position.x as f32, position.z as f32, position.y as f32) * scene_scale;
+    let translation = Mat4::from_translation(position);
     let rotation = if let Some(orientation) = frame.orientation() {
         let (rotation, scale) = &orientation.to_quat_scale();
         let scale: Vec3 = (*scale).into();

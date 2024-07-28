@@ -14,6 +14,7 @@ pub struct VoxelData {
     pub(crate) shape: RuntimeShape<u32, 3>,
     pub(crate) voxels: Vec<RawVoxel>,
     pub(crate) mesh_outer_faces: bool,
+    pub(crate) voxel_size: f32,
 }
 
 impl Default for VoxelData {
@@ -22,6 +23,7 @@ impl Default for VoxelData {
             shape: RuntimeShape::<u32, 3>::new([0, 0, 0]),
             voxels: Default::default(),
             mesh_outer_faces: true,
+            voxel_size: 1.0,
         }
     }
 }
@@ -38,7 +40,7 @@ impl Debug for VoxelData {
 
 impl VoxelData {
     /// Returns a new, empty VoxelData model
-    pub fn new(size: UVec3, mesh_outer_faces: bool) -> Self {
+    pub fn new(size: UVec3, mesh_outer_faces: bool, voxel_size: f32) -> Self {
         let padding = if mesh_outer_faces {
             UVec3::splat(2)
         } else {
@@ -50,6 +52,7 @@ impl VoxelData {
             shape,
             voxels: vec![RawVoxel::EMPTY; size],
             mesh_outer_faces,
+            voxel_size,
         }
     }
     /// The size of the voxel model, not including the padding that may have been added if the outer faces are being meshed.

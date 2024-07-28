@@ -14,13 +14,17 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 fn main() {
     let mut app = App::new();
 
-    app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-        .insert_resource(AmbientLight {
-            color: Color::srgb_u8(128, 126, 124),
-            brightness: 0.5,
-        })
-        .add_systems(Startup, setup)
-        .add_systems(Update, toggle_ssao.run_if(on_event::<KeyboardInput>()));
+    app.add_plugins((
+        DefaultPlugins,
+        PanOrbitCameraPlugin,
+        VoxScenePlugin::default(),
+    ))
+    .insert_resource(AmbientLight {
+        color: Color::srgb_u8(128, 126, 124),
+        brightness: 0.5,
+    })
+    .add_systems(Startup, setup)
+    .add_systems(Update, toggle_ssao.run_if(on_event::<KeyboardInput>()));
 
     // *Note:* TAA is not _required_ for SSAO, but
     // it enhances the look of the resulting blur effects.

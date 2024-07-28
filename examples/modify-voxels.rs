@@ -13,7 +13,11 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin::default(),
+        ))
         .add_systems(Startup, setup)
         .add_systems(
             Update,

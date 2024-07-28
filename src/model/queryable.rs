@@ -13,6 +13,9 @@ pub trait VoxelQueryable {
     /// The size of the voxel model.
     fn size(&self) -> IVec3;
 
+    /// The size of the voxel model taking into account the voxel_size
+    fn model_size(&self) -> Vec3;
+
     /// Converts a global point to a point in voxel coordinates
     ///
     /// ### Arguments
@@ -40,11 +43,7 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// A voxel coordinate
-    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        let voxel_postition = local_point + half_extents;
-        voxel_postition.as_ivec3()
-    }
+    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3;
 
     /// Converts a voxel coordinate to a point in local space
     ///
@@ -53,10 +52,7 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// the point in the local space of the entity that owns this [`crate::VoxelModelInstance`]
-    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        voxel_coord.as_vec3() - half_extents
-    }
+    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3;
 
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
     fn point_in_model(&self, point: IVec3) -> Result<UVec3, OutOfBoundsError> {
@@ -81,6 +77,18 @@ impl VoxelQueryable for VoxelModel {
         self.data.size()
     }
 
+    fn model_size(&self) -> Vec3 {
+        self.data.model_size()
+    }
+
+    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
+        self.data.local_point_to_voxel_space(local_point)
+    }
+
+    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
+        self.data.voxel_coord_to_local_space(voxel_coord)
+    }
+
     fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         self.data.get_voxel_at_point(position)
     }
@@ -89,6 +97,21 @@ impl VoxelQueryable for VoxelModel {
 impl VoxelQueryable for VoxelData {
     fn size(&self) -> IVec3 {
         self._size()
+    }
+
+    fn model_size(&self) -> Vec3 {
+        self._size().as_vec3() * self.voxel_size
+    }
+
+    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
+        let half_extents = self.size().as_vec3() * 0.5;
+        let voxel_postition = (local_point / self.voxel_size) + half_extents;
+        voxel_postition.as_ivec3()
+    }
+
+    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
+        let half_extents = self.size().as_vec3() * 0.5;
+        (voxel_coord.as_vec3() - half_extents) * self.voxel_size
     }
 
     fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
@@ -107,16 +130,11 @@ impl VoxelData {
     /// ### Arguments
     /// * `voxel` - the [`Voxel`] to be written
     /// * `point` - the position at which the voxel will be written, in voxel space
-    ///
-    /// ### Returns
-    /// [`Result::Ok`] if the operation was successful, or [`OutOfBoundsError`] if `point` lies outside the model
-    pub fn set_voxel(&mut self, voxel: Voxel, point: Vec3) -> Result<(), OutOfBoundsError> {
-        let position = self.point_in_model(point.as_ivec3())?;
+    pub fn set_voxel(&mut self, voxel: Voxel, point: UVec3) {
         let leading_padding = UVec3::splat(self.padding() / 2);
-        let index = self.shape.linearize((position + leading_padding).into()) as usize;
+        let index = self.shape.linearize((point + leading_padding).into()) as usize;
         let raw_voxel: RawVoxel = voxel.into();
         self.voxels[index] = raw_voxel;
-        Ok(())
     }
 }
 trait BitwiseComparable {

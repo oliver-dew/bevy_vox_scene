@@ -74,13 +74,22 @@ pub use scene::{DidSpawnVoxelChild, VoxelLayer, VoxelModelInstance, VoxelScene, 
 /// Plugin adding functionality for loading `.vox` files.
 ///
 /// Registers an [`bevy::asset::AssetLoader`] capable of loading `.vox` files as spawnable [`VoxelScene`]s.
-pub struct VoxScenePlugin;
+#[derive(Default)]
+pub struct VoxScenePlugin {
+    /// Inject global settings. This is a workaround for `load_with_settings` currently being broken.
+    /// See: https://github.com/bevyengine/bevy/issues/12320
+    /// and: https://github.com/bevyengine/bevy/issues/11111 
+    /// this will be removed when these issues are resolved
+    pub global_settings: VoxLoaderSettings,
+}
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModelCollection>()
-            .register_asset_loader(VoxSceneLoader)
+            .register_asset_loader(VoxSceneLoader {
+                global_settings: self.global_settings.clone(),
+            })
             .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
     }
 }

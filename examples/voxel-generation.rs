@@ -6,7 +6,11 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin::default(),
+        ))
         .add_systems(Startup, (setup_camera, setup))
         .run();
 }
@@ -42,7 +46,7 @@ fn setup(world: &mut World) {
     ]);
     let data = SDF::cuboid(Vec3::splat(13.0))
         .subtract(SDF::sphere(16.0))
-        .map_to_voxels(UVec3::splat(32), |d, _| match d {
+        .map_to_voxels(UVec3::splat(32), 1.0, |d, _| match d {
             x if x < -1.0 => Voxel(2),
             x if x < 0.0 => Voxel(1),
             x if x >= 0.0 => Voxel::EMPTY,

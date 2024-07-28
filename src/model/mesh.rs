@@ -9,7 +9,7 @@ use bevy::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
-use super::{voxel::VisibleVoxel, VoxelData};
+use super::{voxel::VisibleVoxel, VoxelData, VoxelQueryable};
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
@@ -22,9 +22,9 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
         &quads_config.faces,
         &mut greedy_quads_buffer,
     );
-    let extents = data._size();
-    let half_extents = Vec3::new(extents.x as f32, extents.y as f32, extents.z as f32) * 0.5;
-    let leading_padding = (data.padding() / 2) as f32;
+    let half_extents = data.model_size() * 0.5; // center the mesh
+    let leading_padding = (data.padding() / 2) as f32 * data.voxel_size; // corrects the 1 offset introduced by the meshing.
+    let position_offset = half_extents + Vec3::splat(leading_padding);
 
     let num_indices = greedy_quads_buffer.quads.num_quads() * 6;
     let num_vertices = greedy_quads_buffer.quads.num_quads() * 4;
@@ -50,15 +50,14 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
             indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
             positions.extend_from_slice(
                 &face
-                    .quad_mesh_positions(quad, 1.0)
-                    .map(|position| position.map(|x| x - leading_padding)) // corrects the 1 offset introduced by the meshing.
+                    .quad_mesh_positions(quad, data.voxel_size)
                     .map(|position| {
                         [
-                            position[0] - half_extents.x,
-                            position[1] - half_extents.y,
-                            position[2] - half_extents.z,
+                            position[0] - position_offset.x,
+                            position[1] - position_offset.y,
+                            position[2] - position_offset.z,
                         ]
-                    }), // move center of the mesh center
+                    }),
             );
             let u = ((palette_index % 16) as f32 + 0.5) / 16.0;
             let v = ((palette_index / 16) as f32 + 0.5) / 16.0;

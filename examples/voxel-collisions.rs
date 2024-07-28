@@ -29,7 +29,11 @@ fn main() {
     // don't all happen on the same frame
     let snow_spawn_freq = Duration::from_secs_f32(0.213);
     App::new()
-        .add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin::default(),
+        ))
         .add_systems(Startup, setup)
         .add_systems(
             Update,
