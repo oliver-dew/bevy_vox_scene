@@ -45,7 +45,10 @@ use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle}; // 2.
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, VoxScenePlugin)) // 3.
+        .add_plugins((
+            DefaultPlugins, 
+            VoxScenePlugin::default()
+        )) // 3.
         .add_systems(Startup, setup)
         .run();
 }

@@ -18,10 +18,10 @@ fn main() {
         DefaultPlugins,
         PanOrbitCameraPlugin,
         VoxScenePlugin {
-            global_settings: VoxLoaderSettings {
+            global_settings: Some(VoxLoaderSettings {
                 voxel_size: 0.5,
                 ..default()
-            },
+            }),
         },
     ))
     .add_systems(Startup, setup);

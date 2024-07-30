@@ -11,7 +11,7 @@
 //!    App::new()
 //!    .add_plugins((
 //!        DefaultPlugins,
-//!        VoxScenePlugin,
+//!        VoxScenePlugin::default(),
 //!    ))
 //!    .add_systems(Startup, setup)
 //! #   .add_systems(Update, assert_scene_loaded)
@@ -79,8 +79,7 @@ pub struct VoxScenePlugin {
     /// Inject global settings. This is a workaround for `load_with_settings` currently being broken.
     /// See: https://github.com/bevyengine/bevy/issues/12320
     /// and: https://github.com/bevyengine/bevy/issues/11111 
-    /// this will be removed when these issues are resolved
-    pub global_settings: VoxLoaderSettings,
+    pub global_settings: Option<VoxLoaderSettings>,
 }
 
 impl Plugin for VoxScenePlugin {

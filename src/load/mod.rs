@@ -26,7 +26,7 @@ use crate::{
 /// You can load multiple models from the same `.vox` file by appending `#{name}` to the asset loading path, where `{name}` corresponds to the object's name in the Magical Voxel world editor.
 /// You can load unnamed models by appending `#model{no}` to the asset loading path, where `{no}` corresponds to the model index in the file. Note that this index is subject to change if you delete models in the Magica Voxel file.
 pub(super) struct VoxSceneLoader {
-    pub(super) global_settings: VoxLoaderSettings,
+    pub(super) global_settings: Option<VoxLoaderSettings>,
 }
 
 /// Settings for the VoxSceneLoader.
@@ -92,19 +92,19 @@ impl VoxSceneLoader {
         &self,
         bytes: &'a [u8],
         load_context: &'a mut LoadContext,
-        _settings: &'a VoxLoaderSettings,
+        settings: &'a VoxLoaderSettings,
     ) -> Result<VoxelScene, VoxLoaderError> {
         let file = match dot_vox::load_bytes(bytes) {
             Ok(data) => data,
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
         info!("Loading {}", load_context.asset_path());
-
+        let settings = self.global_settings.clone().unwrap_or(settings.clone());
         // Palette
         let palette = VoxelPalette::from_data(
             &file,
-            self.global_settings.diffuse_roughness,
-            self.global_settings.emission_strength,
+            settings.diffuse_roughness,
+            settings.emission_strength,
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
         let opaque_material_handle =
@@ -130,7 +130,7 @@ impl VoxSceneLoader {
             &file.scenes,
             &file.scenes[0],
             None,
-            self.global_settings.voxel_size,
+            settings.voxel_size,
         );
         let layers: Vec<LayerInfo> = file
             .layers
@@ -156,8 +156,8 @@ impl VoxSceneLoader {
                 index_for_model_name.insert(name.to_string(), index);
                 let data = VoxelData::from_model(
                     &model,
-                    self.global_settings.mesh_outer_faces,
-                    self.global_settings.voxel_size,
+                    settings.mesh_outer_faces,
+                    settings.voxel_size,
                 );
                 let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
