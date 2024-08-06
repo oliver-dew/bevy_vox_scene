@@ -69,7 +69,10 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
-pub use scene::{DidSpawnVoxelChild, VoxelLayer, VoxelModelInstance, VoxelScene, VoxelSceneBundle};
+pub use scene::{
+    DidSpawnVoxelChild, VoxelInstanceReady, VoxelLayer, VoxelModelInstance, VoxelScene,
+    VoxelSceneBundle,
+};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -78,7 +81,7 @@ pub use scene::{DidSpawnVoxelChild, VoxelLayer, VoxelModelInstance, VoxelScene, 
 pub struct VoxScenePlugin {
     /// Inject global settings. This is a workaround for `load_with_settings` currently being broken.
     /// See: https://github.com/bevyengine/bevy/issues/12320
-    /// and: https://github.com/bevyengine/bevy/issues/11111 
+    /// and: https://github.com/bevyengine/bevy/issues/11111
     pub global_settings: Option<VoxLoaderSettings>,
 }
 

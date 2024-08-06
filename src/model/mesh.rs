@@ -48,17 +48,15 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
         for quad in group.iter() {
             let palette_index = voxels[data.shape.linearize(quad.minimum) as usize].index;
             indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
-            positions.extend_from_slice(
-                &face
-                    .quad_mesh_positions(quad, data.voxel_size)
-                    .map(|position| {
-                        [
-                            position[0] - position_offset.x,
-                            position[1] - position_offset.y,
-                            position[2] - position_offset.z,
-                        ]
-                    }),
-            );
+            positions.extend_from_slice(&face.quad_mesh_positions(quad, data.voxel_size).map(
+                |position| {
+                    [
+                        position[0] - position_offset.x,
+                        position[1] - position_offset.y,
+                        position[2] - position_offset.z,
+                    ]
+                },
+            ));
             let u = ((palette_index % 16) as f32 + 0.5) / 16.0;
             let v = ((palette_index / 16) as f32 + 0.5) / 16.0;
             uvs.extend_from_slice(&[[u, v], [u, v], [u, v], [u, v]]);

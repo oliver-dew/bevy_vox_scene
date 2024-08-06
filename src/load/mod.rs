@@ -126,12 +126,7 @@ impl VoxSceneLoader {
 
         // Scene graph
 
-        let root = parse_xform_node(
-            &file.scenes,
-            &file.scenes[0],
-            None,
-            settings.voxel_size,
-        );
+        let root = parse_xform_node(&file.scenes, &file.scenes[0], None, settings.voxel_size);
         let layers: Vec<LayerInfo> = file
             .layers
             .iter()
@@ -154,11 +149,8 @@ impl VoxSceneLoader {
             .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
                 index_for_model_name.insert(name.to_string(), index);
-                let data = VoxelData::from_model(
-                    &model,
-                    settings.mesh_outer_faces,
-                    settings.voxel_size,
-                );
+                let data =
+                    VoxelData::from_model(&model, settings.mesh_outer_faces, settings.voxel_size);
                 let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                     crate::model::mesh::mesh_model(&visible_voxels, &data)

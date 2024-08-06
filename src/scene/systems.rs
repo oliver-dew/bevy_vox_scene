@@ -15,6 +15,8 @@ use bevy::{
 
 use crate::scene::{VoxelLayer, VoxelModelInstance, VoxelNode, VoxelScene};
 
+use super::VoxelInstanceReady;
+
 pub(crate) fn spawn_vox_scenes(
     mut commands: Commands,
     query: Query<(
@@ -42,6 +44,7 @@ pub(crate) fn spawn_vox_scenes(
         if let Some(visibility) = visibility {
             entity.insert(*visibility);
         }
+        commands.trigger_targets(VoxelInstanceReady, root);
     }
 }
 

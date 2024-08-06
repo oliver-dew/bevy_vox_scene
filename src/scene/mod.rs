@@ -110,3 +110,7 @@ pub struct DidSpawnVoxelChild {
     /// the [`VoxelLayer`] name of the child entity
     pub layer_name: Option<String>,
 }
+
+/// Event triggered on the root entity once a VoxelScene has finished spawning
+#[derive(Event)]
+pub struct VoxelInstanceReady;
