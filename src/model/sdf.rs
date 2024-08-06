@@ -69,17 +69,22 @@ impl SDF {
     }
 
     /// Converts the SDF to [`VoxelData`] by sampling it at each position.
-    pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(self, size: UVec3, map: F) -> VoxelData {
-        let mut data = VoxelData::new(size, true);
+    pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(
+        self,
+        size: UVec3,
+        voxel_size: f32,
+        map: F,
+    ) -> VoxelData {
+        let mut data = VoxelData::new(size, true, voxel_size);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
         for x in 0..size.x {
             for y in 0..size.y {
                 for z in 0..size.z {
-                    let pos = Vec3::new(x as f32, y as f32, z as f32);
-                    let sdf_pos = pos - half_extent;
+                    let pos = UVec3::new(x, y, z);
+                    let sdf_pos = pos.as_vec3() - half_extent;
                     let distance = self.distance(sdf_pos);
                     let voxel = map(distance, sdf_pos);
-                    let _ = data.set_voxel(voxel, pos);
+                    data.set_voxel(voxel, pos);
                 }
             }
         }
@@ -87,8 +92,8 @@ impl SDF {
     }
 
     /// Converts the SDF to [`VoxelData`] by filling every cell that is less than 0 with `fill`.
-    pub fn voxelize(self, size: UVec3, fill: Voxel) -> VoxelData {
-        self.map_to_voxels(size, |distance, _| {
+    pub fn voxelize(self, size: UVec3, voxel_size: f32, fill: Voxel) -> VoxelData {
+        self.map_to_voxels(size, voxel_size, |distance, _| {
             if distance < 0.0 {
                 fill.clone()
             } else {

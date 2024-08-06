@@ -3,7 +3,7 @@ use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, VoxScenePlugin))
+        .add_plugins((DefaultPlugins, VoxScenePlugin::default()))
         .add_systems(Startup, setup)
         .run();
 }

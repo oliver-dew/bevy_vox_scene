@@ -18,15 +18,19 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 fn main() {
     let mut app = App::new();
 
-    app.add_plugins((DefaultPlugins, PanOrbitCameraPlugin, VoxScenePlugin))
-        .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                toggle_black_light.run_if(on_event::<KeyboardInput>()),
-                swim_fish,
-            ),
-        );
+    app.add_plugins((
+        DefaultPlugins,
+        PanOrbitCameraPlugin,
+        VoxScenePlugin::default(),
+    ))
+    .add_systems(Startup, setup)
+    .add_systems(
+        Update,
+        (
+            toggle_black_light.run_if(on_event::<KeyboardInput>()),
+            swim_fish,
+        ),
+    );
 
     // *Note:* TAA is not _required_ for specular transmission, but
     // it _greatly enhances_ the look of the resulting blur effects.
