@@ -89,6 +89,7 @@ impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModelCollection>()
+            .register_type::<VoxelLayer>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })

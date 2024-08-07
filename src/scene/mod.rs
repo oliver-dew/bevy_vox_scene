@@ -4,8 +4,8 @@ use bevy::{
     asset::{Asset, Handle},
     ecs::{bundle::Bundle, component::Component},
     math::Mat4,
-    prelude::{Entity, Event},
-    reflect::TypePath,
+    prelude::{Entity, Event, ReflectComponent},
+    reflect::{Reflect, TypePath},
     render::view::Visibility,
     transform::components::Transform,
 };
@@ -91,7 +91,8 @@ pub struct VoxelModelInstance {
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///
 /// This can be configured in the Magica Voxel world editor.
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
 pub struct VoxelLayer {
     /// The identifier for the layer. Magic Voxel 0.99.6 allows you to assign nodes to one of 8 layers,
     /// so this value will be an index in the range 0 through 7.

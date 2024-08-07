@@ -202,7 +202,7 @@ impl VoxSceneLoader {
             let mut world = World::default();
             let mut model_names: Vec<Option<String>> = vec![None; model_count];
             world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children(|builder| {
-                load_xform_node(&mut context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, settings.voxel_size);
+                load_xform_node(&mut context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, &layers, settings.voxel_size);
             });
             Scene::new(world)
         });

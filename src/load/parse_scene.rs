@@ -1,9 +1,9 @@
 use bevy::{
-    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, WorldChildBuilder}, reflect::Reflect, utils::HashMap
+    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, WorldChildBuilder}, reflect::Reflect, utils::HashMap
 };
 use dot_vox::{Frame, SceneNode};
 
-use crate::scene::VoxelNode;
+use crate::{scene::{LayerInfo, VoxelNode}, VoxelLayer};
 
 pub(super) fn find_subasset_names(
     subassets_by_name: &mut HashMap<String, VoxelNode>,
@@ -40,6 +40,7 @@ pub(super) fn load_xform_node(
     scene_node: &SceneNode,
     parent_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
+    layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
     match scene_node {
@@ -56,13 +57,6 @@ pub(super) fn load_xform_node(
             if let Some(node_name) = node_name.clone() {
                 node.insert(Name::new(node_name));
             }
-            // let mut vox_node = VoxelNode {
-            //     name: node_name,
-            //     transform: transform_from_frame(&frames[0], scene_scale),
-            //     is_hidden: parse_bool(attributes.get("_hidden").cloned()),
-            //     layer_id: *layer_id,
-            //     ..Default::default()
-            // };
             load_xform_child(
                 context,
                 graph,
@@ -71,15 +65,28 @@ pub(super) fn load_xform_node(
                 accumulated.as_ref(),
                 node_name.as_ref(),
                 model_names,
+                layers,
                 scene_scale,
             );
             node.insert(Transform::from_matrix(transform_from_frame(&frames[0], scene_scale)));
-            //TODO Layer, Visibility
+
+            let maybe_layer = layers.get(*layer_id as usize);
+            if let Some(layer) = maybe_layer {
+                node.insert(VoxelLayer { id: *layer_id, name: layer.name.clone() });
+            }
+            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
+            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
+            let visibility = if node_is_hidden || layer_is_hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+            node.insert(visibility);
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
             let mut node = builder.spawn_empty();
-            load_xform_child(context, graph, scene_node, &mut node, parent_name, None, model_names, scene_scale);
+            load_xform_child(context, graph, scene_node, &mut node, parent_name, None, model_names, layers, scene_scale);
         }
     }
 }
@@ -92,6 +99,7 @@ fn load_xform_child(
     parent_name: Option<&String>,
     node_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
+    layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
     match scene_node {
@@ -99,7 +107,7 @@ fn load_xform_child(
             warn!("Found nested Transform nodes");
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
-                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, scene_scale);
+                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, layers, scene_scale);
             });
         }
         SceneNode::Group {
@@ -109,7 +117,7 @@ fn load_xform_child(
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
                 for child in children {
-                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, scene_scale);
+                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, layers, scene_scale);
                 }
             });
         }
