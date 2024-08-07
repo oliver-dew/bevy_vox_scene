@@ -1,7 +1,5 @@
 use bevy::{
-    log::warn,
-    math::{Mat3, Mat4, Quat, Vec3},
-    utils::HashMap,
+    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, WorldChildBuilder}, reflect::Reflect, utils::HashMap
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -32,6 +30,110 @@ pub(super) fn find_model_names(name_for_model: &mut Vec<Option<String>>, node: &
     }
     for child in &node.children {
         find_model_names(name_for_model, child);
+    }
+}
+
+pub(super) fn load_xform_node(
+    context: &mut LoadContext,
+    builder: &mut WorldChildBuilder,
+    graph: &Vec<SceneNode>,
+    scene_node: &SceneNode,
+    parent_name: Option<&String>,
+    model_names: &mut Vec<Option<String>>,
+    scene_scale: f32,
+) {
+    match scene_node {
+        SceneNode::Transform {
+            attributes,
+            frames,
+            child,
+            layer_id,
+        } => {
+            let (accumulated, node_name) =
+                get_accumulated_and_node_name(parent_name, attributes.get("_name"));
+            let mut node = builder.spawn_empty();
+
+            if let Some(node_name) = node_name.clone() {
+                node.insert(Name::new(node_name));
+            }
+            // let mut vox_node = VoxelNode {
+            //     name: node_name,
+            //     transform: transform_from_frame(&frames[0], scene_scale),
+            //     is_hidden: parse_bool(attributes.get("_hidden").cloned()),
+            //     layer_id: *layer_id,
+            //     ..Default::default()
+            // };
+            load_xform_child(
+                context,
+                graph,
+                &graph[*child as usize],
+                &mut node,
+                accumulated.as_ref(),
+                node_name.as_ref(),
+                model_names,
+                scene_scale,
+            );
+            node.insert(Transform::from_matrix(transform_from_frame(&frames[0], scene_scale)));
+            //TODO Layer, Visibility
+        }
+        SceneNode::Group { .. } | SceneNode::Shape { .. } => {
+            warn!("Found Group or Shape Node without a parent Transform");
+            let mut node = builder.spawn_empty();
+            load_xform_child(context, graph, scene_node, &mut node, parent_name, None, model_names, scene_scale);
+        }
+    }
+}
+
+fn load_xform_child(
+    context: &mut LoadContext,
+    graph: &Vec<SceneNode>,
+    scene_node: &SceneNode,
+    node: &mut EntityWorldMut,
+    parent_name: Option<&String>,
+    node_name: Option<&String>,
+    model_names: &mut Vec<Option<String>>,
+    scene_scale: f32,
+) {
+    match scene_node {
+        SceneNode::Transform { .. } => {
+            warn!("Found nested Transform nodes");
+            node.insert(SpatialBundle::default());
+            node.with_children(|builder| {
+                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, scene_scale);
+            });
+        }
+        SceneNode::Group {
+            attributes: _,
+            children,
+        } => {
+            node.insert(SpatialBundle::default());
+            node.with_children(|builder| {
+                for child in children {
+                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, scene_scale);
+                }
+            });
+        }
+        SceneNode::Shape {
+            attributes: _,
+            models,
+        } => {
+            let model_id = models[0].model_id as usize;
+            let model_name = match (model_names[model_id].clone(), node_name) {
+                (Some(name), None) | (Some(name), Some(_)) => name,
+                (None, None) => {
+                    let name = format!("model-{}", model_id);
+                    model_names[model_id] = Some(name.clone());
+                    name
+                },
+                (None, Some(name)) => name.to_string(),
+    
+            };
+            node.insert(PbrBundle {
+                mesh: context.get_label_handle(format!("{}@mesh", model_name)),
+                material: context.get_label_handle(format!("{}@material", model_name)),
+                ..default()
+            });
+        }
     }
 }
 

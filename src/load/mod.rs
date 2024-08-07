@@ -3,13 +3,9 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
-    color::LinearRgba,
-    log::info,
-    pbr::StandardMaterial,
-    utils::hashbrown::HashMap,
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, prelude::{BuildWorldChildren, SpatialBundle, World}, scene::Scene, utils::hashbrown::HashMap
 };
-use parse_scene::{find_model_names, find_subasset_names, parse_xform_node};
+use parse_scene::{find_model_names, find_subasset_names, load_xform_node, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -125,7 +121,7 @@ impl VoxSceneLoader {
         let indices_of_refraction = palette.indices_of_refraction.clone();
 
         // Scene graph
-
+        
         let root = parse_xform_node(&file.scenes, &file.scenes[0], None, settings.voxel_size);
         let layers: Vec<LayerInfo> = file
             .layers
@@ -138,7 +134,8 @@ impl VoxSceneLoader {
         let mut subasset_by_name: HashMap<String, VoxelNode> = HashMap::new();
         find_subasset_names(&mut subasset_by_name, &root);
 
-        let mut model_names: Vec<Option<String>> = vec![None; file.models.len()];
+        let model_count = file.models.len();
+        let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &root);
         let mut index_for_model_name: HashMap<String, usize> = HashMap::new();
 
@@ -164,7 +161,12 @@ impl VoxSceneLoader {
                         material
                     })
                 } else {
-                    opaque_material_handle.clone()
+                    load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                        let mut opaque_material = translucent_material.clone();
+                        opaque_material.specular_transmission_texture = None;
+                        opaque_material.specular_transmission = 0.0;
+                        opaque_material
+                    })
                 };
                 VoxelModel {
                     name,
@@ -196,6 +198,14 @@ impl VoxSceneLoader {
                 model_collection: model_collection.clone(),
             });
         }
+        load_context.labeled_asset_scope("scene".to_string(), |mut context| {
+            let mut world = World::default();
+            let mut model_names: Vec<Option<String>> = vec![None; model_count];
+            world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children(|builder| {
+                load_xform_node(&mut context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, settings.voxel_size);
+            });
+            Scene::new(world)
+        });
         Ok(VoxelScene {
             root,
             layers,

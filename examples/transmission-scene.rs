@@ -8,7 +8,7 @@ use bevy::{
     pbr::{VolumetricFogSettings, VolumetricLight},
     prelude::*,
 };
-use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin, VoxelSceneBundle};
+use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
         PanOrbitCameraPlugin,
         VoxScenePlugin {
             global_settings: Some(VoxLoaderSettings {
-                voxel_size: 0.5,
+                voxel_size: 0.05,
                 ..default()
             }),
         },
@@ -80,9 +80,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         VolumetricLight,
     ));
 
-    commands.spawn(VoxelSceneBundle {
-        scene: assets.load("study.vox"),
-        transform: Transform::from_scale(Vec3::splat(0.05)),
+    commands.spawn(SceneBundle {
+        scene: assets.load("study.vox#scene"),
         ..default()
     });
 }
