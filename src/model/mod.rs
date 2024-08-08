@@ -40,7 +40,7 @@ pub struct VoxelModel {
 }
 
 /// A collection of [`VoxelModel`]s with a shared [`VoxelPalette`]
-#[derive(Asset, TypePath, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct VoxelModelCollection {
     /// The palette used by the models
     pub palette: Handle<VoxelPalette>,
@@ -54,7 +54,7 @@ pub struct VoxelModelCollection {
 #[cfg(feature = "generate_voxels")]
 impl VoxelModelCollection {
     /// Create a new collection with the supplied palette
-    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Handle<VoxelModelCollection>> {
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<VoxelModelCollection> {
         let system_id = world.register_system(Self::new_collection);
         world.run_system_with_input(system_id, palette).ok()
     }
@@ -64,20 +64,18 @@ impl VoxelModelCollection {
         mut images: ResMut<Assets<Image>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
         mut palettes: ResMut<Assets<VoxelPalette>>,
-        mut collections: ResMut<Assets<VoxelModelCollection>>,
-    ) -> Handle<VoxelModelCollection> {
+    ) -> VoxelModelCollection {
         let material = palette.create_material(&mut images);
         let mut opaque_material = material.clone();
         opaque_material.specular_transmission_texture = None;
         opaque_material.specular_transmission = 0.0;
-        let collection = VoxelModelCollection {
+        VoxelModelCollection {
             palette: palettes.add(palette),
             models: vec![],
             index_for_model_name: HashMap::new(),
             opaque_material: materials.add(opaque_material),
             transmissive_material: materials.add(material),
-        };
-        collections.add(collection)
+        }
     }
 
     /// Generates a [`VoxelModel`] from the supplied [`VoxelData`] and add it to the [`VoxelModelCollection`]
@@ -85,7 +83,7 @@ impl VoxelModelCollection {
         world: &mut World,
         data: VoxelData,
         name: String,
-        collection: Handle<VoxelModelCollection>,
+        collection: VoxelModelCollection,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
         let system_id = world.register_system(Self::add_model);
         world
@@ -94,14 +92,12 @@ impl VoxelModelCollection {
     }
 
     fn add_model(
-        In((data, name, collection_handle)): In<(VoxelData, String, Handle<VoxelModelCollection>)>,
+        In((data, name, mut collection)): In<(VoxelData, String, VoxelModelCollection)>,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
         mut models: ResMut<Assets<VoxelModel>>,
         palettes: Res<Assets<VoxelPalette>>,
-        mut collections: ResMut<Assets<VoxelModelCollection>>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
-        let collection = collections.get_mut(collection_handle.id())?;
         let palette = palettes.get(&collection.palette)?;
         let (mesh, average_ior) = data.remesh(&palette.indices_of_refraction);
         let material = if let Some(ior) = average_ior {

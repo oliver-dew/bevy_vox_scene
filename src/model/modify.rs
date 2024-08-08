@@ -104,9 +104,8 @@ impl Command for ModifyVoxelModel {
                 ResMut<Assets<StandardMaterial>>,
                 ResMut<Assets<VoxelModel>>,
                 ResMut<Assets<VoxelPalette>>,
-                ResMut<Assets<VoxelModelCollection>>,
             )> = SystemState::new(world);
-            let (mut meshes, mut materials, mut models, mut palettes, mut collections) = system_state.get_mut(world);
+            let (mut meshes, mut materials, mut models, mut palettes) = system_state.get_mut(world);
             //let collection = collections.get(self.model.collection.id())?;
             // let index = collection
             //     .index_for_model_name

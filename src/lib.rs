@@ -90,7 +90,6 @@ impl Plugin for VoxScenePlugin {
         app.init_asset::<VoxelScene>()
             .init_asset::<VoxelModel>()
             .init_asset::<VoxelPalette>()
-            .init_asset::<VoxelModelCollection>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {

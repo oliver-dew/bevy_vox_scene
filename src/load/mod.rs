@@ -183,18 +183,16 @@ impl VoxSceneLoader {
             })
             .collect();
 
-        let model_collection =
-            load_context.labeled_asset_scope("model-collection".to_string(), |context| {
-                let transmissive_material_handle = context
-                    .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-                VoxelModelCollection {
+            let transmissive_material_handle = load_context
+            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
+
+        let model_collection = VoxelModelCollection {
                     palette: palette_handle,
                     models,
                     index_for_model_name,
                     opaque_material: opaque_material_handle,
                     transmissive_material: transmissive_material_handle,
-                }
-            });
+                };
 
         for (subscene_name, node) in subasset_by_name {
             load_context.labeled_asset_scope(subscene_name.clone(), |_| VoxelScene {

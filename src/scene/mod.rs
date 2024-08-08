@@ -58,7 +58,7 @@ pub struct VoxelSceneBundle {
 pub struct VoxelScene {
     pub(crate) root: VoxelNode,
     pub(crate) layers: Vec<LayerInfo>,
-    pub(crate) model_collection: Handle<VoxelModelCollection>,
+    pub(crate) model_collection: VoxelModelCollection,
 }
 
 #[derive(Debug, Clone, Default)]
