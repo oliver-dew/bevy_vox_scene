@@ -1,5 +1,5 @@
 use bevy::{
-    asset::{Assets, Handle},
+    asset::Assets,
     ecs::{
         system::{Commands, ResMut, SystemState},
         world::{Command, World},
@@ -10,7 +10,7 @@ use bevy::{
 };
 use ndshape::Shape;
 
-use crate::{VoxelModelCollection, VoxelModelInstance};
+use crate::VoxelModelInstance;
 
 use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 

@@ -10,7 +10,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelCollection, VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -116,7 +116,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands
         .spawn(SceneBundle {
             // Load a slice of the scene
-            scene: assets.load("study.vox#workstation@scene"),
+            scene: assets.load("study.vox#workstation"),
             ..default()
         });
         commands.observe(on_spawn_voxel_instance);

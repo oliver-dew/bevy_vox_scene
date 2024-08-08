@@ -47,18 +47,17 @@
 //!```
 
 use bevy::{
-    app::{App, Plugin, SpawnScene},
+    app::{App, Plugin},
     asset::AssetApp,
 };
 
 mod load;
 mod model;
-mod scene;
 
 #[cfg(test)]
 mod tests;
 
-pub use load::VoxLoaderSettings;
+pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[doc(inline)]
 use load::VoxSceneLoader;
 #[cfg(feature = "generate_voxels")]
@@ -69,10 +68,6 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
-pub use scene::{
-    DidSpawnVoxelChild, VoxelInstanceReady, VoxelLayer, VoxelModelInstance, VoxelScene,
-    VoxelSceneBundle,
-};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -87,7 +82,7 @@ pub struct VoxScenePlugin {
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<VoxelScene>()
+        app
             .init_asset::<VoxelModel>()
             .init_asset::<VoxelPalette>()
             .register_type::<VoxelLayer>()
@@ -95,6 +90,5 @@ impl Plugin for VoxScenePlugin {
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             });
-            // .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
     }
 }

@@ -125,11 +125,3 @@ impl VoxelModelCollection {
         Some((model_handle, model))
     }
 }
-
-// impl VoxelModelCollection {
-//     /// Retrieve a model from the collection by name
-//     pub fn model(&self, name: &String) -> Option<&VoxelModel> {
-//         let id = self.index_for_model_name.get(name)?;
-//         self.models.get(*id)
-//     }
-// }

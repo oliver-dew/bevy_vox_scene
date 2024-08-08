@@ -5,7 +5,7 @@ use bevy::{
 };
 use bevy_vox_scene::{
     ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
-    VoxelRegionMode, VoxelSceneBundle,
+    VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -68,7 +68,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 ));
     
     commands.spawn(SceneBundle {
-        scene: assets.load("study.vox#scene"),
+        scene: assets.load("study.vox"),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });

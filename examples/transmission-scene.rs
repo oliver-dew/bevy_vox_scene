@@ -81,7 +81,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands.spawn(SceneBundle {
-        scene: assets.load("study.vox#scene"),
+        scene: assets.load("study.vox"),
         ..default()
     });
 }
