@@ -12,7 +12,7 @@ use ndshape::Shape;
 
 use crate::{VoxelModelCollection, VoxelModelInstance};
 
-use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 
 /// Command that programatically modifies the voxels in a model.
 ///
@@ -102,21 +102,24 @@ impl Command for ModifyVoxelModel {
             let mut system_state: SystemState<(
                 ResMut<Assets<Mesh>>,
                 ResMut<Assets<StandardMaterial>>,
+                ResMut<Assets<VoxelModel>>,
+                ResMut<Assets<VoxelPalette>>,
                 ResMut<Assets<VoxelModelCollection>>,
             )> = SystemState::new(world);
-            let (mut meshes, mut materials, mut collections) = system_state.get_mut(world);
-            let collection = collections.get_mut(self.model.collection.id())?;
-            let index = collection
-                .index_for_model_name
-                .get(&self.model.model_name)?;
-            let model = collection.models.get_mut(*index)?;
-            let refraction_indices = &collection.palette.indices_of_refraction;
+            let (mut meshes, mut materials, mut models, mut palettes, mut collections) = system_state.get_mut(world);
+            //let collection = collections.get(self.model.collection.id())?;
+            // let index = collection
+            //     .index_for_model_name
+            //     .get(&self.model.model_name)?;
+            // let model = collection.models.get_mut(*index)?;
+            let model = models.get_mut(self.model.0.id())?;
+            let refraction_indices = &palettes.get(model.palette.id())?.indices_of_refraction;
             self.modify_model(
                 model,
                 &mut meshes,
                 &mut materials,
-                collection.opaque_material.clone(),
-                collection.transmissive_material.clone(),
+                // collection.opaque_material.clone(),
+                // collection.transmissive_material.clone(),
                 refraction_indices,
             );
             Some(())
@@ -131,8 +134,8 @@ impl ModifyVoxelModel {
         model: &mut VoxelModel,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
-        opaque_material: Handle<StandardMaterial>,
-        transmissive_material: Handle<StandardMaterial>,
+        // opaque_material: Handle<StandardMaterial>,
+        // transmissive_material: Handle<StandardMaterial>,
         refraction_indices: &[Option<f32>],
     ) {
         let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
@@ -159,22 +162,22 @@ impl ModifyVoxelModel {
         meshes.insert(&model.mesh, mesh);
         let has_translucency_old_value = model.has_translucency;
         model.has_translucency = average_ior.is_some();
-        match (has_translucency_old_value, average_ior) {
-            (true, Some(..)) | (false, None) => (), // no change in model's translucency
-            (true, None) => {
-                model.material = opaque_material;
-            }
-            (false, Some(ior)) => {
-                let Some(mut translucent_material) =
-                    materials.get(transmissive_material.id()).cloned()
-                else {
-                    return;
-                };
-                translucent_material.ior = ior;
-                translucent_material.thickness = model.size().min_element() as f32;
-                model.material = materials.add(translucent_material);
-            }
-        }
+        // match (has_translucency_old_value, average_ior) {
+        //     (true, Some(..)) | (false, None) => (), // no change in model's translucency
+        //     (true, None) => {
+        //         model.material = opaque_material;
+        //     }
+        //     (false, Some(ior)) => {
+        //         let Some(mut translucent_material) =
+        //             materials.get(transmissive_material.id()).cloned()
+        //         else {
+        //             return;
+        //         };
+        //         translucent_material.ior = ior;
+        //         translucent_material.thickness = model.size().min_element() as f32;
+        //         model.material = materials.add(translucent_material);
+        //     }
+        // }
     }
 }
 

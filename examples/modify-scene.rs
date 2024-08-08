@@ -13,7 +13,7 @@ use rand::Rng;
 use std::f32::consts::PI;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-/// Uses the [`bevy_vox_scene::VoxelSceneHook`] component to add extra components into the scene graph.
+/// Uses an observer triggered by `VoxelModelInstance` being added to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
 fn main() {
     let mut app = App::new();
@@ -85,7 +85,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 // Will run against every child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
     trigger: Trigger<OnAdd, VoxelModelInstance>,
-    model_query: Query<&VoxelModelInstance>,
+    model_query: Query<&Name, With<VoxelModelInstance>>,
     mut commands: Commands,
     assets: Res<AssetServer>,
 ) {
@@ -93,7 +93,6 @@ fn on_spawn_voxel_instance(
     let name = model_query
         .get(trigger.entity())
         .unwrap()
-        .model_name
         .as_str();
     match name {
         "tank/black-light" => {

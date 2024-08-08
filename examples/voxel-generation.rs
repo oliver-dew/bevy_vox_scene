@@ -56,7 +56,7 @@ fn setup(world: &mut World) {
         return;
     };
     let model_name = "my sdf model";
-    let Some(model) =
+    let Some((model_handle, model)) =
         VoxelModelCollection::add(world, data, model_name.to_string(), collection.clone())
     else {
         return;
@@ -68,9 +68,6 @@ fn setup(world: &mut World) {
             ..default()
         },
         // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
-        VoxelModelInstance {
-            collection,
-            model_name: model_name.to_string(),
-        },
+        VoxelModelInstance(model_handle),
     ));
 }

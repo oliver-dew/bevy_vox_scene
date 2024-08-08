@@ -88,11 +88,14 @@ pub struct VoxScenePlugin {
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelScene>()
+            .init_asset::<VoxelModel>()
+            .init_asset::<VoxelPalette>()
             .init_asset::<VoxelModelCollection>()
             .register_type::<VoxelLayer>()
+            .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
-            })
-            .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
+            });
+            // .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
     }
 }

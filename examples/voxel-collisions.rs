@@ -10,8 +10,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection,
-    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
+    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelCollection, VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -155,7 +154,7 @@ fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
-    model_collections: Res<Assets<VoxelModelCollection>>,
+    models: Res<Assets<VoxelModel>>,
 ) {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
@@ -166,10 +165,7 @@ fn update_snow(
             continue;
         }
         for (item_xform, item_instance) in scenery.iter() {
-            let Some(collection) = model_collections.get(item_instance.collection.id()) else {
-                continue;
-            };
-            let Some(model) = collection.model(&item_instance.model_name) else {
+            let Some(model) = models.get(&item_instance.0) else {
                 continue;
             };
             let vox_pos =

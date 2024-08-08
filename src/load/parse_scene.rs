@@ -1,9 +1,9 @@
 use bevy::{
-    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, WorldChildBuilder}, reflect::Reflect, utils::HashMap
+    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World, WorldChildBuilder}, reflect::Reflect, scene::Scene, utils::HashMap
 };
 use dot_vox::{Frame, SceneNode};
 
-use crate::{scene::{LayerInfo, VoxelNode}, VoxelLayer};
+use crate::{scene::{LayerInfo, VoxelNode}, VoxelLayer, VoxelModelInstance};
 
 pub(super) fn find_subasset_names(
     subassets_by_name: &mut HashMap<String, VoxelNode>,
@@ -53,10 +53,6 @@ pub(super) fn load_xform_node(
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
             let mut node = builder.spawn_empty();
-
-            if let Some(node_name) = node_name.clone() {
-                node.insert(Name::new(node_name));
-            }
             load_xform_child(
                 context,
                 graph,
@@ -82,6 +78,12 @@ pub(super) fn load_xform_node(
                 Visibility::Inherited
             };
             node.insert(visibility);
+            if let Some(node_name) = node_name.clone() {
+                node.insert(Name::new(node_name));
+                // let mut world = World::default();
+                // world.spawn(node);
+                // context.add_labeled_asset(format!("{}@scene", node_name), node);
+            }
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
@@ -136,11 +138,14 @@ fn load_xform_child(
                 (None, Some(name)) => name.to_string(),
     
             };
-            node.insert(PbrBundle {
+            node.insert((
+                PbrBundle {
                 mesh: context.get_label_handle(format!("{}@mesh", model_name)),
                 material: context.get_label_handle(format!("{}@material", model_name)),
                 ..default()
-            });
+            },
+            VoxelModelInstance(context.get_label_handle(format!("{}@model", model_name))),
+        ));
         }
     }
 }
