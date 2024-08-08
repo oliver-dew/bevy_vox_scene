@@ -90,10 +90,7 @@ fn on_spawn_voxel_instance(
     assets: Res<AssetServer>,
 ) {
     let mut entity_commands = commands.entity(trigger.entity());
-    let name = model_query
-        .get(trigger.entity())
-        .unwrap()
-        .as_str();
+    let name = model_query.get(trigger.entity()).unwrap().as_str();
     match name {
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {

@@ -1,5 +1,14 @@
 use bevy::{
-    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, WorldChildBuilder}, utils::HashMap
+    asset::LoadContext,
+    core::Name,
+    log::warn,
+    math::{Mat3, Mat4, Quat, Vec3},
+    pbr::PbrBundle,
+    prelude::{
+        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility,
+        WorldChildBuilder,
+    },
+    utils::HashMap,
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -8,36 +17,51 @@ use crate::{VoxelLayer, VoxelModelInstance};
 use super::components::LayerInfo;
 
 pub(super) fn find_model_names(
-    name_for_model: &mut Vec<Option<String>>, 
+    name_for_model: &mut Vec<Option<String>>,
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
-    parent_name: Option<&String>,)
-{
-match scene_node {
-    SceneNode::Transform { attributes, frames: _, child, layer_id: _ } => {
-        let (accumulated, node_name) =
+    parent_name: Option<&String>,
+) {
+    match scene_node {
+        SceneNode::Transform {
+            attributes,
+            frames: _,
+            child,
+            layer_id: _,
+        } => {
+            let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-        match &graph[*child as usize] {
-            SceneNode::Group { attributes: _, children } => {
-                for grandchild in children {
-                    find_model_names(name_for_model, graph, &graph[*grandchild as usize], accumulated.as_ref());
-                }
-            }
-            SceneNode::Shape { attributes: _, models } => {
-                let model_id = models[0].model_id as usize;
-                match (&name_for_model[model_id], node_name) {
-                    (None, Some(name)) | (Some(_), Some(name)) => {
-                        name_for_model[model_id] = Some(name.to_string())
+            match &graph[*child as usize] {
+                SceneNode::Group {
+                    attributes: _,
+                    children,
+                } => {
+                    for grandchild in children {
+                        find_model_names(
+                            name_for_model,
+                            graph,
+                            &graph[*grandchild as usize],
+                            accumulated.as_ref(),
+                        );
                     }
-                    (None, None) | (Some(_), None) => (),
-                };
-        
+                }
+                SceneNode::Shape {
+                    attributes: _,
+                    models,
+                } => {
+                    let model_id = models[0].model_id as usize;
+                    match (&name_for_model[model_id], node_name) {
+                        (None, Some(name)) | (Some(_), Some(name)) => {
+                            name_for_model[model_id] = Some(name.to_string())
+                        }
+                        (None, None) | (Some(_), None) => (),
+                    };
+                }
+                _ => {}
             }
-            _ => {}
         }
+        _ => {}
     }
-    _ => {}
-}
 }
 
 pub(super) fn load_xform_node(
@@ -72,11 +96,17 @@ pub(super) fn load_xform_node(
                 layers,
                 scene_scale,
             );
-            node.insert(Transform::from_matrix(transform_from_frame(&frames[0], scene_scale)));
+            node.insert(Transform::from_matrix(transform_from_frame(
+                &frames[0],
+                scene_scale,
+            )));
 
             let maybe_layer = layers.get(*layer_id as usize);
             if let Some(layer) = maybe_layer {
-                node.insert(VoxelLayer { id: *layer_id, name: layer.name.clone() });
+                node.insert(VoxelLayer {
+                    id: *layer_id,
+                    name: layer.name.clone(),
+                });
             }
             let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
             let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
@@ -103,13 +133,22 @@ pub(super) fn load_xform_node(
 
                     //context.add_labeled_asset(format!("{}@scene", node_name), Scene::new(world)); //TODO remove @scene
                 }
-
             }
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
             let mut node = builder.spawn_empty();
-            load_xform_child(context, graph, scene_node, &mut node, parent_name, model_names, subassets, layers, scene_scale);
+            load_xform_child(
+                context,
+                graph,
+                scene_node,
+                &mut node,
+                parent_name,
+                model_names,
+                subassets,
+                layers,
+                scene_scale,
+            );
         }
     }
 }
@@ -130,7 +169,17 @@ fn load_xform_child(
             warn!("Found nested Transform nodes");
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
-                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
+                load_xform_node(
+                    context,
+                    builder,
+                    graph,
+                    scene_node,
+                    parent_name,
+                    model_names,
+                    subassets,
+                    layers,
+                    scene_scale,
+                );
             });
         }
         SceneNode::Group {
@@ -140,7 +189,17 @@ fn load_xform_child(
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
                 for child in children {
-                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, subassets, layers, scene_scale);
+                    load_xform_node(
+                        context,
+                        builder,
+                        graph,
+                        &graph[*child as usize],
+                        parent_name,
+                        model_names,
+                        subassets,
+                        layers,
+                        scene_scale,
+                    );
                 }
             });
         }
@@ -149,15 +208,17 @@ fn load_xform_child(
             models,
         } => {
             let model_id = models[0].model_id as usize;
-            let model_name = model_names[model_id].clone().unwrap_or(format!("model-{}", model_id));
+            let model_name = model_names[model_id]
+                .clone()
+                .unwrap_or(format!("model-{}", model_id));
             node.insert((
                 PbrBundle {
-                mesh: context.get_label_handle(format!("{}@mesh", model_name)),
-                material: context.get_label_handle(format!("{}@material", model_name)),
-                ..default()
-            },
-            VoxelModelInstance(context.get_label_handle(format!("{}@model", model_name))),
-        ));
+                    mesh: context.get_label_handle(format!("{}@mesh", model_name)),
+                    material: context.get_label_handle(format!("{}@material", model_name)),
+                    ..default()
+                },
+                VoxelModelInstance(context.get_label_handle(format!("{}@model", model_name))),
+            ));
         }
     }
 }

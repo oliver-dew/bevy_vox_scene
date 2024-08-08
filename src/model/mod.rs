@@ -1,8 +1,14 @@
 use bevy::{
-    asset::{Asset, Assets, Handle}, ecs::{
+    asset::{Asset, Assets, Handle},
+    ecs::{
         system::{In, ResMut},
         world::World,
-    }, pbr::StandardMaterial, prelude::Res, reflect::TypePath, render::{mesh::Mesh, texture::Image}, utils::HashMap
+    },
+    pbr::StandardMaterial,
+    prelude::Res,
+    reflect::TypePath,
+    render::{mesh::Mesh, texture::Image},
+    utils::HashMap,
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};

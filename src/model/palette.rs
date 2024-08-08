@@ -1,9 +1,14 @@
 use bevy::{
-    asset::{Asset, Assets, Handle, LoadContext}, color::{Color, ColorToComponents, ColorToPacked, LinearRgba}, math::FloatExt, pbr::StandardMaterial, reflect::TypePath, render::{
+    asset::{Asset, Assets, Handle, LoadContext},
+    color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
+    math::FloatExt,
+    pbr::StandardMaterial,
+    reflect::TypePath,
+    render::{
         render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
         texture::Image,
-    }
+    },
 };
 use dot_vox::DotVoxData;
 

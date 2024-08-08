@@ -4,7 +4,13 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, prelude::{BuildWorldChildren, SpatialBundle, World}, scene::Scene, utils::HashMap
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
+    color::LinearRgba,
+    log::info,
+    pbr::StandardMaterial,
+    prelude::{BuildWorldChildren, SpatialBundle, World},
+    scene::Scene,
+    utils::HashMap,
 };
 use components::LayerInfo;
 pub use components::{VoxelLayer, VoxelModelInstance};
@@ -108,11 +114,11 @@ impl VoxSceneLoader {
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
         load_context.labeled_asset_scope("material".to_string(), |_| {
-                let mut opaque_material = translucent_material.clone();
-                opaque_material.specular_transmission_texture = None;
-                opaque_material.specular_transmission = 0.0;
-                opaque_material
-            });
+            let mut opaque_material = translucent_material.clone();
+            opaque_material.specular_transmission_texture = None;
+            opaque_material.specular_transmission = 0.0;
+            opaque_material
+        });
         if palette.emission == MaterialProperty::VariesPerElement {
             load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
                 let mut non_emissive = translucent_material.clone();
@@ -123,7 +129,7 @@ impl VoxSceneLoader {
         }
         let indices_of_refraction = palette.indices_of_refraction.clone();
         let palette_handle =
-        load_context.add_labeled_asset("material-palette".to_string(), palette);
+            load_context.add_labeled_asset("material-palette".to_string(), palette);
 
         // Scene graph
         let layers: Vec<LayerInfo> = file
@@ -140,9 +146,21 @@ impl VoxSceneLoader {
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
         let mut world = World::default();
-        world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children( |builder| {
-            load_xform_node(&mut load_context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, &mut subassets, &layers, settings.voxel_size);
-        });
+        world
+            .spawn(SpatialBundle::INHERITED_IDENTITY)
+            .with_children(|builder| {
+                load_xform_node(
+                    &mut load_context,
+                    builder,
+                    &file.scenes,
+                    &file.scenes[0],
+                    None,
+                    &mut model_names,
+                    &mut subassets,
+                    &layers,
+                    settings.voxel_size,
+                );
+            });
 
         // Models
 
@@ -174,34 +192,46 @@ impl VoxSceneLoader {
                         opaque_material
                     })
                 };
-                load_context.labeled_asset_scope(format!("{}@model", name), |_| {
-                VoxelModel {
+                load_context.labeled_asset_scope(format!("{}@model", name), |_| VoxelModel {
                     name,
                     data,
                     mesh,
                     material,
                     has_translucency: ior.is_some(),
                     palette: palette_handle.clone(),
-                }
-            });
+                });
             });
 
-            load_context
-            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-        
+        load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
+
         for (name, node) in subassets {
             load_context.labeled_asset_scope(name.clone(), |context| {
                 let mut world = World::default();
                 let mut subassets: HashMap<String, SceneNode> = HashMap::new(); // not used
-            world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children(|builder| {
-                
-                let mut components: Vec<&str> = name.split_terminator("/").collect();
-                components.pop();
-                let joined = components.join("/");
-                let parent_name = if components.is_empty() { None } else { Some(&joined)};
-                load_xform_node(context, builder, &file.scenes, &node, parent_name, &mut model_names, &mut subassets, &layers, settings.voxel_size);
-            });
-            Scene::new(world)
+                world
+                    .spawn(SpatialBundle::INHERITED_IDENTITY)
+                    .with_children(|builder| {
+                        let mut components: Vec<&str> = name.split_terminator("/").collect();
+                        components.pop();
+                        let joined = components.join("/");
+                        let parent_name = if components.is_empty() {
+                            None
+                        } else {
+                            Some(&joined)
+                        };
+                        load_xform_node(
+                            context,
+                            builder,
+                            &file.scenes,
+                            &node,
+                            parent_name,
+                            &mut model_names,
+                            &mut subassets,
+                            &layers,
+                            settings.voxel_size,
+                        );
+                    });
+                Scene::new(world)
             });
         }
 

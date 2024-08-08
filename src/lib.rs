@@ -57,9 +57,9 @@ mod model;
 #[cfg(test)]
 mod tests;
 
-pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[doc(inline)]
 use load::VoxSceneLoader;
+pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]
@@ -82,8 +82,7 @@ pub struct VoxScenePlugin {
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_asset::<VoxelModel>()
+        app.init_asset::<VoxelModel>()
             .init_asset::<VoxelPalette>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()

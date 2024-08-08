@@ -10,7 +10,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable,
+    VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -54,13 +55,15 @@ struct Scenes {
     voxel_material: Handle<StandardMaterial>,
 }
 
-fn on_spawn_voxel_instance(trigger: Trigger<OnAdd, Name>, 
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, Name>,
     query: Query<&Name>,
-    mut commands: Commands) {
+    mut commands: Commands,
+) {
     let mut entity_commands = commands.entity(trigger.entity());
     let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
     match name {
-        "snowflake" => { return },
+        "snowflake" => return,
         "workstation" => {
             entity_commands.insert(Transform::IDENTITY);
         }
@@ -110,16 +113,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
     commands.insert_resource(Scenes {
         snowflake: assets.load("study.vox#snowflake@mesh"),
-        voxel_material: assets.load("study.vox#snowflake@material")
+        voxel_material: assets.load("study.vox#snowflake@material"),
     });
 
-    commands
-        .spawn(SceneBundle {
-            // Load a slice of the scene
-            scene: assets.load("study.vox#workstation"),
-            ..default()
-        });
-        commands.observe(on_spawn_voxel_instance);
+    commands.spawn(SceneBundle {
+        // Load a slice of the scene
+        scene: assets.load("study.vox#workstation"),
+        ..default()
+    });
+    commands.observe(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]

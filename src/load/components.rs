@@ -1,12 +1,6 @@
-use bevy::{
-    asset::Handle,
-    ecs::component::Component,
-    prelude::ReflectComponent,
-    reflect::Reflect,
-};
+use bevy::{asset::Handle, ecs::component::Component, prelude::ReflectComponent, reflect::Reflect};
 
 use crate::VoxelModel;
-
 
 #[derive(Debug, Clone)]
 pub(crate) struct LayerInfo {

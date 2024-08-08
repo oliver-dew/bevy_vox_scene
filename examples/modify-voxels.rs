@@ -4,8 +4,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
-    VoxelRegionMode,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -56,23 +55,22 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
     commands.spawn((
         DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            illuminance: 5000.0,
-            shadows_enabled: true,
-            ..Default::default()
+            directional_light: DirectionalLight {
+                illuminance: 5000.0,
+                shadows_enabled: true,
+                ..Default::default()
+            },
+            transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
+            ..default()
         },
-        transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
-        ..default()
-    },
-    Name::new("light"),
-));
-    
+        Name::new("light"),
+    ));
+
     commands.spawn(SceneBundle {
         scene: assets.load("study.vox"),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
-    
 }
 
 fn on_spawn_voxel_instance(
@@ -80,9 +78,9 @@ fn on_spawn_voxel_instance(
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let Ok(name) = model_query
-        .get(trigger.entity())
-        .map(|n| n.as_str()) else { return };
+    let Ok(name) = model_query.get(trigger.entity()).map(|n| n.as_str()) else {
+        return;
+    };
     if name == "floor" {
         commands.entity(trigger.entity()).insert(Floor);
     }
