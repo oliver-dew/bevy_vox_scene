@@ -10,11 +10,10 @@ use bevy::{
     pbr::StandardMaterial,
     prelude::{BuildWorldChildren, SpatialBundle, World},
     scene::Scene,
-    utils::HashMap,
+    utils::HashSet,
 };
 use components::LayerInfo;
 pub use components::{VoxelLayer, VoxelModelInstance};
-use dot_vox::SceneNode;
 use parse_scene::{find_model_names, load_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -142,7 +141,7 @@ impl VoxSceneLoader {
             .collect();
 
         let model_count = file.models.len();
-        let mut subassets: HashMap<String, SceneNode> = HashMap::new();
+        let mut subassets: HashSet<String> = HashSet::new();
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
         let mut world = World::default();
@@ -203,37 +202,6 @@ impl VoxSceneLoader {
             });
 
         load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
-
-        for (name, node) in subassets {
-            load_context.labeled_asset_scope(name.clone(), |context| {
-                let mut world = World::default();
-                let mut subassets: HashMap<String, SceneNode> = HashMap::new(); // not used
-                world
-                    .spawn(SpatialBundle::INHERITED_IDENTITY)
-                    .with_children(|builder| {
-                        let mut components: Vec<&str> = name.split_terminator("/").collect();
-                        components.pop();
-                        let joined = components.join("/");
-                        let parent_name = if components.is_empty() {
-                            None
-                        } else {
-                            Some(&joined)
-                        };
-                        load_xform_node(
-                            context,
-                            builder,
-                            &file.scenes,
-                            &node,
-                            parent_name,
-                            &mut model_names,
-                            &mut subassets,
-                            &layers,
-                            settings.voxel_size,
-                        );
-                    });
-                Scene::new(world)
-            });
-        }
 
         Ok(Scene::new(world))
     }

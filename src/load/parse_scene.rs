@@ -1,14 +1,7 @@
 use bevy::{
-    asset::LoadContext,
-    core::Name,
-    log::warn,
-    math::{Mat3, Mat4, Quat, Vec3},
-    pbr::PbrBundle,
-    prelude::{
-        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility,
-        WorldChildBuilder,
-    },
-    utils::HashMap,
+    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{
+        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World, WorldChildBuilder
+    }, scene::Scene, utils::HashSet
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -71,7 +64,7 @@ pub(super) fn load_xform_node(
     scene_node: &SceneNode,
     parent_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
-    subassets: &mut HashMap<String, SceneNode>,
+    subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
@@ -119,19 +112,15 @@ pub(super) fn load_xform_node(
             if let Some(node_name) = node_name.clone() {
                 node.insert(Name::new(node_name.clone()));
                 // create sub-asset
-                if !subassets.contains_key(&node_name) {
-                    subassets.insert(node_name, scene_node.clone());
-                    // println!("HI!");
-                    // context.labeled_asset_scope(format!("{}@scene", node_name), |context| {
-                    //     let mut world = World::default();
-                    //     let mut root = world.spawn(SpatialBundle::INHERITED_IDENTITY);
-                    //     root.with_children(|builder| {
-                    //         load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
-                    //     });
-                    //     Scene::new(world)
-                    // });
-
-                    //context.add_labeled_asset(format!("{}@scene", node_name), Scene::new(world)); //TODO remove @scene
+                if subassets.insert(node_name.clone()) {
+                    context.labeled_asset_scope(node_name, |context| {
+                        let mut world = World::default();
+                        let mut root = world.spawn(SpatialBundle::INHERITED_IDENTITY);
+                        root.with_children(|builder| {
+                            load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
+                        });
+                        Scene::new(world)
+                    });
                 }
             }
         }
@@ -160,7 +149,7 @@ fn load_xform_child(
     node: &mut EntityWorldMut,
     parent_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
-    subassets: &mut HashMap<String, SceneNode>,
+    subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
