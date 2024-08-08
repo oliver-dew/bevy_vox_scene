@@ -1,5 +1,5 @@
 use bevy::{
-    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World, WorldChildBuilder}, reflect::Reflect, scene::Scene, utils::HashMap
+    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World, WorldChildBuilder}, reflect::Reflect, scene::Scene, utils::{HashMap, HashSet}
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -40,6 +40,7 @@ pub(super) fn load_xform_node(
     scene_node: &SceneNode,
     parent_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
+    subassets: &mut HashMap<String, SceneNode>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
@@ -61,6 +62,7 @@ pub(super) fn load_xform_node(
                 accumulated.as_ref(),
                 node_name.as_ref(),
                 model_names,
+                subassets,
                 layers,
                 scene_scale,
             );
@@ -79,16 +81,29 @@ pub(super) fn load_xform_node(
             };
             node.insert(visibility);
             if let Some(node_name) = node_name.clone() {
-                node.insert(Name::new(node_name));
-                // let mut world = World::default();
-                // world.spawn(node);
-                // context.add_labeled_asset(format!("{}@scene", node_name), node);
+                node.insert(Name::new(node_name.clone()));
+                // create sub-asset
+                if !subassets.contains_key(&node_name) {
+                    subassets.insert(node_name, scene_node.clone());
+                    // println!("HI!");
+                    // context.labeled_asset_scope(format!("{}@scene", node_name), |context| {
+                    //     let mut world = World::default();
+                    //     let mut root = world.spawn(SpatialBundle::INHERITED_IDENTITY);
+                    //     root.with_children(|builder| {
+                    //         load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
+                    //     });
+                    //     Scene::new(world)
+                    // });
+
+                    //context.add_labeled_asset(format!("{}@scene", node_name), Scene::new(world)); //TODO remove @scene
+                }
+
             }
         }
         SceneNode::Group { .. } | SceneNode::Shape { .. } => {
             warn!("Found Group or Shape Node without a parent Transform");
             let mut node = builder.spawn_empty();
-            load_xform_child(context, graph, scene_node, &mut node, parent_name, None, model_names, layers, scene_scale);
+            load_xform_child(context, graph, scene_node, &mut node, parent_name, None, model_names, subassets, layers, scene_scale);
         }
     }
 }
@@ -101,6 +116,7 @@ fn load_xform_child(
     parent_name: Option<&String>,
     node_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
+    subassets: &mut HashMap<String, SceneNode>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
 ) {
@@ -109,7 +125,7 @@ fn load_xform_child(
             warn!("Found nested Transform nodes");
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
-                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, layers, scene_scale);
+                load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
             });
         }
         SceneNode::Group {
@@ -119,7 +135,7 @@ fn load_xform_child(
             node.insert(SpatialBundle::default());
             node.with_children(|builder| {
                 for child in children {
-                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, layers, scene_scale);
+                    load_xform_node(context, builder, graph, &graph[*child as usize], parent_name, model_names, subassets, layers, scene_scale);
                 }
             });
         }

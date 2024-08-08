@@ -3,8 +3,9 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, prelude::{BuildWorldChildren, SpatialBundle, World}, scene::Scene, utils::hashbrown::HashMap
+    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext}, color::LinearRgba, log::info, pbr::StandardMaterial, prelude::{BuildWorldChildren, SpatialBundle, World}, scene::Scene, utils::{HashMap, HashSet}
 };
+use dot_vox::SceneNode;
 use parse_scene::{find_model_names, find_subasset_names, load_xform_node, parse_xform_node};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -201,14 +202,32 @@ impl VoxSceneLoader {
                 model_collection: model_collection.clone(),
             });
         }
+        let mut subassets: HashMap<String, SceneNode> = HashMap::new();
+        let mut model_names: Vec<Option<String>> = vec![None; model_count];
         load_context.labeled_asset_scope("scene".to_string(), |mut context| {
             let mut world = World::default();
-            let mut model_names: Vec<Option<String>> = vec![None; model_count];
             world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children(|builder| {
-                load_xform_node(&mut context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, &layers, settings.voxel_size);
+                load_xform_node(&mut context, builder, &file.scenes, &file.scenes[0], None, &mut model_names, &mut subassets, &layers, settings.voxel_size);
             });
             Scene::new(world)
         });
+        for (name, node) in subassets {
+            load_context.labeled_asset_scope(format!("{}@scene", name), |context| {
+                let mut world = World::default();
+                let mut subassets: HashMap<String, SceneNode> = HashMap::new(); // not used
+            world.spawn(SpatialBundle::INHERITED_IDENTITY).with_children(|builder| {
+                
+                let mut components: Vec<&str> = name.split_terminator("/").collect();
+                components.pop();
+                let joined = components.join("/");
+                let parent_name = if components.is_empty() { None } else { Some(&joined)};
+
+                println!("HI {}, comp: {:#?}, parent: {:#?}", name, components, parent_name);
+                load_xform_node(context, builder, &file.scenes, &node, parent_name, &mut model_names, &mut subassets, &layers, settings.voxel_size);
+            });
+            Scene::new(world)
+            });
+        }
         Ok(VoxelScene {
             root,
             layers,
