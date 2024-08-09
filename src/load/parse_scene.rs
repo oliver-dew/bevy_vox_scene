@@ -1,7 +1,15 @@
 use bevy::{
-    asset::LoadContext, core::Name, log::warn, math::{Mat3, Mat4, Quat, Vec3}, pbr::PbrBundle, prelude::{
-        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World, WorldChildBuilder
-    }, scene::Scene, utils::HashSet
+    asset::LoadContext,
+    core::Name,
+    log::warn,
+    math::{Mat3, Mat4, Quat, Vec3},
+    pbr::PbrBundle,
+    prelude::{
+        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World,
+        WorldChildBuilder,
+    },
+    scene::Scene,
+    utils::HashSet,
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -57,7 +65,64 @@ pub(super) fn find_model_names(
     }
 }
 
-pub(super) fn load_xform_node(
+pub(super) fn parse_scene_graph(
+    context: &mut LoadContext,
+    graph: &Vec<SceneNode>,
+    scene_node: &SceneNode,
+    parent_name: Option<&String>,
+    model_names: &mut Vec<Option<String>>,
+    subassets: &mut HashSet<String>,
+    layers: &Vec<LayerInfo>,
+    scene_scale: f32,
+) -> Scene {
+    let mut world = World::default();
+    match scene_node {
+        SceneNode::Transform {
+            attributes,
+            frames: _, // nb for the root node we ignore the transform
+            child,
+            layer_id,
+        } => {
+            let (accumulated, node_name) =
+                get_accumulated_and_node_name(parent_name, attributes.get("_name"));
+            let mut node = world.spawn_empty();
+            load_xform_child(
+                context,
+                graph,
+                &graph[*child as usize],
+                &mut node,
+                accumulated.as_ref(),
+                model_names,
+                subassets,
+                layers,
+                scene_scale,
+            );
+
+            let maybe_layer = layers.get(*layer_id as usize);
+            if let Some(layer) = maybe_layer {
+                node.insert(VoxelLayer {
+                    id: *layer_id,
+                    name: layer.name.clone(),
+                });
+            }
+            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
+            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
+            let visibility = if node_is_hidden || layer_is_hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+            node.insert(visibility);
+            if let Some(node_name) = node_name.clone() {
+                node.insert(Name::new(node_name.clone()));
+            }
+        }
+        _ => {}
+    }
+    Scene::new(world)
+}
+
+fn load_xform_node(
     context: &mut LoadContext,
     builder: &mut WorldChildBuilder,
     graph: &Vec<SceneNode>,
@@ -114,12 +179,16 @@ pub(super) fn load_xform_node(
                 // create sub-asset
                 if subassets.insert(node_name.clone()) {
                     context.labeled_asset_scope(node_name, |context| {
-                        let mut world = World::default();
-                        let mut root = world.spawn(SpatialBundle::INHERITED_IDENTITY);
-                        root.with_children(|builder| {
-                            load_xform_node(context, builder, graph, scene_node, parent_name, model_names, subassets, layers, scene_scale);
-                        });
-                        Scene::new(world)
+                        parse_scene_graph(
+                            context,
+                            graph,
+                            scene_node,
+                            parent_name,
+                            model_names,
+                            subassets,
+                            layers,
+                            scene_scale,
+                        )
                     });
                 }
             }

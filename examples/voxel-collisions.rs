@@ -64,9 +64,6 @@ fn on_spawn_voxel_instance(
     let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
     match name {
         "snowflake" => return,
-        "workstation" => {
-            entity_commands.insert(Transform::IDENTITY);
-        }
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));

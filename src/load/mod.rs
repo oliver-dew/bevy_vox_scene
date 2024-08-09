@@ -8,13 +8,12 @@ use bevy::{
     color::LinearRgba,
     log::info,
     pbr::StandardMaterial,
-    prelude::{BuildWorldChildren, SpatialBundle, World},
     scene::Scene,
     utils::HashSet,
 };
 use components::LayerInfo;
 pub use components::{VoxelLayer, VoxelModelInstance};
-use parse_scene::{find_model_names, load_xform_node};
+use parse_scene::{find_model_names, parse_scene_graph};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -144,22 +143,16 @@ impl VoxSceneLoader {
         let mut subassets: HashSet<String> = HashSet::new();
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
-        let mut world = World::default();
-        world
-            .spawn(SpatialBundle::INHERITED_IDENTITY)
-            .with_children(|builder| {
-                load_xform_node(
-                    &mut load_context,
-                    builder,
-                    &file.scenes,
-                    &file.scenes[0],
-                    None,
-                    &mut model_names,
-                    &mut subassets,
-                    &layers,
-                    settings.voxel_size,
-                );
-            });
+        let scene = parse_scene_graph(
+            &mut load_context,
+            &file.scenes,
+            &file.scenes[0],
+            None,
+            &mut model_names,
+            &mut subassets,
+            &layers,
+            settings.voxel_size,
+        );
 
         // Models
 
@@ -203,6 +196,6 @@ impl VoxSceneLoader {
 
         load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
 
-        Ok(Scene::new(world))
+        Ok(scene)
     }
 }
