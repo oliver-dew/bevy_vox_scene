@@ -41,7 +41,7 @@ bevy_vox_scene = "0.14.0"
 
 ```rust no_run
 use bevy::prelude::*;
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle}; // 2.
+use bevy_vox_scene::VoxScenePlugin; // 2.
 
 fn main() {
     App::new()
@@ -54,7 +54,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.spawn(VoxelSceneBundle { // 4.
+    commands.spawn(SceneBundle { // 4.
         scene: assets.load("study.vox#workstation/desk"),
         ..default()
     });
@@ -63,7 +63,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 2. Import the library.
 3. Add the plugin to the app.
-4. Spawn a scene graph using `VoxelSceneBundle`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
+4. Spawn a scene graph using `SceneBundle`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore

@@ -4,7 +4,7 @@
 //!
 //!```
 //!use bevy::prelude::*;
-//!use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+//!use bevy_vox_scene::VoxScenePlugin;
 //! # use bevy::{app::AppExit, utils::HashSet};
 //!
 //!fn main() {
@@ -23,13 +23,13 @@
 //!    assets: Res<AssetServer>,
 //!) {
 //!    // Load an entire scene graph
-//!    commands.spawn(VoxelSceneBundle {
+//!    commands.spawn(SceneBundle {
 //!        scene: assets.load("study.vox"),
 //!        ..default()
 //!    });
 //!
 //!    // Load a single model using the name assigned to it in MagicaVoxel
-//!    commands.spawn(VoxelSceneBundle {
+//!    commands.spawn(SceneBundle {
 //!        scene: assets.load("study.vox#workstation/desk"),
 //!        ..default()
 //!    });

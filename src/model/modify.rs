@@ -14,7 +14,7 @@ use crate::VoxelModelInstance;
 
 use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 
-/// Command that programatically modifies the voxels in a model.
+/// Command that programmatically modifies the voxels in a model.
 ///
 /// This command will run the closure against every voxel within the region of the model.
 ///
