@@ -145,7 +145,7 @@ async fn test_transmissive_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .0;
+        .model;
 
     let model = app
         .world()
@@ -188,7 +188,7 @@ async fn test_opaque_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .0;
+        .model;
 
     let model = app
         .world()
@@ -256,7 +256,7 @@ async fn test_spawn_system() {
     );
     let models: HashSet<String> = instance_query
         .iter(&app.world())
-        .map(|c| c.0.id().to_string().clone())
+        .map(|c| c.model.id().to_string().clone())
         .collect();
     assert_eq!(models.len(), 2, "Instances point to 2 unique models");
     let entity = app
@@ -327,7 +327,7 @@ async fn test_modify_voxels() {
     let model = app
         .world()
         .resource::<Assets<VoxelModel>>()
-        .get(model_instance.0.id())
+        .get(model_instance.model.id())
         .expect("retrieve model from Res<Assets>");
 
     assert_eq!(
@@ -354,9 +354,9 @@ fn test_generate_voxels() {
     let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), 1.0, Voxel(1));
     let world = app.world_mut();
-    let collection = VoxelModelCollection::new(world, palette).expect("create collection");
+    let collection = VoxelContext::new(world, palette).expect("create collection");
     let (_, tall_box_model) =
-        VoxelModelCollection::add(world, tall_box, "tall box".to_string(), collection)
+        VoxelContext::add(world, tall_box, "tall box".to_string(), collection)
             .expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);

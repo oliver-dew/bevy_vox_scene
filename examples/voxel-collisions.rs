@@ -164,7 +164,7 @@ fn update_snow(
             continue;
         }
         for (item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(&item_instance.0) else {
+            let Some(model) = models.get(&item_instance.model) else {
                 continue;
             };
             let vox_pos =

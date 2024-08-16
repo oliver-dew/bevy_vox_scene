@@ -1,6 +1,6 @@
 use bevy::{asset::Handle, ecs::component::Component, prelude::ReflectComponent, reflect::Reflect};
 
-use crate::VoxelModel;
+use crate::{VoxelContext, VoxelModel};
 
 #[derive(Debug, Clone)]
 pub(crate) struct LayerInfo {
@@ -13,7 +13,12 @@ pub(crate) struct LayerInfo {
 /// When the scene is spawned this component gets added to entities with a voxel mesh.
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
-pub struct VoxelModelInstance(pub Handle<VoxelModel>);
+pub struct VoxelModelInstance {
+    /// Handle to the model
+    pub model: Handle<VoxelModel>,
+    /// Handle to the context
+    pub context: Handle<VoxelContext>,
+}
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///

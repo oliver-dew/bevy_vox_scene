@@ -67,7 +67,7 @@ pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
-pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
+pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelContext, VoxelPalette};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -83,7 +83,7 @@ pub struct VoxScenePlugin {
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<VoxelModel>()
-            .init_asset::<VoxelPalette>()
+            .init_asset::<VoxelContext>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {

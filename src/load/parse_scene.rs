@@ -275,7 +275,10 @@ fn load_xform_child(
                     material: context.get_label_handle(format!("{}@material", model_name)),
                     ..default()
                 },
-                VoxelModelInstance(context.get_label_handle(format!("{}@model", model_name))),
+                VoxelModelInstance {
+                    model: context.get_label_handle(format!("{}@model", model_name)),
+                    context: context.get_label_handle("voxel-context"),
+                },
             ));
         }
     }

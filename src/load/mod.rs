@@ -18,8 +18,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{MaterialProperty, VoxelModel, VoxelPalette},
-    VoxelData, VoxelQueryable,
+    model::{MaterialProperty, VoxelModel, VoxelPalette}, VoxelContext, VoxelData, VoxelQueryable
 };
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::scene::Scene`]s.
@@ -111,7 +110,7 @@ impl VoxSceneLoader {
             settings.emission_strength,
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
-        load_context.labeled_asset_scope("material".to_string(), |_| {
+        let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {
             let mut opaque_material = translucent_material.clone();
             opaque_material.specular_transmission_texture = None;
             opaque_material.specular_transmission = 0.0;
@@ -126,8 +125,6 @@ impl VoxSceneLoader {
             });
         }
         let indices_of_refraction = palette.indices_of_refraction.clone();
-        let palette_handle =
-            load_context.add_labeled_asset("material-palette".to_string(), palette);
 
         // Scene graph
         let layers: Vec<LayerInfo> = file
@@ -190,12 +187,15 @@ impl VoxSceneLoader {
                     mesh,
                     material,
                     has_translucency: ior.is_some(),
-                    palette: palette_handle.clone(),
                 });
             });
 
-        load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
-
+        let transmissive_material = load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
+        load_context.add_labeled_asset("voxel-context".to_string(), VoxelContext {
+            palette,
+            opaque_material,
+            transmissive_material,
+        });
         Ok(scene)
     }
 }
