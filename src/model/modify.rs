@@ -1,8 +1,13 @@
 use bevy::{
-    asset::{Assets, Handle}, ecs::{
+    asset::{Assets, Handle},
+    ecs::{
         system::{Commands, ResMut, SystemState},
         world::{Command, World},
-    }, math::{IVec3, Vec3}, pbr::StandardMaterial, prelude::Res, render::mesh::Mesh
+    },
+    math::{IVec3, Vec3},
+    pbr::StandardMaterial,
+    prelude::Res,
+    render::mesh::Mesh,
 };
 use ndshape::Shape;
 

@@ -67,7 +67,7 @@ pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
-pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelContext, VoxelPalette};
+pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///

@@ -18,7 +18,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{MaterialProperty, VoxelModel, VoxelPalette}, VoxelContext, VoxelData, VoxelQueryable
+    model::{MaterialProperty, VoxelModel, VoxelPalette},
+    VoxelContext, VoxelData, VoxelQueryable,
 };
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::scene::Scene`]s.
@@ -190,12 +191,16 @@ impl VoxSceneLoader {
                 });
             });
 
-        let transmissive_material = load_context.add_labeled_asset("material-transmissive".to_string(), translucent_material);
-        load_context.add_labeled_asset("voxel-context".to_string(), VoxelContext {
-            palette,
-            opaque_material,
-            transmissive_material,
-        });
+        let transmissive_material = load_context
+            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
+        load_context.add_labeled_asset(
+            "voxel-context".to_string(),
+            VoxelContext {
+                palette,
+                opaque_material,
+                transmissive_material,
+            },
+        );
         Ok(scene)
     }
 }

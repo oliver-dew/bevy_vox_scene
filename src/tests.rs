@@ -10,7 +10,6 @@ use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
     core::Name,
-    ecs::system::{Commands, Res},
     hierarchy::Children,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::StandardMaterial,
@@ -18,7 +17,7 @@ use bevy::{
         GlobalTransform, HierarchyPlugin, InheritedVisibility, OnAdd, Query, Transform, Trigger,
         ViewVisibility, Visibility,
     },
-    render::{mesh::Mesh, texture::ImagePlugin, view::ViewPlugin, RenderPlugin},
+    render::{mesh::Mesh, texture::ImagePlugin},
     scene::{Scene, SceneBundle, ScenePlugin},
     utils::hashbrown::HashSet,
     MinimalPlugins,
@@ -46,7 +45,7 @@ async fn test_load_scene() {
     let mut app = App::new();
     let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
     app.update();
-    let scene = app
+    let _scene = app
         .world()
         .resource::<Assets<Scene>>()
         .get(handle.id())
@@ -57,69 +56,7 @@ async fn test_load_scene() {
         3,
         "Same 3 models are instanced through the scene"
     );
-    // assert_eq!(scene.layers.len(), 8);
-    // assert_eq!(
-    //     scene
-    //         .layers
-    //         .first()
-    //         .unwrap()
-    //         .name
-    //         .as_ref()
-    //         .expect("Layer 0 name"),
-    //     "scenery"
-    // );
-    // let outer_group = scene.root.children.first().expect("First object in scene");
-    // assert_eq!(
-    //     outer_group.name.as_ref().expect("Name of first obj"),
-    //     "outer-group"
-    // );
-    // assert_eq!(outer_group.children.len(), 3);
-    // let inner_group = outer_group
-    //     .children
-    //     .first()
-    //     .expect("First child of outer-group");
-    // assert_eq!(
-    //     inner_group.name.as_ref().expect("name of inner group"),
-    //     "outer-group/inner-group"
-    // );
 }
-
-// #[async_std::test]
-// async fn test_load_scene_slice() {
-//     let mut app = App::new();
-//     let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
-//     app.update();
-//     let scene = app
-//         .world()
-//         .resource::<Assets<VoxelScene>>()
-//         .get(handle.id())
-//         .expect("retrieve test.vox from Res<Assets>");
-//     assert_eq!(scene.layers.len(), 8);
-//     assert_eq!(
-//         scene
-//             .layers
-//             .first()
-//             .unwrap()
-//             .name
-//             .as_ref()
-//             .expect("Layer 0 name"),
-//         "scenery"
-//     );
-//     let inner_group = &scene.root;
-//     assert_eq!(
-//         inner_group.name.as_ref().expect("Name of first obj"),
-//         "outer-group/inner-group"
-//     );
-//     assert_eq!(inner_group.children.len(), 4);
-//     let dice = inner_group
-//         .children
-//         .last()
-//         .expect("Last child of inner-group");
-//     assert_eq!(
-//         dice.name.as_ref().expect("name of dice"),
-//         "outer-group/inner-group/dice"
-//     );
-// }
 
 #[async_std::test]
 async fn test_transmissive_mat() {
@@ -354,10 +291,9 @@ fn test_generate_voxels() {
     let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), 1.0, Voxel(1));
     let world = app.world_mut();
-    let collection = VoxelContext::new(world, palette).expect("create collection");
+    let context = VoxelContext::new(world, palette);
     let (_, tall_box_model) =
-        VoxelContext::add(world, tall_box, "tall box".to_string(), collection)
-            .expect("Add box model");
+        VoxelModel::new(world, tall_box, "tall box".to_string(), context).expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);
     let mesh = app
