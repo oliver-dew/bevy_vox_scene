@@ -7,7 +7,7 @@ use bevy::{
     pbr::ScreenSpaceAmbientOcclusionBundle,
     prelude::*,
 };
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use bevy_vox_scene::VoxScenePlugin;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press any key to toggle Screen Space Ambient Occlusion
@@ -66,7 +66,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .insert(ScreenSpaceAmbientOcclusionBundle::default());
 
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         // Load a model nested inside a group by using a `/` to separate the path components
         scene: asset_server.load("study.vox#tank/goldfish"),
         ..default()

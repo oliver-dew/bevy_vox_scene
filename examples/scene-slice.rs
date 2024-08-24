@@ -7,7 +7,7 @@ use bevy::{
     },
     prelude::*,
 };
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use bevy_vox_scene::VoxScenePlugin;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Asset labels aren't just for loading individual models within a scene, they can load any named group within a scene, a "slice" of the scene
@@ -62,7 +62,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
     ));
 
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         // "workstation" is the name of the group containing the desk, computer, & keyboard
         scene: assets.load("study.vox#workstation"),
         transform: Transform::from_scale(Vec3::splat(0.05)),

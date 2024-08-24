@@ -1,6 +1,6 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
 use bevy_vox_scene::{
-    VoxScenePlugin, Voxel, VoxelModelCollection, VoxelModelInstance, VoxelPalette, SDF,
+    VoxScenePlugin, Voxel, VoxelContext, VoxelModel, VoxelModelInstance, VoxelPalette, SDF,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -52,12 +52,10 @@ fn setup(world: &mut World) {
             x if x >= 0.0 => Voxel::EMPTY,
             _ => Voxel::EMPTY,
         });
-    let Some(collection) = VoxelModelCollection::new(world, palette) else {
-        return;
-    };
+    let context = VoxelContext::new(world, palette);
     let model_name = "my sdf model";
-    let Some(model) =
-        VoxelModelCollection::add(world, data, model_name.to_string(), collection.clone())
+    let Some((model_handle, model)) =
+        VoxelModel::new(world, data, model_name.to_string(), context.clone())
     else {
         return;
     };
@@ -69,8 +67,8 @@ fn setup(world: &mut World) {
         },
         // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
         VoxelModelInstance {
-            collection,
-            model_name: model_name.to_string(),
+            model: model_handle,
+            context,
         },
     ));
 }

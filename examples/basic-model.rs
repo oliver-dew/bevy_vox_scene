@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use bevy_vox_scene::VoxScenePlugin;
 
 fn main() {
     App::new()
@@ -21,7 +21,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
     ));
 
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         // Load a single model using the name assigned to it in MagicaVoxel
         // If a model is nested in a named group, than the group will form part of the path
         // Path components are separated with a slash

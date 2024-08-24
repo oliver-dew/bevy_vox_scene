@@ -4,8 +4,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion,
-    VoxelRegionMode, VoxelSceneBundle,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -30,6 +29,7 @@ fn main() {
 struct Floor;
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+    commands.observe(on_spawn_voxel_instance);
     commands.spawn((
         Camera3dBundle {
             camera: Camera {
@@ -50,36 +50,37 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
         },
+        Name::new("camera"),
     ));
 
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            illuminance: 5000.0,
-            shadows_enabled: true,
-            ..Default::default()
+    commands.spawn((
+        DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                illuminance: 5000.0,
+                shadows_enabled: true,
+                ..Default::default()
+            },
+            transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
+            ..default()
         },
-        transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
-        ..default()
-    });
+        Name::new("light"),
+    ));
 
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         scene: assets.load("study.vox"),
         transform: Transform::from_scale(Vec3::splat(0.05)),
         ..default()
     });
-    commands.observe(on_spawn_voxel_instance);
 }
 
 fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, VoxelModelInstance>,
-    model_query: Query<&VoxelModelInstance>,
+    trigger: Trigger<OnAdd, Name>,
+    model_query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let name = model_query
-        .get(trigger.entity())
-        .unwrap()
-        .model_name
-        .as_str();
+    let Ok(name) = model_query.get(trigger.entity()).map(|n| n.as_str()) else {
+        return;
+    };
     if name == "floor" {
         commands.entity(trigger.entity()).insert(Floor);
     }

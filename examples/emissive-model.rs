@@ -1,5 +1,5 @@
 use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
-use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+use bevy_vox_scene::VoxScenePlugin;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -36,7 +36,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
     ));
 
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         // Load a single model using the name assigned to it in MagicaVoxel
         scene: assets.load("study.vox#workstation/computer"),
         ..default()

@@ -4,7 +4,7 @@
 //!
 //!```
 //!use bevy::prelude::*;
-//!use bevy_vox_scene::{VoxScenePlugin, VoxelSceneBundle};
+//!use bevy_vox_scene::VoxScenePlugin;
 //! # use bevy::{app::AppExit, utils::HashSet};
 //!
 //!fn main() {
@@ -23,13 +23,13 @@
 //!    assets: Res<AssetServer>,
 //!) {
 //!    // Load an entire scene graph
-//!    commands.spawn(VoxelSceneBundle {
+//!    commands.spawn(SceneBundle {
 //!        scene: assets.load("study.vox"),
 //!        ..default()
 //!    });
 //!
 //!    // Load a single model using the name assigned to it in MagicaVoxel
-//!    commands.spawn(VoxelSceneBundle {
+//!    commands.spawn(SceneBundle {
 //!        scene: assets.load("study.vox#workstation/desk"),
 //!        ..default()
 //!    });
@@ -47,20 +47,19 @@
 //!```
 
 use bevy::{
-    app::{App, Plugin, SpawnScene},
+    app::{App, Plugin},
     asset::AssetApp,
 };
 
 mod load;
 mod model;
-mod scene;
 
 #[cfg(test)]
 mod tests;
 
-pub use load::VoxLoaderSettings;
 #[doc(inline)]
 use load::VoxSceneLoader;
+pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]
@@ -68,11 +67,7 @@ pub use model::{
     modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
-pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelModelCollection, VoxelPalette};
-pub use scene::{
-    DidSpawnVoxelChild, VoxelInstanceReady, VoxelLayer, VoxelModelInstance, VoxelScene,
-    VoxelSceneBundle,
-};
+pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -87,11 +82,12 @@ pub struct VoxScenePlugin {
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<VoxelScene>()
-            .init_asset::<VoxelModelCollection>()
+        app.init_asset::<VoxelModel>()
+            .init_asset::<VoxelContext>()
+            .register_type::<VoxelLayer>()
+            .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
-            })
-            .add_systems(SpawnScene, scene::systems::spawn_vox_scenes);
+            });
     }
 }

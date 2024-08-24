@@ -10,8 +10,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    DidSpawnVoxelChild, ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelCollection,
-    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelScene, VoxelSceneBundle,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable,
+    VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -51,22 +51,19 @@ fn main() {
 
 #[derive(Resource)]
 struct Scenes {
-    snowflake: Handle<VoxelScene>,
+    snowflake: Handle<Mesh>,
+    voxel_material: Handle<StandardMaterial>,
 }
 
-/// The [`DidSpawnVoxelChild`] event is targeted at the root of a specific [`VoxelScene`], and triggers
-/// once for each child [`VoxelModelInstance`] that gets spawned in that node graph.
-/// This is useful when we will be spawning other voxel scenes, so that we can scope the observer
-/// to one scene and not worry about adding in defensive code.
-/// The event also includes the [`model_name`] and [`layer_name`] so you need fewer queries in your observer.
-/// Compare with the observer triggered with [`Trigger<OnAdd, VoxelModelInstance>`] in [modify scene](./modify-scene.rs).
-fn on_spawn_voxel_instance(trigger: Trigger<DidSpawnVoxelChild>, mut commands: Commands) {
-    // Note that we're interested in the child entity, which is `trigger.event().child`
-    // Not the root entity, which is `trigger.entity()`
-    let mut entity_commands = commands.entity(trigger.event().child);
-    let name = trigger.event().model_name.as_str();
+fn on_spawn_voxel_instance(
+    trigger: Trigger<OnAdd, Name>,
+    query: Query<&Name>,
+    mut commands: Commands,
+) {
+    let mut entity_commands = commands.entity(trigger.entity());
+    let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
     match name {
-        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "snowflake" => return,
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
@@ -112,17 +109,16 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
     ));
     commands.insert_resource(Scenes {
-        snowflake: assets.load("study.vox#snowflake"),
+        snowflake: assets.load("study.vox#snowflake@mesh"),
+        voxel_material: assets.load("study.vox#snowflake@material"),
     });
 
-    // NB the `on_spawn_voxel_instance` observer is scoped to just this scene graph: we don't want it firing when snowflakes are spawned later on.
-    commands
-        .spawn(VoxelSceneBundle {
-            // Load a slice of the scene
-            scene: assets.load("study.vox#workstation"),
-            ..default()
-        })
-        .observe(on_spawn_voxel_instance);
+    commands.spawn(SceneBundle {
+        // Load a slice of the scene
+        scene: assets.load("study.vox#workstation"),
+        ..default()
+    });
+    commands.observe(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]
@@ -142,9 +138,11 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
         Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
     let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
     commands.spawn((
+        Name::new("snowflake"),
         Snowflake(angular_velocity),
-        VoxelSceneBundle {
-            scene: scenes.snowflake.clone(),
+        PbrBundle {
+            mesh: scenes.snowflake.clone(),
+            material: scenes.voxel_material.clone(),
             transform: Transform::from_translation(position),
             ..default()
         },
@@ -155,7 +153,7 @@ fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
-    model_collections: Res<Assets<VoxelModelCollection>>,
+    models: Res<Assets<VoxelModel>>,
 ) {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
@@ -166,10 +164,7 @@ fn update_snow(
             continue;
         }
         for (item_xform, item_instance) in scenery.iter() {
-            let Some(collection) = model_collections.get(item_instance.collection.id()) else {
-                continue;
-            };
-            let Some(model) = collection.model(&item_instance.model_name) else {
+            let Some(model) = models.get(&item_instance.model) else {
                 continue;
             };
             let vox_pos =

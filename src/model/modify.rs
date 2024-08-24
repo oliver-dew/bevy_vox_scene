@@ -6,15 +6,16 @@ use bevy::{
     },
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
+    prelude::Res,
     render::mesh::Mesh,
 };
 use ndshape::Shape;
 
-use crate::{VoxelModelCollection, VoxelModelInstance};
+use crate::VoxelModelInstance;
 
-use super::{RawVoxel, Voxel, VoxelModel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelContext, VoxelModel, VoxelQueryable};
 
-/// Command that programatically modifies the voxels in a model.
+/// Command that programmatically modifies the voxels in a model.
 ///
 /// This command will run the closure against every voxel within the region of the model.
 ///
@@ -82,7 +83,7 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
         modify: F,
     ) -> &mut Self {
         self.add(ModifyVoxelModel {
-            model,
+            instance: model,
             region,
             modify: Box::new(modify),
         });
@@ -91,7 +92,7 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
 }
 
 struct ModifyVoxelModel {
-    model: VoxelModelInstance,
+    instance: VoxelModelInstance,
     region: VoxelRegionMode,
     modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
 }
@@ -102,21 +103,19 @@ impl Command for ModifyVoxelModel {
             let mut system_state: SystemState<(
                 ResMut<Assets<Mesh>>,
                 ResMut<Assets<StandardMaterial>>,
-                ResMut<Assets<VoxelModelCollection>>,
+                ResMut<Assets<VoxelModel>>,
+                Res<Assets<VoxelContext>>,
             )> = SystemState::new(world);
-            let (mut meshes, mut materials, mut collections) = system_state.get_mut(world);
-            let collection = collections.get_mut(self.model.collection.id())?;
-            let index = collection
-                .index_for_model_name
-                .get(&self.model.model_name)?;
-            let model = collection.models.get_mut(*index)?;
-            let refraction_indices = &collection.palette.indices_of_refraction;
+            let (mut meshes, mut materials, mut models, contexts) = system_state.get_mut(world);
+            let context = contexts.get(self.instance.context.id())?;
+            let model = models.get_mut(self.instance.model.id())?;
+            let refraction_indices = &context.palette.indices_of_refraction;
             self.modify_model(
                 model,
                 &mut meshes,
                 &mut materials,
-                collection.opaque_material.clone(),
-                collection.transmissive_material.clone(),
+                context.opaque_material.clone(),
+                context.transmissive_material.clone(),
                 refraction_indices,
             );
             Some(())

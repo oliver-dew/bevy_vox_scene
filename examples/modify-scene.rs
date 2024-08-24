@@ -8,12 +8,12 @@ use bevy::{
     input::keyboard::KeyboardInput,
     prelude::*,
 };
-use bevy_vox_scene::{VoxScenePlugin, VoxelModelInstance, VoxelSceneBundle};
+use bevy_vox_scene::VoxScenePlugin;
 use rand::Rng;
 use std::f32::consts::PI;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-/// Uses the [`bevy_vox_scene::VoxelSceneHook`] component to add extra components into the scene graph.
+/// Uses an observer triggered by `VoxelModelInstance` being added to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
 fn main() {
     let mut app = App::new();
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             intensity: 500.0,
         },
     ));
-    commands.spawn(VoxelSceneBundle {
+    commands.spawn(SceneBundle {
         // "tank" is the name of the group containing the glass walls, the body of water, the scenery in the tank and the fish
         scene: assets.load("study.vox#tank"),
         transform: Transform::from_scale(Vec3::splat(0.05)),
@@ -82,19 +82,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.observe(on_spawn_voxel_instance);
 }
 
-// Will run against every child entity that gets spawned in the scene
+// Will run against every named child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, VoxelModelInstance>,
-    model_query: Query<&VoxelModelInstance>,
+    trigger: Trigger<OnAdd, Name>,
+    model_query: Query<&Name>,
     mut commands: Commands,
     assets: Res<AssetServer>,
 ) {
     let mut entity_commands = commands.entity(trigger.entity());
-    let name = model_query
-        .get(trigger.entity())
-        .unwrap()
-        .model_name
-        .as_str();
+    let name = model_query.get(trigger.entity()).unwrap().as_str();
     match name {
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {

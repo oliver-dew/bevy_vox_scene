@@ -1,13 +1,13 @@
 use bevy::{
     asset::{Asset, Assets, Handle},
     ecs::{
-        system::{In, ResMut},
+        system::{In, ResMut, RunSystemOnce},
         world::World,
     },
     pbr::StandardMaterial,
+    prelude::Res,
     reflect::TypePath,
     render::{mesh::Mesh, texture::Image},
-    utils::HashMap,
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
@@ -28,7 +28,7 @@ pub use palette::{VoxelElement, VoxelPalette};
 mod voxel;
 
 /// Contains the voxel data for a model, as well as handles to the mesh derived from that data and the material
-#[derive(Default, Clone, Debug)]
+#[derive(Asset, TypePath, Default, Clone, Debug)]
 pub struct VoxelModel {
     /// Unique name of the model
     pub name: String,
@@ -42,76 +42,35 @@ pub struct VoxelModel {
     pub(crate) has_translucency: bool,
 }
 
-/// A collection of [`VoxelModel`]s with a shared [`VoxelPalette`]
-#[derive(Asset, TypePath, Clone, Debug)]
-pub struct VoxelModelCollection {
-    /// The palette used by the models
-    pub palette: VoxelPalette,
-    /// The models in the collection
-    pub models: Vec<VoxelModel>,
-    pub(crate) index_for_model_name: HashMap<String, usize>,
-    pub(crate) opaque_material: Handle<StandardMaterial>,
-    pub(crate) transmissive_material: Handle<StandardMaterial>,
-}
-
 #[cfg(feature = "generate_voxels")]
-impl VoxelModelCollection {
-    /// Create a new collection with the supplied palette
-    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Handle<VoxelModelCollection>> {
-        let system_id = world.register_system(Self::new_collection);
-        world.run_system_with_input(system_id, palette).ok()
-    }
-
-    fn new_collection(
-        In(palette): In<VoxelPalette>,
-        mut images: ResMut<Assets<Image>>,
-        mut materials: ResMut<Assets<StandardMaterial>>,
-        mut collections: ResMut<Assets<VoxelModelCollection>>,
-    ) -> Handle<VoxelModelCollection> {
-        let material = palette.create_material(&mut images);
-        let mut opaque_material = material.clone();
-        opaque_material.specular_transmission_texture = None;
-        opaque_material.specular_transmission = 0.0;
-        let collection = VoxelModelCollection {
-            palette,
-            models: vec![],
-            index_for_model_name: HashMap::new(),
-            opaque_material: materials.add(opaque_material),
-            transmissive_material: materials.add(material),
-        };
-        collections.add(collection)
-    }
-
-    /// Generates a [`VoxelModel`] from the supplied [`VoxelData`] and add it to the [`VoxelModelCollection`]
-    pub fn add(
+impl VoxelModel {
+    /// Generates a [`VoxelModel`] from the supplied [`VoxelData`]
+    pub fn new(
         world: &mut World,
         data: VoxelData,
         name: String,
-        collection: Handle<VoxelModelCollection>,
-    ) -> Option<VoxelModel> {
-        let system_id = world.register_system(Self::add_model);
-        world
-            .run_system_with_input(system_id, (data, name, collection))
-            .ok()?
+        context: Handle<VoxelContext>,
+    ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
+        world.run_system_once_with((data, name, context), Self::add_model)
     }
 
     fn add_model(
-        In((data, name, collection_handle)): In<(VoxelData, String, Handle<VoxelModelCollection>)>,
+        In((data, name, context_handle)): In<(VoxelData, String, Handle<VoxelContext>)>,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
-        mut collections: ResMut<Assets<VoxelModelCollection>>,
-    ) -> Option<VoxelModel> {
-        let collection = collections.get_mut(collection_handle.id())?;
-        let (mesh, average_ior) = data.remesh(&collection.palette.indices_of_refraction);
+        mut models: ResMut<Assets<VoxelModel>>,
+        contexts: Res<Assets<VoxelContext>>,
+    ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
+        let context = contexts.get(&context_handle)?;
+        let (mesh, average_ior) = data.remesh(&context.palette.indices_of_refraction);
         let material = if let Some(ior) = average_ior {
-            let mut transmissive_material = materials
-                .get(collection.transmissive_material.id())?
-                .clone();
+            let mut transmissive_material =
+                materials.get(context.transmissive_material.id())?.clone();
             transmissive_material.ior = ior;
             transmissive_material.thickness = data.size().min_element() as f32;
             materials.add(transmissive_material)
         } else {
-            collection.opaque_material.clone()
+            context.opaque_material.clone()
         };
         let model = VoxelModel {
             name: name.clone(),
@@ -120,17 +79,43 @@ impl VoxelModelCollection {
             material,
             has_translucency: average_ior.is_some(),
         };
-        let index = collection.models.len();
-        collection.index_for_model_name.insert(name, index);
-        collection.models.push(model.clone());
-        Some(model)
+        let model_handle = models.add(model.clone());
+        Some((model_handle, model))
     }
 }
 
-impl VoxelModelCollection {
-    /// Retrieve a model from the collection by name
-    pub fn model(&self, name: &String) -> Option<&VoxelModel> {
-        let id = self.index_for_model_name.get(name)?;
-        self.models.get(*id)
+/// A [`VoxelPalette`] that can be shared by multiple models, and handles to the [`StandardMaterial`]s derived from the palette.
+#[derive(Asset, TypePath, Clone, Debug)]
+pub struct VoxelContext {
+    /// The palette used by the models
+    pub palette: VoxelPalette,
+
+    pub(crate) opaque_material: Handle<StandardMaterial>,
+    pub(crate) transmissive_material: Handle<StandardMaterial>,
+}
+
+#[cfg(feature = "generate_voxels")]
+impl VoxelContext {
+    /// Create a new context with the supplied palette
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Handle<VoxelContext> {
+        world.run_system_once_with(palette, Self::new_context)
+    }
+
+    fn new_context(
+        In(palette): In<VoxelPalette>,
+        mut images: ResMut<Assets<Image>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut contexts: ResMut<Assets<VoxelContext>>,
+    ) -> Handle<VoxelContext> {
+        let material = palette.create_material(&mut images);
+        let mut opaque_material = material.clone();
+        opaque_material.specular_transmission_texture = None;
+        opaque_material.specular_transmission = 0.0;
+        let context = VoxelContext {
+            palette,
+            opaque_material: materials.add(opaque_material),
+            transmissive_material: materials.add(material),
+        };
+        contexts.add(context)
     }
 }
