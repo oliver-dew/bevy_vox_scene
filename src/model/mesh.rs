@@ -9,7 +9,7 @@ use bevy::{
 use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
 use ndshape::Shape;
 
-use super::{voxel::VisibleVoxel, VoxelData, VoxelQueryable};
+use super::{voxel::VisibleVoxel, VoxelData};
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
@@ -22,9 +22,8 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
         &quads_config.faces,
         &mut greedy_quads_buffer,
     );
-    let half_extents = data.model_size() * 0.5; // center the mesh
     let leading_padding = (data.padding() / 2) as f32 * data.voxel_size; // corrects the 1 offset introduced by the meshing.
-    let position_offset = half_extents + Vec3::splat(leading_padding);
+    let position_offset = Vec3::splat(leading_padding);
 
     let num_indices = greedy_quads_buffer.quads.num_quads() * 6;
     let num_vertices = greedy_quads_buffer.quads.num_quads() * 4;
