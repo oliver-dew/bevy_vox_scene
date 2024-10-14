@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.14.0"
+bevy_vox_scene = "0.15.0"
 ```
 
    Then in code:
@@ -81,7 +81,7 @@ cargo run --example <example name>
 | ------------ | -------------- | --- |
 | 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12    | 
 | 0.13         |                      | 0.13                     |
-| 0.14         |                      | 0.14                     |
+| 0.14         |                      | 0.14, 0.15               |
 
 ## Limitations and workarounds
 
