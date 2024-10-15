@@ -35,6 +35,7 @@ required-features = ["generate_voxels"]
 [dependencies]
 bevy = { version = "0.14.0", default-features = false, features = [
   "bevy_render",
+  "bevy_scene",
   "bevy_asset",
   "bevy_pbr",
   "pbr_transmission_textures",

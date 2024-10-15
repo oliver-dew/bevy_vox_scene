@@ -113,7 +113,7 @@ impl VoxSceneLoader {
     fn process_vox_file<'a>(
         &self,
         bytes: &'a [u8],
-        mut load_context: &'a mut LoadContext,
+        load_context: &'a mut LoadContext,
         settings: &'a VoxLoaderSettings,
     ) -> Result<Scene, VoxLoaderError> {
         let file = match dot_vox::load_bytes(bytes) {
@@ -161,7 +161,7 @@ impl VoxSceneLoader {
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
         let scene = parse_scene_graph(
-            &mut load_context,
+            load_context,
             &file.scenes,
             &file.scenes[0],
             None,
