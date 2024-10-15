@@ -5,6 +5,7 @@
 - Remove `VoxelScene` and `VoxelSceneBundle`: `VoxSceneLoader` now loads Voxel files directly into a Bevy `Scene`
 - `VoxelSceneHook` and `VoxelSceneHookBundle` removed in favour of observers
 - Ability to inject global `VoxLoaderSettings` into `VoxSceneLoader` as a workaround for [the](https://github.com/bevyengine/bevy/issues/11111) [bugs](https://github.com/bevyengine/bevy/issues/12320) in bevy where `load_with_settings` ignores settings under various conditions.
+- Add `UnitOffset` parameter to `VoxLoaderSettings` to override how vertex positions are centered
 
 ## 0.14
 
