@@ -289,7 +289,11 @@ fn test_generate_voxels() {
     let mut app = App::new();
     setup_app(&mut app);
     let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
-    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), 1.0, Voxel(1));
+    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
+        UVec3::splat(6),
+        VoxLoaderSettings::default(),
+        Voxel(1),
+    );
     let world = app.world_mut();
     let context = VoxelContext::new(world, palette);
     let (_, tall_box_model) =
@@ -317,38 +321,50 @@ fn test_generate_voxels() {
 fn test_sdf_intersect() {
     let box_sphere = SDF::cuboid(Vec3::splat(2.0))
         .intersect(SDF::sphere(2.5))
-        .voxelize(UVec3::splat(7), 1.0, Voxel(1));
+        .voxelize(UVec3::splat(7), VoxLoaderSettings::default(), Voxel(1));
     let sphere_box = SDF::sphere(2.5)
         .intersect(SDF::cuboid(Vec3::splat(2.0)))
-        .voxelize(UVec3::splat(7), 1.0, Voxel(1));
+        .voxelize(UVec3::splat(7), VoxLoaderSettings::default(), Voxel(1));
     assert_eq!(box_sphere.voxels, sphere_box.voxels);
 }
 
 #[cfg(feature = "generate_voxels")]
 #[test]
 fn test_sdf_subtract() {
-    let thin_box = SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).voxelize(UVec3::splat(6), 1.0, Voxel(1));
+    let thin_box = SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).voxelize(
+        UVec3::splat(6),
+        VoxLoaderSettings::default(),
+        Voxel(1),
+    );
     let halved_cube = SDF::cuboid(Vec3::new(2.0, 2.0, 2.0))
         .subtract(SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).translate(Vec3::X))
         .translate(Vec3::X)
-        .voxelize(UVec3::splat(6), 1.0, Voxel(1));
+        .voxelize(UVec3::splat(6), VoxLoaderSettings::default(), Voxel(1));
     assert_eq!(thin_box.voxels, halved_cube.voxels);
 }
 
 #[cfg(feature = "generate_voxels")]
 #[test]
 fn test_sdf_rotate() {
-    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(UVec3::splat(6), 1.0, Voxel(1));
+    let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
+        UVec3::splat(6),
+        VoxLoaderSettings::default(),
+        Voxel(1),
+    );
     let deep_box_rotated = SDF::cuboid(Vec3::new(0.5, 0.5, 2.5))
         .rotate(Quat::from_axis_angle(Vec3::X, FRAC_PI_2))
-        .voxelize(UVec3::splat(6), 1.0, Voxel(1));
+        .voxelize(UVec3::splat(6), VoxLoaderSettings::default(), Voxel(1));
     assert_eq!(tall_box.voxels, deep_box_rotated.voxels);
 }
 
 #[cfg(feature = "generate_voxels")]
 #[test]
 fn test_voxel_queryable() {
-    let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), 1.0, Voxel(1));
+    let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(
+        UVec3::splat(4),
+        VoxLoaderSettings::default(),
+        Voxel(1),
+    );
     assert!(data.point_in_model(IVec3::new(3, 0, 0)).is_ok());
     assert!(data.point_in_model(IVec3::new(4, 0, 0)).is_err());
     assert_eq!(

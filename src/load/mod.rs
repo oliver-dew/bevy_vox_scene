@@ -7,6 +7,7 @@ use bevy::{
     asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
     color::LinearRgba,
     log::info,
+    math::Vec3,
     pbr::StandardMaterial,
     scene::Scene,
     utils::HashSet,
@@ -33,17 +34,18 @@ pub(super) struct VoxSceneLoader {
 }
 
 /// Settings for the VoxSceneLoader.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VoxLoaderSettings {
     /// The length of each side of a single voxel. Defaults to 1.0.
     pub voxel_size: f32,
     /// Whether the outer-most faces of the model should be meshed. Defaults to true. Set this to false if the outer faces of a
     /// model will never be visible, for instance if the model id part of a 3D tileset.
     pub mesh_outer_faces: bool,
-    /// Multiplier for emissive strength. Defaults to 2.0.
+    /// Amount that the vertex positions of the mesh will be offset described as unit of their size.
+    /// Defaults to [`UnitOffset::CENTER`] the center of the model, as this is where MagicaVoxel places the origin in its world editor
+    pub mesh_offset: UnitOffset,
+    /// Multiplier for emissive strength. Defaults to 10.0.
     pub emission_strength: f32,
-    /// Defaults to `true` to more accurately reflect the colours in Magica Voxel.
-    pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
 }
@@ -53,11 +55,28 @@ impl Default for VoxLoaderSettings {
         Self {
             voxel_size: 1.0,
             mesh_outer_faces: true,
+            mesh_offset: UnitOffset::CENTER,
             emission_strength: 10.0,
-            uses_srgb: true,
             diffuse_roughness: 0.8,
         }
     }
+}
+
+/// An offset applied to the vertex positions of the mesh expressed as a unit of the mesh's size.
+/// For a fully centered mesh, use [`UnitOffset::CENTER`]
+/// For a mesh centred around it's base, use [`UnitOffset::CENTER_BASE`]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UnitOffset(pub(crate) Vec3);
+
+impl UnitOffset {
+    /// Vertex positions will not be offset at all, so that the origin will be the minimum of the model's AABB
+    pub const ZERO: Self = UnitOffset(Vec3::ZERO);
+
+    /// Offset representing the center of a model
+    pub const CENTER: Self = UnitOffset(Vec3::splat(0.5));
+
+    /// Offset representing the center base of a model
+    pub const CENTER_BASE: Self = UnitOffset(Vec3::new(0.5, 0.0, 0.5));
 }
 
 #[derive(Error, Debug)]
@@ -160,8 +179,7 @@ impl VoxSceneLoader {
             .enumerate()
             .for_each(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data =
-                    VoxelData::from_model(&model, settings.mesh_outer_faces, settings.voxel_size);
+                let data = VoxelData::from_model(&model, settings.clone());
                 let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
                 let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                     crate::model::mesh::mesh_model(&visible_voxels, &data)

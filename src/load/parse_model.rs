@@ -3,13 +3,14 @@ use dot_vox::Model;
 
 use crate::model::{RawVoxel, VoxelData};
 
+use super::VoxLoaderSettings;
+
 impl VoxelData {
     /// Ingest Magica Voxel data and perform coordinate conversion from MV's left-handed Z-up to bevy's right-handed Y-up
-    pub(super) fn from_model(model: &Model, mesh_outer_faces: bool, voxel_size: f32) -> VoxelData {
+    pub(super) fn from_model(model: &Model, settings: VoxLoaderSettings) -> VoxelData {
         let mut data = VoxelData::new(
             UVec3::new(model.size.x, model.size.z, model.size.y),
-            mesh_outer_faces,
-            voxel_size,
+            settings,
         );
         model.voxels.iter().for_each(|voxel| {
             let raw_voxel = RawVoxel(voxel.i);

@@ -59,7 +59,7 @@ mod tests;
 
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
+pub use load::{UnitOffset, VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]

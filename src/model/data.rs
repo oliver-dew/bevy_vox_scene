@@ -6,6 +6,8 @@ use block_mesh::VoxelVisibility;
 use ndshape::{RuntimeShape, Shape};
 use std::fmt::Debug;
 
+use crate::VoxLoaderSettings;
+
 use super::{voxel::VisibleVoxel, RawVoxel};
 
 /// The voxel data used to create a mesh and a material.
@@ -13,8 +15,7 @@ use super::{voxel::VisibleVoxel, RawVoxel};
 pub struct VoxelData {
     pub(crate) shape: RuntimeShape<u32, 3>,
     pub(crate) voxels: Vec<RawVoxel>,
-    pub(crate) mesh_outer_faces: bool,
-    pub(crate) voxel_size: f32,
+    pub(crate) settings: VoxLoaderSettings,
 }
 
 impl Default for VoxelData {
@@ -22,8 +23,7 @@ impl Default for VoxelData {
         Self {
             shape: RuntimeShape::<u32, 3>::new([0, 0, 0]),
             voxels: Default::default(),
-            mesh_outer_faces: true,
-            voxel_size: 1.0,
+            settings: VoxLoaderSettings::default(),
         }
     }
 }
@@ -33,15 +33,15 @@ impl Debug for VoxelData {
         f.debug_struct("VoxelData")
             .field("shape", &self.shape.as_array())
             .field("voxels", &self.voxels.len())
-            .field("mesh_outer_faces", &self.mesh_outer_faces)
+            .field("settings", &self.settings)
             .finish()
     }
 }
 
 impl VoxelData {
     /// Returns a new, empty VoxelData model
-    pub fn new(size: UVec3, mesh_outer_faces: bool, voxel_size: f32) -> Self {
-        let padding = if mesh_outer_faces {
+    pub fn new(size: UVec3, settings: VoxLoaderSettings) -> Self {
+        let padding = if settings.mesh_outer_faces {
             UVec3::splat(2)
         } else {
             UVec3::ZERO
@@ -51,8 +51,7 @@ impl VoxelData {
         Self {
             shape,
             voxels: vec![RawVoxel::EMPTY; size],
-            mesh_outer_faces,
-            voxel_size,
+            settings,
         }
     }
     /// The size of the voxel model, not including the padding that may have been added if the outer faces are being meshed.
@@ -64,7 +63,7 @@ impl VoxelData {
 
     /// If the outer faces are to be meshed, the mesher requires 1 voxel of padding around the edge of the model
     pub(crate) fn padding(&self) -> u32 {
-        if self.mesh_outer_faces {
+        if self.settings.mesh_outer_faces {
             2
         } else {
             0

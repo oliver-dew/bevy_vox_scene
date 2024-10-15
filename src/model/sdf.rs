@@ -1,6 +1,6 @@
 use bevy::math::{Quat, UVec3, Vec3};
 
-use crate::{Voxel, VoxelData};
+use crate::{VoxLoaderSettings, Voxel, VoxelData};
 
 /// A 3d signed distance field
 pub struct SDF {
@@ -72,10 +72,10 @@ impl SDF {
     pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(
         self,
         size: UVec3,
-        voxel_size: f32,
+        settings: VoxLoaderSettings,
         map: F,
     ) -> VoxelData {
-        let mut data = VoxelData::new(size, true, voxel_size);
+        let mut data = VoxelData::new(size, settings);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
         for x in 0..size.x {
             for y in 0..size.y {
@@ -92,8 +92,8 @@ impl SDF {
     }
 
     /// Converts the SDF to [`VoxelData`] by filling every cell that is less than 0 with `fill`.
-    pub fn voxelize(self, size: UVec3, voxel_size: f32, fill: Voxel) -> VoxelData {
-        self.map_to_voxels(size, voxel_size, |distance, _| {
+    pub fn voxelize(self, size: UVec3, settings: VoxLoaderSettings, fill: Voxel) -> VoxelData {
+        self.map_to_voxels(size, settings, |distance, _| {
             if distance < 0.0 {
                 fill.clone()
             } else {
