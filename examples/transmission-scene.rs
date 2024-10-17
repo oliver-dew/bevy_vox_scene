@@ -1,11 +1,11 @@
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings,
+        bloom::Bloom,
         core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
-    pbr::{VolumetricFogSettings, VolumetricLight},
+    pbr::{VolumetricFog, VolumetricLight},
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
@@ -30,58 +30,51 @@ fn main() {
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.insert_resource(Msaa::Off)
-        .add_plugins(TemporalAntiAliasPlugin);
+    app.add_plugins(TemporalAntiAliasPlugin);
 
     app.run();
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            camera_3d: Camera3d {
-                screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-                screen_space_specular_transmission_steps: 1,
-                ..default()
-            },
-            transform: Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::BlenderFilmic,
-            ..Default::default()
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Camera3d {
+            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
+            screen_space_specular_transmission_steps: 1,
+            ..default()
+        },
+        Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::BlenderFilmic,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
         #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-        TemporalAntiAliasBundle::default(),
+        TemporalAntiAliasing::default(),
+        #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+        Msaa::Off,
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
-        VolumetricFogSettings::default(),
+        VolumetricFog::default(),
     ));
 
     commands.spawn((
-        DirectionalLightBundle {
-            directional_light: DirectionalLight {
-                illuminance: 5000.0,
-                shadows_enabled: true,
-                ..Default::default()
-            },
-            transform: Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
-            ..default()
+        DirectionalLight {
+            illuminance: 5000.0,
+            shadows_enabled: true,
+            ..Default::default()
         },
+        Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
         VolumetricLight,
     ));
 
-    commands.spawn(SceneBundle {
-        scene: assets.load("study.vox"),
-        ..default()
-    });
+    commands.spawn(SceneRoot(assets.load("study.vox")));
 }

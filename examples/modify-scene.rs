@@ -1,8 +1,8 @@
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings,
+        bloom::Bloom,
         core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
     input::keyboard::KeyboardInput,
@@ -27,7 +27,7 @@ fn main() {
     .add_systems(
         Update,
         (
-            toggle_black_light.run_if(on_event::<KeyboardInput>()),
+            toggle_black_light.run_if(on_event::<KeyboardInput>),
             swim_fish,
         ),
     );
@@ -36,8 +36,7 @@ fn main() {
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.insert_resource(Msaa::Off)
-        .add_plugins(TemporalAntiAliasPlugin);
+    app.add_plugins(TemporalAntiAliasPlugin);
 
     app.run();
 }
@@ -46,40 +45,39 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            camera_3d: Camera3d {
-                screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-                screen_space_specular_transmission_steps: 1,
-                ..default()
-            },
-            transform: Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
-            ..Default::default()
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Camera3d {
+            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
+            screen_space_specular_transmission_steps: 1,
+            ..default()
+        },
+        Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
         #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-        TemporalAntiAliasBundle::default(),
+        TemporalAntiAliasing::default(),
+        #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+        Msaa::Off,
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
     ));
-    commands.spawn(SceneBundle {
+    commands.spawn((
         // "tank" is the name of the group containing the glass walls, the body of water, the scenery in the tank and the fish
-        scene: assets.load("study.vox#tank"),
-        transform: Transform::from_scale(Vec3::splat(0.05)),
-        ..default()
-    });
-    commands.observe(on_spawn_voxel_instance);
+        SceneRoot(assets.load("study.vox#tank")),
+        Transform::from_scale(Vec3::splat(0.05)),
+    ));
+    commands.add_observer(on_spawn_voxel_instance);
 }
 
 // Will run against every named child entity that gets spawned in the scene
@@ -122,7 +120,7 @@ fn toggle_black_light(
     emissive_toggle.toggle();
     commands
         .entity(entity)
-        .insert(emissive_toggle.material().clone());
+        .insert(MeshMaterial3d(emissive_toggle.material().clone()));
 }
 
 fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
@@ -139,7 +137,7 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
         let slow_down = 1.0
             - ((transform.translation.x.abs() - (tank_half_extents.x - 4.2)) / 5.0).clamp(0.0, 1.0);
         let forward = transform.forward();
-        transform.translation += forward * (time.delta_seconds() * fish.0 * slow_down);
+        transform.translation += forward.as_vec3() * (time.delta_secs() * fish.0 * slow_down);
         // make them weave up and down
         transform.translation.y = (transform.translation.x * 0.1).sin() * 6.0;
     }

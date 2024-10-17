@@ -1,5 +1,5 @@
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    core_pipeline::{bloom::Bloom, tonemapping::Tonemapping},
     prelude::*,
     time::common_conditions::on_timer,
 };
@@ -29,19 +29,17 @@ fn main() {
 struct Floor;
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.observe(on_spawn_voxel_instance);
+    commands.add_observer(on_spawn_voxel_instance);
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
-            ..Default::default()
+        Camera3d::default(),
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
@@ -49,28 +47,25 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
         Name::new("camera"),
     ));
 
     commands.spawn((
-        DirectionalLightBundle {
-            directional_light: DirectionalLight {
-                illuminance: 5000.0,
-                shadows_enabled: true,
-                ..Default::default()
-            },
-            transform: Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
-            ..default()
+        DirectionalLight {
+            illuminance: 5000.0,
+            shadows_enabled: true,
+            ..Default::default()
         },
+        Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
         Name::new("light"),
     ));
 
-    commands.spawn(SceneBundle {
-        scene: assets.load("study.vox"),
-        transform: Transform::from_scale(Vec3::splat(0.05)),
-        ..default()
-    });
+    commands.spawn((
+        SceneRoot(assets.load("study.vox")),
+        Transform::from_scale(Vec3::splat(0.05)),
+    ));
 }
 
 fn on_spawn_voxel_instance(

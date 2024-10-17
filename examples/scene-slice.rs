@@ -1,8 +1,8 @@
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings,
+        bloom::Bloom,
         core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasBundle, TemporalAntiAliasPlugin},
+        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
     prelude::*,
@@ -26,46 +26,43 @@ fn main() {
     // it _greatly enhances_ the look of the resulting blur effects.
     // Sadly, it's not available under WebGL.
     #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.insert_resource(Msaa::Off)
-        .add_plugins(TemporalAntiAliasPlugin);
-
+    app.add_plugins(TemporalAntiAliasPlugin);
     app.run();
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            camera_3d: Camera3d {
-                screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-                screen_space_specular_transmission_steps: 1,
-                ..default()
-            },
-            transform: Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
-            ..Default::default()
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Camera3d {
+            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
+            screen_space_specular_transmission_steps: 1,
+            ..default()
+        },
+        Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
         #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-        TemporalAntiAliasBundle::default(),
+        TemporalAntiAliasing::default(),
+        #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+        Msaa::Off,
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
     ));
 
-    commands.spawn(SceneBundle {
+    commands.spawn((
         // "workstation" is the name of the group containing the desk, computer, & keyboard
-        scene: assets.load("study.vox#workstation"),
-        transform: Transform::from_scale(Vec3::splat(0.05)),
-        ..default()
-    });
+        SceneRoot(assets.load("study.vox#workstation")),
+        Transform::from_scale(Vec3::splat(0.05)),
+    ));
 }

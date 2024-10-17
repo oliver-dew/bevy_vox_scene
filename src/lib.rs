@@ -23,16 +23,10 @@
 //!    assets: Res<AssetServer>,
 //!) {
 //!    // Load an entire scene graph
-//!    commands.spawn(SceneBundle {
-//!        scene: assets.load("study.vox"),
-//!        ..default()
-//!    });
+//!    commands.spawn(SceneRoot(assets.load("study.vox")));
 //!
 //!    // Load a single model using the name assigned to it in MagicaVoxel
-//!    commands.spawn(SceneBundle {
-//!        scene: assets.load("study.vox#workstation/desk"),
-//!        ..default()
-//!    });
+//!    commands.spawn(SceneRoot(assets.load("study.vox#workstation/desk")));
 //!}
 //! # fn assert_scene_loaded(
 //! #     query: Query<&Name>,

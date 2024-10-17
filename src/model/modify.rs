@@ -82,7 +82,7 @@ impl ModifyVoxelCommandsExt for Commands<'_, '_> {
         region: VoxelRegionMode,
         modify: F,
     ) -> &mut Self {
-        self.add(ModifyVoxelModel {
+        self.queue(ModifyVoxelModel {
             instance: model,
             region,
             modify: Box::new(modify),

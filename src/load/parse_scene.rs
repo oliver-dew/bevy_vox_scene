@@ -3,9 +3,9 @@ use bevy::{
     core::Name,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
-    pbr::PbrBundle,
+    pbr::{MeshMaterial3d, StandardMaterial},
     prelude::{
-        default, BuildWorldChildren, EntityWorldMut, SpatialBundle, Transform, Visibility, World,
+        BuildChildren, ChildBuild, EntityWorldMut, Mesh3d, Transform, Visibility, World,
         WorldChildBuilder,
     },
     scene::Scene,
@@ -225,7 +225,7 @@ fn load_xform_child(
     match scene_node {
         SceneNode::Transform { .. } => {
             warn!("Found nested Transform nodes");
-            node.insert(SpatialBundle::default());
+            node.insert(Transform::IDENTITY);
             node.with_children(|builder| {
                 load_xform_node(
                     context,
@@ -244,7 +244,7 @@ fn load_xform_child(
             attributes: _,
             children,
         } => {
-            node.insert(SpatialBundle::default());
+            node.insert(Transform::IDENTITY);
             node.with_children(|builder| {
                 for child in children {
                     load_xform_node(
@@ -270,11 +270,10 @@ fn load_xform_child(
                 .clone()
                 .unwrap_or(format!("model-{}", model_id));
             node.insert((
-                PbrBundle {
-                    mesh: context.get_label_handle(format!("{}@mesh", model_name)),
-                    material: context.get_label_handle(format!("{}@material", model_name)),
-                    ..default()
-                },
+                Mesh3d(context.get_label_handle(format!("{}@mesh", model_name))),
+                MeshMaterial3d::<StandardMaterial>(
+                    context.get_label_handle(format!("{}@material", model_name)),
+                ),
                 VoxelModelInstance {
                     model: context.get_label_handle(format!("{}@model", model_name)),
                     context: context.get_label_handle("voxel-context"),

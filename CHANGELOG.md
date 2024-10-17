@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16
+
+- Update to Bevy 0.15
+
 ## 0.15
 
 - Remove `VoxelScene` and `VoxelSceneBundle`: `VoxSceneLoader` now loads Voxel files directly into a Bevy `Scene`

@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings,
-        dof::{DepthOfFieldMode, DepthOfFieldSettings},
+        bloom::Bloom,
+        dof::{DepthOfField, DepthOfFieldMode},
         tonemapping::Tonemapping,
     },
     prelude::*,
@@ -45,7 +45,7 @@ fn main() {
                 .run_if(in_state(AppState::Ready)),
         )
         .init_state::<AppState>()
-        .observe(on_assets_spawned)
+        .add_observer(on_assets_spawned)
         .run();
 }
 
@@ -60,17 +60,18 @@ fn on_spawn_voxel_instance(
     query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let mut entity_commands = commands.entity(trigger.entity());
     let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
     match name {
         "snowflake" => return,
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
-            entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
+            commands
+                .entity(trigger.entity())
+                .insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
         _ => {}
     }
-    entity_commands.insert(Scenery);
+    commands.entity(trigger.entity()).insert(Scenery);
 }
 
 fn on_assets_spawned(
@@ -82,17 +83,15 @@ fn on_assets_spawned(
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
-            ..Default::default()
+        Camera3d::default(),
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
@@ -100,8 +99,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
-        DepthOfFieldSettings {
+        DepthOfField {
             mode: DepthOfFieldMode::Bokeh,
             focal_distance: 8.,
             aperture_f_stops: 0.003,
@@ -113,12 +113,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         voxel_material: assets.load("study.vox#snowflake@material"),
     });
 
-    commands.spawn(SceneBundle {
+    commands.spawn(
         // Load a slice of the scene
-        scene: assets.load("study.vox#workstation"),
-        ..default()
-    });
-    commands.observe(on_spawn_voxel_instance);
+        SceneRoot(assets.load("study.vox#workstation")),
+    );
+    commands.add_observer(on_spawn_voxel_instance);
 }
 
 #[derive(Component)]
@@ -140,12 +139,9 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     commands.spawn((
         Name::new("snowflake"),
         Snowflake(angular_velocity),
-        PbrBundle {
-            mesh: scenes.snowflake.clone(),
-            material: scenes.voxel_material.clone(),
-            transform: Transform::from_translation(position),
-            ..default()
-        },
+        Mesh3d(scenes.snowflake.clone()),
+        MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
+        Transform::from_translation(position),
     ));
 }
 
@@ -207,7 +203,7 @@ fn update_snow(
 
 // Focus the camera on the focal point when the camera is first added and when it moves
 fn focus_camera(
-    mut camera: Query<(&mut DepthOfFieldSettings, &GlobalTransform), Changed<Transform>>,
+    mut camera: Query<(&mut DepthOfField, &GlobalTransform), Changed<Transform>>,
     target: Query<(&GlobalTransform, &FocalPoint)>,
 ) {
     let Some((target_xform, focal_point)) = target.iter().next() else {

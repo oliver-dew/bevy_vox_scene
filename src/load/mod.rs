@@ -4,7 +4,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, AsyncReadExt, Handle, LoadContext},
+    asset::{io::Reader, AssetLoader, Handle, LoadContext},
     color::LinearRgba,
     log::info,
     math::Vec3,
@@ -90,18 +90,18 @@ impl AssetLoader for VoxSceneLoader {
     type Settings = VoxLoaderSettings;
     type Error = VoxLoaderError;
 
-    async fn load<'a>(
-        &'a self,
-        reader: &'a mut Reader<'_>,
-        _settings: &'a VoxLoaderSettings,
-        _load_context: &'a mut LoadContext<'_>,
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader
             .read_to_end(&mut bytes)
             .await
             .map_err(|e| VoxLoaderError::InvalidAsset(anyhow!(e)))?;
-        self.process_vox_file(&bytes, _load_context, _settings)
+        self.process_vox_file(&bytes, load_context, settings)
     }
 
     fn extensions(&self) -> &[&str] {
@@ -132,7 +132,10 @@ impl VoxSceneLoader {
         let translucent_material = palette.create_material_in_load_context(load_context);
         let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {
             let mut opaque_material = translucent_material.clone();
-            opaque_material.specular_transmission_texture = None;
+            #[cfg(feature = "specular_transmission")]
+            {
+                opaque_material.specular_transmission_texture = None;
+            }
             opaque_material.specular_transmission = 0.0;
             opaque_material
         });
@@ -195,7 +198,10 @@ impl VoxSceneLoader {
                 } else {
                     load_context.labeled_asset_scope(format!("{}@material", name), |_| {
                         let mut opaque_material = translucent_material.clone();
-                        opaque_material.specular_transmission_texture = None;
+                        #[cfg(feature = "specular_transmission")]
+                        {
+                            opaque_material.specular_transmission_texture = None;
+                        }
                         opaque_material.specular_transmission = 0.0;
                         opaque_material
                     })

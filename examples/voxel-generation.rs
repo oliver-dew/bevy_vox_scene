@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::BloomSettings, prelude::*};
+use bevy::{core_pipeline::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelModel, VoxelModelInstance,
     VoxelPalette, SDF,
@@ -18,16 +18,14 @@ fn main() {
 
 fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(-20.0, 10.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Camera3d::default(),
+        Camera {
+            hdr: true,
             ..Default::default()
         },
+        Transform::from_xyz(-20.0, 10.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
@@ -35,6 +33,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
     ));
 }
@@ -65,11 +64,8 @@ fn setup(world: &mut World) {
         return;
     };
     world.spawn((
-        PbrBundle {
-            mesh: model.mesh,
-            material: model.material,
-            ..default()
-        },
+        Mesh3d(model.mesh),
+        MeshMaterial3d(model.material),
         // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
         VoxelModelInstance {
             model: model_handle,

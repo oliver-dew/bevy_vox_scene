@@ -51,7 +51,9 @@ impl VoxelModel {
         name: String,
         context: Handle<VoxelContext>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
-        world.run_system_once_with((data, name, context), Self::add_model)
+        world
+            .run_system_once_with((data, name, context), Self::add_model)
+            .ok()?
     }
 
     fn add_model(
@@ -98,7 +100,9 @@ pub struct VoxelContext {
 impl VoxelContext {
     /// Create a new context with the supplied palette
     pub fn new(world: &mut World, palette: VoxelPalette) -> Handle<VoxelContext> {
-        world.run_system_once_with(palette, Self::new_context)
+        world
+            .run_system_once_with(palette, Self::new_context)
+            .expect("ooh")
     }
 
     fn new_context(
@@ -109,7 +113,10 @@ impl VoxelContext {
     ) -> Handle<VoxelContext> {
         let material = palette.create_material(&mut images);
         let mut opaque_material = material.clone();
-        opaque_material.specular_transmission_texture = None;
+        #[cfg(feature = "specular_transmission")]
+        {
+            opaque_material.specular_transmission_texture = None;
+        }
         opaque_material.specular_transmission = 0.0;
         let context = VoxelContext {
             palette,
