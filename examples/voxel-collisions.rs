@@ -7,11 +7,12 @@ use bevy::{
         tonemapping::Tonemapping,
     },
     prelude::*,
+    scene::SceneInstanceReady,
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable,
-    VoxelRegion, VoxelRegionMode,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceSpawned, VoxelModel,
+    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -45,7 +46,6 @@ fn main() {
                 .run_if(in_state(AppState::Ready)),
         )
         .init_state::<AppState>()
-        .add_observer(on_assets_spawned)
         .run();
 }
 
@@ -53,32 +53,6 @@ fn main() {
 struct Scenes {
     snowflake: Handle<Mesh>,
     voxel_material: Handle<StandardMaterial>,
-}
-
-fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, Name>,
-    query: Query<&Name>,
-    mut commands: Commands,
-) {
-    let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
-    match name {
-        "snowflake" => return,
-        "workstation/computer" => {
-            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
-            commands
-                .entity(trigger.entity())
-                .insert(FocalPoint(Vec3::new(0., 0., 9.)));
-        }
-        _ => {}
-    }
-    commands.entity(trigger.entity()).insert(Scenery);
-}
-
-fn on_assets_spawned(
-    _trigger: Trigger<OnAdd, FocalPoint>,
-    mut app_state: ResMut<NextState<AppState>>,
-) {
-    app_state.set(AppState::Ready);
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
@@ -113,19 +87,55 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         voxel_material: assets.load("study.vox#snowflake@material"),
     });
 
-    commands.spawn(
-        // Load a slice of the scene
-        SceneRoot(assets.load("study.vox#workstation")),
-    );
-    commands.add_observer(on_spawn_voxel_instance);
+    // Scope the observer to this SceneRoot so that it doesn't run
+    // againt the snowflakes when they spawn
+    commands
+        .spawn(
+            // Load a slice of the scene
+            SceneRoot(assets.load("study.vox#workstation")),
+        )
+        .observe(identify_scenery)
+        .observe(
+            |_trigger: Trigger<SceneInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
+                app_state.set(AppState::Ready);
+            },
+        );
 }
 
+/// An observer that marks all objects in the workstation scene with the [`Scenery`] component,
+/// and the center of the workstation screen with the [`FocalPoint`] component.
+///
+/// The advantage of using [`VoxelInstanceSpawned`] as the trigger, rather than an [`OnAdd`] trigger
+/// is that because [`VoxelInstanceSpawned`] "bubbles up" through the hierarchy, you can add it as
+/// an observer on a [`SceneRoot`] and scope the observer system to just that branch, rather than
+/// having to use a global observer on [`OnAdd`] that might require defensive code for other branches
+/// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
+/// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
+/// observer was added to).
+fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
+    let name = trigger.event().model_name.as_str();
+    match name {
+        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "workstation/computer" => {
+            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
+            commands
+                .entity(trigger.event().entity)
+                .insert(FocalPoint(Vec3::new(0., 0., 9.)));
+        }
+        _ => {}
+    }
+    commands.entity(trigger.event().entity).insert(Scenery);
+}
+
+/// A snowflake with an angular velocity represented by a [`Quat`]
 #[derive(Component)]
 struct Snowflake(Quat);
 
+/// Something solid that the snow can settle on
 #[derive(Component)]
 struct Scenery;
 
+/// Focal point for the camera to focus on
 #[derive(Component)]
 struct FocalPoint(Vec3);
 

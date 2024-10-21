@@ -85,12 +85,12 @@ pub(super) fn parse_scene_graph(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut node = world.spawn_empty();
+            let mut entity = world.spawn_empty();
             load_xform_child(
                 context,
                 graph,
                 &graph[*child as usize],
-                &mut node,
+                &mut entity,
                 accumulated.as_ref(),
                 model_names,
                 subassets,
@@ -100,7 +100,7 @@ pub(super) fn parse_scene_graph(
 
             let maybe_layer = layers.get(*layer_id as usize);
             if let Some(layer) = maybe_layer {
-                node.insert(VoxelLayer {
+                entity.insert(VoxelLayer {
                     id: *layer_id,
                     name: layer.name.clone(),
                 });
@@ -112,9 +112,9 @@ pub(super) fn parse_scene_graph(
             } else {
                 Visibility::Inherited
             };
-            node.insert(visibility);
+            entity.insert(visibility);
             if let Some(node_name) = node_name.clone() {
-                node.insert(Name::new(node_name.clone()));
+                entity.insert(Name::new(node_name.clone()));
             }
         }
         _ => {}
@@ -142,30 +142,19 @@ fn load_xform_node(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut node = builder.spawn_empty();
-            load_xform_child(
-                context,
-                graph,
-                &graph[*child as usize],
-                &mut node,
-                accumulated.as_ref(),
-                model_names,
-                subassets,
-                layers,
-                scene_scale,
-            );
-            node.insert(Transform::from_matrix(transform_from_frame(
-                &frames[0],
-                scene_scale,
-            )));
+            let mut entity = builder.spawn_empty();
 
             let maybe_layer = layers.get(*layer_id as usize);
             if let Some(layer) = maybe_layer {
-                node.insert(VoxelLayer {
+                entity.insert(VoxelLayer {
                     id: *layer_id,
                     name: layer.name.clone(),
                 });
             }
+            if let Some(node_name) = node_name.clone() {
+                entity.insert(Name::new(node_name));
+            }
+
             let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
             let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
             let visibility = if node_is_hidden || layer_is_hidden {
@@ -173,9 +162,25 @@ fn load_xform_node(
             } else {
                 Visibility::Inherited
             };
-            node.insert(visibility);
-            if let Some(node_name) = node_name.clone() {
-                node.insert(Name::new(node_name.clone()));
+            entity.insert(visibility);
+
+            load_xform_child(
+                context,
+                graph,
+                &graph[*child as usize],
+                &mut entity,
+                accumulated.as_ref(),
+                model_names,
+                subassets,
+                layers,
+                scene_scale,
+            );
+
+            entity.insert(Transform::from_matrix(transform_from_frame(
+                &frames[0],
+                scene_scale,
+            )));
+            if let Some(node_name) = node_name {
                 // create sub-asset
                 if subassets.insert(node_name.clone()) {
                     context.labeled_asset_scope(node_name, |context| {
@@ -215,7 +220,7 @@ fn load_xform_child(
     context: &mut LoadContext,
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
-    node: &mut EntityWorldMut,
+    entity: &mut EntityWorldMut,
     parent_name: Option<&String>,
     model_names: &mut Vec<Option<String>>,
     subassets: &mut HashSet<String>,
@@ -225,8 +230,8 @@ fn load_xform_child(
     match scene_node {
         SceneNode::Transform { .. } => {
             warn!("Found nested Transform nodes");
-            node.insert(Transform::IDENTITY);
-            node.with_children(|builder| {
+            entity.insert(Transform::IDENTITY);
+            entity.with_children(|builder| {
                 load_xform_node(
                     context,
                     builder,
@@ -244,8 +249,8 @@ fn load_xform_child(
             attributes: _,
             children,
         } => {
-            node.insert(Transform::IDENTITY);
-            node.with_children(|builder| {
+            entity.insert(Transform::IDENTITY);
+            entity.with_children(|builder| {
                 for child in children {
                     load_xform_node(
                         context,
@@ -269,7 +274,7 @@ fn load_xform_child(
             let model_name = model_names[model_id]
                 .clone()
                 .unwrap_or(format!("model-{}", model_id));
-            node.insert((
+            entity.insert((
                 Mesh3d(context.get_label_handle(format!("{}@mesh", model_name))),
                 MeshMaterial3d::<StandardMaterial>(
                     context.get_label_handle(format!("{}@material", model_name)),

@@ -5,7 +5,7 @@ use bevy::{
         experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
-    pbr::{VolumetricFog, VolumetricLight},
+    pbr::{FogVolume, VolumetricFog, VolumetricLight},
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
@@ -74,6 +74,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
         VolumetricLight,
+    ));
+
+    commands.spawn((
+        FogVolume::default(),
+        Transform::from_scale(Vec3::splat(30.0)),
     ));
 
     commands.spawn(SceneRoot(assets.load("study.vox")));

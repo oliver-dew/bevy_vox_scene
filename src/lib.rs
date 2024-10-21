@@ -47,6 +47,7 @@ use bevy::{
 
 mod load;
 mod model;
+mod observers;
 
 #[cfg(test)]
 mod tests;
@@ -62,6 +63,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
+pub use observers::VoxelInstanceSpawned;
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -82,6 +84,7 @@ impl Plugin for VoxScenePlugin {
             .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
-            });
+            })
+            .add_observer(observers::on_voxel_instance_spawned);
     }
 }
