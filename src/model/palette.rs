@@ -205,7 +205,7 @@ impl VoxelPalette {
         let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
-        #[cfg(feature = "specular_transmission")]
+        #[cfg(feature = "pbr_transmission_textures")]
         let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
 
         let has_emission = match self.emission {
@@ -281,7 +281,7 @@ impl VoxelPalette {
             None
         };
 
-        #[cfg(feature = "specular_transmission")]
+        #[cfg(feature = "pbr_transmission_textures")]
         let specular_transmission_texture: Option<Handle<Image>> = if has_translucency {
             let raw: Vec<u8> = translucency_data
                 .iter()
@@ -323,7 +323,7 @@ impl VoxelPalette {
                 MaterialProperty::Constant(transmission) => transmission,
                 MaterialProperty::VariesPerElement => 1.0,
             },
-            #[cfg(feature = "specular_transmission")]
+            #[cfg(feature = "pbr_transmission_textures")]
             specular_transmission_texture,
             ..Default::default()
         }

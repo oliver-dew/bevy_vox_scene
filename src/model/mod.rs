@@ -113,7 +113,7 @@ impl VoxelContext {
     ) -> Handle<VoxelContext> {
         let material = palette.create_material(&mut images);
         let mut opaque_material = material.clone();
-        #[cfg(feature = "specular_transmission")]
+        #[cfg(feature = "pbr_transmission_textures")]
         {
             opaque_material.specular_transmission_texture = None;
         }

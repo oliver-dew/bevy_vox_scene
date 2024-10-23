@@ -89,7 +89,7 @@ async fn test_transmissive_mat() {
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
-    #[cfg(feature = "specular_transmission")]
+    #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_some());
     assert_eq!(material.specular_transmission, 1.0);
     assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
@@ -127,7 +127,7 @@ async fn test_opaque_mat() {
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
-    #[cfg(feature = "specular_transmission")]
+    #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_none());
     assert_eq!(material.specular_transmission, 0.0);
     assert!(material.metallic_roughness_texture.is_some());

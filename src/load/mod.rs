@@ -132,7 +132,7 @@ impl VoxSceneLoader {
         let translucent_material = palette.create_material_in_load_context(load_context);
         let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {
             let mut opaque_material = translucent_material.clone();
-            #[cfg(feature = "specular_transmission")]
+            #[cfg(feature = "pbr_transmission_textures")]
             {
                 opaque_material.specular_transmission_texture = None;
             }
@@ -198,7 +198,7 @@ impl VoxSceneLoader {
                 } else {
                     load_context.labeled_asset_scope(format!("{}@material", name), |_| {
                         let mut opaque_material = translucent_material.clone();
-                        #[cfg(feature = "specular_transmission")]
+                        #[cfg(feature = "pbr_transmission_textures")]
                         {
                             opaque_material.specular_transmission_texture = None;
                         }
