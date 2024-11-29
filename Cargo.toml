@@ -39,6 +39,7 @@ bevy = { version = "0.15.0", default-features = false, features = [
   "bevy_scene",
   "bevy_asset",
   "bevy_pbr",
+  "png",
 ] }
 dot_vox = "5.1.1"
 ndshape = "0.3.0"
