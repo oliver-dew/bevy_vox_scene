@@ -4,10 +4,11 @@ use bevy::{
         system::{In, ResMut, RunSystemOnce},
         world::World,
     },
+    image::Image,
     pbr::StandardMaterial,
     prelude::Res,
     reflect::TypePath,
-    render::{mesh::Mesh, texture::Image},
+    render::mesh::Mesh,
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
