@@ -4,6 +4,7 @@ use bevy::{
     core_pipeline::{
         bloom::Bloom,
         dof::{DepthOfField, DepthOfFieldMode},
+        post_process::ChromaticAberration,
         tonemapping::Tonemapping,
     },
     prelude::*,
@@ -79,6 +80,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             mode: DepthOfFieldMode::Bokeh,
             focal_distance: 8.,
             aperture_f_stops: 0.003,
+            ..default()
+        },
+        ChromaticAberration {
+            intensity: 0.04,
             ..default()
         },
     ));

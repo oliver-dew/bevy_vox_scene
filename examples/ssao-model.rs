@@ -62,9 +62,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             intensity: 500.0,
             ..default()
         },
+        ScreenSpaceAmbientOcclusion::default(),
         SSAOVisible(true),
     ));
-    // .insert(ScreenSpaceAmbientOcclusion::default());
 
     commands.spawn(
         // Load a model nested inside a group by using a `/` to separate the path components
@@ -91,7 +91,7 @@ fn toggle_ssao(
             false => {
                 commands
                     .entity(entity)
-                    .remove_with_requires::<ScreenSpaceAmbientOcclusion>();
+                    .remove::<ScreenSpaceAmbientOcclusion>();
             }
         }
     }
