@@ -4,10 +4,11 @@ use bevy::{
         system::{In, ResMut, RunSystemOnce},
         world::World,
     },
+    image::Image,
     pbr::StandardMaterial,
     prelude::Res,
     reflect::TypePath,
-    render::{mesh::Mesh, texture::Image},
+    render::mesh::Mesh,
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
@@ -51,7 +52,9 @@ impl VoxelModel {
         name: String,
         context: Handle<VoxelContext>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
-        world.run_system_once_with((data, name, context), Self::add_model)
+        world
+            .run_system_once_with((data, name, context), Self::add_model)
+            .ok()?
     }
 
     fn add_model(
@@ -98,7 +101,9 @@ pub struct VoxelContext {
 impl VoxelContext {
     /// Create a new context with the supplied palette
     pub fn new(world: &mut World, palette: VoxelPalette) -> Handle<VoxelContext> {
-        world.run_system_once_with(palette, Self::new_context)
+        world
+            .run_system_once_with(palette, Self::new_context)
+            .expect("ooh")
     }
 
     fn new_context(
@@ -109,7 +114,10 @@ impl VoxelContext {
     ) -> Handle<VoxelContext> {
         let material = palette.create_material(&mut images);
         let mut opaque_material = material.clone();
-        opaque_material.specular_transmission_texture = None;
+        #[cfg(feature = "pbr_transmission_textures")]
+        {
+            opaque_material.specular_transmission_texture = None;
+        }
         opaque_material.specular_transmission = 0.0;
         let context = VoxelContext {
             palette,

@@ -1,12 +1,12 @@
 use bevy::{
     asset::{Assets, Handle, LoadContext},
     color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
+    image::Image,
     math::FloatExt,
     pbr::StandardMaterial,
     render::{
         render_asset::RenderAssetUsages,
         render_resource::{Extent3d, TextureDimension, TextureFormat},
-        texture::Image,
     },
 };
 use dot_vox::DotVoxData;
@@ -205,6 +205,7 @@ impl VoxelPalette {
         let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
+        #[cfg(feature = "pbr_transmission_textures")]
         let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
 
         let has_emission = match self.emission {
@@ -280,6 +281,7 @@ impl VoxelPalette {
             None
         };
 
+        #[cfg(feature = "pbr_transmission_textures")]
         let specular_transmission_texture: Option<Handle<Image>> = if has_translucency {
             let raw: Vec<u8> = translucency_data
                 .iter()
@@ -321,6 +323,7 @@ impl VoxelPalette {
                 MaterialProperty::Constant(transmission) => transmission,
                 MaterialProperty::VariesPerElement => 1.0,
             },
+            #[cfg(feature = "pbr_transmission_textures")]
             specular_transmission_texture,
             ..Default::default()
         }

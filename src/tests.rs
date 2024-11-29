@@ -12,13 +12,13 @@ use bevy::{
     core::Name,
     hierarchy::Children,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
-    pbr::StandardMaterial,
+    pbr::{MeshMaterial3d, StandardMaterial},
     prelude::{
-        GlobalTransform, HierarchyPlugin, InheritedVisibility, OnAdd, Query, Transform, Trigger,
-        ViewVisibility, Visibility,
+        GlobalTransform, HierarchyPlugin, InheritedVisibility, Mesh3d, OnAdd, Query, Transform,
+        Trigger, ViewVisibility, Visibility,
     },
     render::{mesh::Mesh, texture::ImagePlugin},
-    scene::{Scene, SceneBundle, ScenePlugin},
+    scene::{Scene, ScenePlugin, SceneRoot},
     utils::hashbrown::HashSet,
     MinimalPlugins,
 };
@@ -63,13 +63,7 @@ async fn test_transmissive_mat() {
     let mut app = App::new();
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
-    let scene_root = app
-        .world_mut()
-        .spawn(SceneBundle {
-            scene: handle,
-            ..Default::default()
-        })
-        .id();
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -95,6 +89,7 @@ async fn test_transmissive_mat() {
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
+    #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_some());
     assert_eq!(material.specular_transmission, 1.0);
     assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
@@ -106,13 +101,7 @@ async fn test_opaque_mat() {
     let mut app = App::new();
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
-    let scene_root = app
-        .world_mut()
-        .spawn(SceneBundle {
-            scene: handle,
-            ..Default::default()
-        })
-        .id();
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -138,6 +127,7 @@ async fn test_opaque_mat() {
         .resource::<Assets<StandardMaterial>>()
         .get(mat_handle)
         .expect("material");
+    #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_none());
     assert_eq!(material.specular_transmission, 0.0);
     assert!(material.metallic_roughness_texture.is_some());
@@ -149,13 +139,13 @@ async fn test_spawn_system() {
     let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
     app.update();
 
-    assert_eq!(
+    assert!(matches!(
         app.world()
             .resource::<AssetServer>()
             .load_state(handle.id()),
         LoadState::Loaded
-    );
-    app.observe(|trigger: Trigger<OnAdd, Name>, query: Query<&Name>| {
+    ));
+    app.add_observer(|trigger: Trigger<OnAdd, Name>, query: Query<&Name>| {
         let name = query.get(trigger.entity()).unwrap().as_str();
         let expected_names: [&'static str; 3] = [
             "outer-group/inner-group",
@@ -164,13 +154,7 @@ async fn test_spawn_system() {
         ];
         assert!(expected_names.contains(&name));
     });
-    let scene_root = app
-        .world_mut()
-        .spawn(SceneBundle {
-            scene: handle,
-            ..Default::default()
-        })
-        .id();
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
     app.update();
     assert_eq!(
         app.world_mut()
@@ -232,13 +216,7 @@ async fn test_modify_voxels() {
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
     app.update();
-    let scene_root = app
-        .world_mut()
-        .spawn(SceneBundle {
-            scene: handle,
-            ..Default::default()
-        })
-        .id();
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -286,6 +264,8 @@ async fn test_modify_voxels() {
 #[cfg(feature = "generate_voxels")]
 #[test]
 fn test_generate_voxels() {
+    use bevy::render::mesh::MeshAabb;
+
     let mut app = App::new();
     setup_app(&mut app);
     let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
@@ -399,5 +379,7 @@ fn setup_app(app: &mut App) {
     .register_type::<ViewVisibility>()
     .register_type::<InheritedVisibility>()
     .register_type::<Transform>()
-    .register_type::<GlobalTransform>();
+    .register_type::<GlobalTransform>()
+    .register_type::<Mesh3d>()
+    .register_type::<MeshMaterial3d<StandardMaterial>>();
 }

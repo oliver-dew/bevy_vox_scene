@@ -2,16 +2,18 @@ use std::time::Duration;
 
 use bevy::{
     core_pipeline::{
-        bloom::BloomSettings,
-        dof::{DepthOfFieldMode, DepthOfFieldSettings},
+        bloom::Bloom,
+        dof::{DepthOfField, DepthOfFieldMode},
+        post_process::ChromaticAberration,
         tonemapping::Tonemapping,
     },
     prelude::*,
+    scene::SceneInstanceReady,
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelQueryable,
-    VoxelRegion, VoxelRegionMode,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceSpawned, VoxelModel,
+    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -45,7 +47,6 @@ fn main() {
                 .run_if(in_state(AppState::Ready)),
         )
         .init_state::<AppState>()
-        .observe(on_assets_spawned)
         .run();
 }
 
@@ -55,44 +56,17 @@ struct Scenes {
     voxel_material: Handle<StandardMaterial>,
 }
 
-fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, Name>,
-    query: Query<&Name>,
-    mut commands: Commands,
-) {
-    let mut entity_commands = commands.entity(trigger.entity());
-    let name = query.get(trigger.entity()).map_or("", |n| n.as_str());
-    match name {
-        "snowflake" => return,
-        "workstation/computer" => {
-            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
-            entity_commands.insert(FocalPoint(Vec3::new(0., 0., 9.)));
-        }
-        _ => {}
-    }
-    entity_commands.insert(Scenery);
-}
-
-fn on_assets_spawned(
-    _trigger: Trigger<OnAdd, FocalPoint>,
-    mut app_state: ResMut<NextState<AppState>>,
-) {
-    app_state.set(AppState::Ready);
-}
-
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3dBundle {
-            camera: Camera {
-                hdr: true,
-                ..Default::default()
-            },
-            transform: Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
-            tonemapping: Tonemapping::SomewhatBoringDisplayTransform,
-            ..Default::default()
+        Camera3d::default(),
+        Camera {
+            hdr: true,
+            ..default()
         },
+        Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
-        BloomSettings {
+        Bloom {
             intensity: 0.3,
             ..default()
         },
@@ -100,11 +74,16 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
             intensity: 500.0,
+            ..default()
         },
-        DepthOfFieldSettings {
+        DepthOfField {
             mode: DepthOfFieldMode::Bokeh,
             focal_distance: 8.,
             aperture_f_stops: 0.003,
+            ..default()
+        },
+        ChromaticAberration {
+            intensity: 0.04,
             ..default()
         },
     ));
@@ -113,20 +92,55 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         voxel_material: assets.load("study.vox#snowflake@material"),
     });
 
-    commands.spawn(SceneBundle {
-        // Load a slice of the scene
-        scene: assets.load("study.vox#workstation"),
-        ..default()
-    });
-    commands.observe(on_spawn_voxel_instance);
+    // Scope the observer to this SceneRoot so that it doesn't run
+    // againt the snowflakes when they spawn
+    commands
+        .spawn(
+            // Load a slice of the scene
+            SceneRoot(assets.load("study.vox#workstation")),
+        )
+        .observe(identify_scenery)
+        .observe(
+            |_trigger: Trigger<SceneInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
+                app_state.set(AppState::Ready);
+            },
+        );
 }
 
+/// An observer that marks all objects in the workstation scene with the [`Scenery`] component,
+/// and the center of the workstation screen with the [`FocalPoint`] component.
+///
+/// The advantage of using [`VoxelInstanceSpawned`] as the trigger, rather than an [`OnAdd`] trigger
+/// is that because [`VoxelInstanceSpawned`] "bubbles up" through the hierarchy, you can add it as
+/// an observer on a [`SceneRoot`] and scope the observer system to just that branch, rather than
+/// having to use a global observer on [`OnAdd`] that might require defensive code for other branches
+/// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
+/// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
+/// observer was added to).
+fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
+    let name = trigger.event().model_name.as_str();
+    match name {
+        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "workstation/computer" => {
+            // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
+            commands
+                .entity(trigger.event().entity)
+                .insert(FocalPoint(Vec3::new(0., 0., 9.)));
+        }
+        _ => {}
+    }
+    commands.entity(trigger.event().entity).insert(Scenery);
+}
+
+/// A snowflake with an angular velocity represented by a [`Quat`]
 #[derive(Component)]
 struct Snowflake(Quat);
 
+/// Something solid that the snow can settle on
 #[derive(Component)]
 struct Scenery;
 
+/// Focal point for the camera to focus on
 #[derive(Component)]
 struct FocalPoint(Vec3);
 
@@ -140,12 +154,9 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     commands.spawn((
         Name::new("snowflake"),
         Snowflake(angular_velocity),
-        PbrBundle {
-            mesh: scenes.snowflake.clone(),
-            material: scenes.voxel_material.clone(),
-            transform: Transform::from_translation(position),
-            ..default()
-        },
+        Mesh3d(scenes.snowflake.clone()),
+        MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
+        Transform::from_translation(position),
     ));
 }
 
@@ -207,7 +218,7 @@ fn update_snow(
 
 // Focus the camera on the focal point when the camera is first added and when it moves
 fn focus_camera(
-    mut camera: Query<(&mut DepthOfFieldSettings, &GlobalTransform), Changed<Transform>>,
+    mut camera: Query<(&mut DepthOfField, &GlobalTransform), Changed<Transform>>,
     target: Query<(&GlobalTransform, &FocalPoint)>,
 ) {
     let Some((target_xform, focal_point)) = target.iter().next() else {

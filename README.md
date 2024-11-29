@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.15.0"
+bevy_vox_scene = "0.16.0"
 ```
 
    Then in code:
@@ -54,16 +54,13 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.spawn(SceneBundle { // 4.
-        scene: assets.load("study.vox#workstation/desk"),
-        ..default()
-    });
+    commands.spawn(SceneRoot(assets.load("study.vox#workstation/desk"))); //4
 }
 ```
 
 2. Import the library.
 3. Add the plugin to the app.
-4. Spawn a scene graph using `SceneBundle`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
+4. Spawn a scene graph using `SceneRoot`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore
@@ -82,6 +79,7 @@ cargo run --example <example name>
 | 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12    | 
 | 0.13         |                      | 0.13                     |
 | 0.14         |                      | 0.14, 0.15               |
+| 0.15         |                      | 0.16                     |
 
 ## Limitations and workarounds
 
