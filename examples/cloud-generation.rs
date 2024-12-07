@@ -7,6 +7,7 @@ use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelElement, VoxelModel,
     VoxelModelInstance, VoxelPalette, SDF,
 };
+use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -59,10 +60,9 @@ fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 }
 
-/// Spawn a strange-shaped cloud
 fn spawn_cloud(world: &mut World) {
     // create a palette of varying densities
-    let densities: Vec<f32> = vec![0.5, 0.4, 0.3];
+    let densities: Vec<f32> = vec![0.3, 1.0, 3.0, 5.0];
     let palette = VoxelPalette::new(
         densities
             .iter()
@@ -73,15 +73,38 @@ fn spawn_cloud(world: &mut World) {
             .collect(),
     );
 
-    // an SDF sphere with a long thin box cutting through onr axis
-    let data = SDF::sphere(13.0)
-        .subtract(SDF::cuboid(Vec3::new(4., 2., 13.)))
+    // Combine a bunch of random SDF::sphere to create the cloud
+    let mut rng = rand::thread_rng();
+    let mut rng2 = rand::thread_rng();
+    let data = (0..30)
+        .map(|_| {
+            let translation = Vec3::new(
+                rng.gen_range(-6.0..=6.0),
+                rng.gen_range(-6.0..=6.0),
+                rng.gen_range(-6.0..=6.0),
+            );
+            // spheres are bigger the closer they are to the center
+            let inverse_length = (10.4 - translation.length()) * 0.3;
+            SDF::sphere(rng.gen_range(0.5..=3.12) + inverse_length).translate(translation)
+        })
+        .reduce(|acc, new| {
+            // 75% of the time we add the new sphere
+            if rng2.gen_ratio(3, 4) {
+                acc.add(new)
+            } else {
+                acc.subtract(new)
+            }
+        })
+        .expect("a valid SDF")
         .map_to_voxels(
             UVec3::splat(32),
             VoxLoaderSettings::default(),
             |d, _| match d {
-                x if x < -4.0 => Voxel(3),
-                x if x < -2.0 => Voxel(2),
+                // higher density the deeper into the cloud we go. 
+                // nb the `Voxel` values index from 1, with 0 reserved for `Voxel::EMPTY`
+                x if x < -3.0 => Voxel(4),
+                x if x < -2.0 => Voxel(3),
+                x if x < -1.0 => Voxel(2),
                 x if x < 0.0 => Voxel(1),
                 x if x >= 0.0 => Voxel::EMPTY,
                 _ => Voxel::EMPTY,
@@ -95,7 +118,7 @@ fn spawn_cloud(world: &mut World) {
             .expect("Model has been generated");
 
     // When spawning an instance that only contains fog, we need to supply Transform and Visibility,
-    // because the FogVolume needs to spawn in a child entity
+    // because the FogVolume needs to spawn in a child entity to set the scale of the volume
     world.spawn((
         Transform::IDENTITY,
         Visibility::Visible,
