@@ -58,13 +58,11 @@ fn setup(world: &mut World) {
         );
     let context = VoxelContext::new(world, palette);
     let model_name = "my sdf model";
-    let (model_handle, model) =
+    let (model_handle, _model) =
         VoxelModel::new(world, data, model_name.to_string(), context.clone())
             .expect("Model has been generated");
-    world.spawn((
-        VoxelModelInstance {
-            model: model_handle,
-            context,
-        },
-    ));
+    world.spawn((VoxelModelInstance {
+        model: model_handle,
+        context,
+    },));
 }

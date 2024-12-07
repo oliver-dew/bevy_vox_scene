@@ -190,7 +190,7 @@ impl VoxelPalette {
                             0.0
                         },
                         density: if material.material_type() == Some("_media") {
-                            material.density().unwrap_or(0.0)
+                            material.density().unwrap_or(0.0) * 10.0
                         } else {
                             0.0
                         },

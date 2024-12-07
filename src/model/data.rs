@@ -156,7 +156,7 @@ impl VoxelData {
                 }
                 if let Some(density) = density_for_voxel[v.0 as usize] {
                     has_cloud = true;
-                    Some(density * 10.)
+                    Some(density)
                 } else {
                     Some(0.0)
                 }
