@@ -1,4 +1,5 @@
 use bevy::{
+    image::Image,
     math::{IVec3, UVec3},
     render::mesh::Mesh,
 };
@@ -74,9 +75,21 @@ impl VoxelData {
         &self,
         ior_for_voxel: &[Option<f32>],
         density_for_voxel: &[Option<f32>],
-    ) -> (Mesh, Option<f32>) {
-        let (visible_voxels, average_ior) = self.visible_voxels(ior_for_voxel, density_for_voxel);
-        (super::mesh::mesh_model(&visible_voxels, self), average_ior)
+    ) -> (Option<Mesh>, Option<f32>, Option<Image>) {
+        let (visible_voxels, average_ior, needs_meshing) =
+            self.visible_voxels(ior_for_voxel, density_for_voxel);
+        let (cloud_voxels, has_cloud) = self.cloud_voxels(density_for_voxel);
+        let maybe_mesh = if needs_meshing {
+            Some(super::mesh::mesh_model(&visible_voxels, self))
+        } else {
+            None
+        };
+        let maybe_image = if has_cloud {
+            Some(super::cloud::create_cloud_image(&cloud_voxels, self))
+        } else {
+            None
+        };
+        (maybe_mesh, average_ior, maybe_image)
     }
 
     /// Returns the [`VoxelVisibility`] of each Voxel, and, if the model contains
@@ -85,7 +98,7 @@ impl VoxelData {
         &self,
         ior_for_voxel: &[Option<f32>],
         density_for_voxel: &[Option<f32>],
-    ) -> (Vec<VisibleVoxel>, Option<f32>) {
+    ) -> (Vec<VisibleVoxel>, Option<f32>, bool) {
         // TODO: return a "has solid/ translucent voxels" bool to decide whether to mesh
         let mut refraction_indices: Vec<f32> = Vec::new();
         let voxels: Vec<VisibleVoxel> = self
@@ -116,7 +129,10 @@ impl VoxelData {
                 / refraction_indices.len() as f32;
             Some(ior)
         };
-        (voxels, average_ior)
+        let needs_meshing = voxels
+            .iter()
+            .any(|&v| v.visibility != VoxelVisibility::Empty);
+        (voxels, average_ior, needs_meshing)
     }
 
     pub(crate) fn cloud_voxels(&self, density_for_voxel: &[Option<f32>]) -> (Vec<f32>, bool) {

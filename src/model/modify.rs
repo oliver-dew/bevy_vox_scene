@@ -4,6 +4,7 @@ use bevy::{
         system::{Commands, ResMut, SystemState},
         world::{Command, World},
     },
+    image::Image,
     math::{IVec3, Vec3},
     pbr::StandardMaterial,
     prelude::Res,
@@ -103,10 +104,12 @@ impl Command for ModifyVoxelModel {
             let mut system_state: SystemState<(
                 ResMut<Assets<Mesh>>,
                 ResMut<Assets<StandardMaterial>>,
+                ResMut<Assets<Image>>,
                 ResMut<Assets<VoxelModel>>,
                 Res<Assets<VoxelContext>>,
             )> = SystemState::new(world);
-            let (mut meshes, mut materials, mut models, contexts) = system_state.get_mut(world);
+            let (mut meshes, mut materials, mut images, mut models, contexts) =
+                system_state.get_mut(world);
             let context = contexts.get(self.instance.context.id())?;
             let model = models.get_mut(self.instance.model.id())?;
             let refraction_indices = &context.palette.indices_of_refraction;
@@ -115,6 +118,7 @@ impl Command for ModifyVoxelModel {
                 model,
                 &mut meshes,
                 &mut materials,
+                &mut images,
                 context.opaque_material.clone(),
                 context.transmissive_material.clone(),
                 refraction_indices,
@@ -132,15 +136,12 @@ impl ModifyVoxelModel {
         model: &mut VoxelModel,
         meshes: &mut Assets<Mesh>,
         materials: &mut Assets<StandardMaterial>,
+        images: &mut Assets<Image>,
         opaque_material: Handle<StandardMaterial>,
         transmissive_material: Handle<StandardMaterial>,
         refraction_indices: &[Option<f32>],
         density_for_voxel: &[Option<f32>],
     ) {
-        let Some(mesh_handle) = &model.mesh else {
-            // TODO: allow cloud voxels to be modified
-            return;
-        };
         let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
         let model_size = model.size();
         let region = self.region.clamped(model_size);
@@ -161,8 +162,20 @@ impl ModifyVoxelModel {
             }
         }
         model.data.voxels = updated;
-        let (mesh, average_ior) = model.data.remesh(refraction_indices, &density_for_voxel);
-        meshes.insert(mesh_handle, mesh);
+        let (maybe_mesh, average_ior, maybe_cloud) =
+            model.data.remesh(refraction_indices, &density_for_voxel);
+        if let Some(mesh_handle) = &model.mesh {
+            // TODO handle handle being nil.
+            if let Some(mesh) = maybe_mesh {
+                meshes.insert(mesh_handle, mesh);
+            }
+        }
+        if let Some(image_handle) = &model.cloud_image {
+            if let Some(cloud) = maybe_cloud {
+                images.insert(image_handle, cloud);
+            }
+        }
+
         let has_translucency_old_value = model.has_translucency;
         model.has_translucency = average_ior.is_some();
         match (has_translucency_old_value, average_ior) {

@@ -1,7 +1,8 @@
 use bevy::{
     core_pipeline::{
         bloom::Bloom,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing}, tonemapping::Tonemapping,
+        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
+        tonemapping::Tonemapping,
     },
     pbr::{FogVolume, VolumetricFog, VolumetricLight},
     prelude::*,
@@ -68,9 +69,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands
-        .spawn(
-            SceneRoot(assets.load("cloud.vox")),
-        )
+        .spawn(SceneRoot(assets.load("cloud.vox")))
         .observe(add_point_lights);
 }
 

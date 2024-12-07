@@ -26,6 +26,7 @@ pub(super) mod sdf;
 pub use self::queryable::VoxelQueryable;
 mod palette;
 pub use palette::{VoxelElement, VoxelPalette};
+pub(super) mod cloud;
 mod voxel;
 
 /// Contains the voxel data for a model, as well as handles to the mesh derived from that data and the material
@@ -63,29 +64,36 @@ impl VoxelModel {
         In((data, name, context_handle)): In<(VoxelData, String, Handle<VoxelContext>)>,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
+        mut images: ResMut<Assets<Image>>,
         mut models: ResMut<Assets<VoxelModel>>,
         contexts: Res<Assets<VoxelContext>>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
         let context = contexts.get(&context_handle)?;
-        let (mesh, average_ior) = data.remesh(
+        let (maybe_mesh, average_ior, maybe_cloud) = data.remesh(
             &context.palette.indices_of_refraction,
             &context.palette.density_for_voxel,
         );
-        let material = if let Some(ior) = average_ior {
-            let mut transmissive_material =
-                materials.get(context.transmissive_material.id())?.clone();
-            transmissive_material.ior = ior;
-            transmissive_material.thickness = data.size().min_element() as f32;
-            materials.add(transmissive_material)
+        let mesh = maybe_mesh.map(|mesh| meshes.add(mesh));
+        let cloud_image = maybe_cloud.map(|image| images.add(image));
+        let material = if mesh.is_some() {
+            if let Some(ior) = average_ior {
+                let mut transmissive_material =
+                    materials.get(context.transmissive_material.id())?.clone();
+                transmissive_material.ior = ior;
+                transmissive_material.thickness = data.size().min_element() as f32;
+                Some(materials.add(transmissive_material))
+            } else {
+                Some(context.opaque_material.clone())
+            }
         } else {
-            context.opaque_material.clone()
+            None
         };
         let model = VoxelModel {
             name: name.clone(),
             data,
-            mesh: Some(meshes.add(mesh)),
-            material: Some(material),
-            cloud_image: None,
+            mesh,
+            material,
+            cloud_image,
             has_translucency: average_ior.is_some(),
         };
         let model_handle = models.add(model.clone());
