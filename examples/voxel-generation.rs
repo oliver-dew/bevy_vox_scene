@@ -59,7 +59,8 @@ fn setup(world: &mut World) {
     let context = VoxelContext::new(world, palette);
     let model_name = "my sdf model";
     let (model_handle, model) =
-        VoxelModel::new(world, data, model_name.to_string(), context.clone()).expect("Model has been generated");
+        VoxelModel::new(world, data, model_name.to_string(), context.clone())
+            .expect("Model has been generated");
     let mesh_handle = model.mesh.expect("Model should have a mesh");
     let material_handle = model.material.expect("Model should have a material");
     world.spawn((
