@@ -73,6 +73,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         .observe(add_point_lights);
 }
 
+// replace "point_light" marker models with point lights
 fn add_point_lights(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
     let Some(name) = &trigger.event().model_name else {
         return;

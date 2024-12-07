@@ -22,7 +22,7 @@ fn main() {
         .run();
 }
 
-/// Spawn light and camera wih the required `VolumetricLight` and `VolumetricFog` components
+/// Spawn light and camera with the required `VolumetricLight` and `VolumetricFog` components
 fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
