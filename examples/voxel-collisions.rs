@@ -118,8 +118,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 /// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
 /// observer was added to).
 fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
-    let name = trigger.event().model_name.as_str();
-    match name {
+    let Some(name) = &trigger.event().model_name else {
+        return;
+    };
+    match name.as_str() {
         "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen

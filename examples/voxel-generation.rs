@@ -61,12 +61,7 @@ fn setup(world: &mut World) {
     let (model_handle, model) =
         VoxelModel::new(world, data, model_name.to_string(), context.clone())
             .expect("Model has been generated");
-    let mesh_handle = model.mesh.expect("Model should have a mesh");
-    let material_handle = model.material.expect("Model should have a material");
     world.spawn((
-        Mesh3d(mesh_handle),
-        MeshMaterial3d(material_handle),
-        // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
         VoxelModelInstance {
             model: model_handle,
             context,

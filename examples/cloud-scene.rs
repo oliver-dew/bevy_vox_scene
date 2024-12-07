@@ -74,7 +74,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn add_point_lights(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
-    let name = trigger.event().model_name.as_str();
+    let Some(name) = &trigger.event().model_name else {
+        return;
+    };
     if name.contains("point_light") {
         commands
             .entity(trigger.event().entity)

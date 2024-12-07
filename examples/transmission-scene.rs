@@ -63,7 +63,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             intensity: 500.0,
             ..default()
         },
-        VolumetricFog::default(),
+        VolumetricFog {
+            ambient_intensity: 0.0,
+            ..default()
+        },
         ScreenSpaceAmbientOcclusion::default(),
     ));
 

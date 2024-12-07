@@ -8,7 +8,7 @@ use bevy::{
     },
 };
 
-use crate::{VoxelModel, VoxelModelInstance, VoxelQueryable};
+use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
 
 /// An Event triggered when a [`VoxelModelInstance`] is spawned.
 ///
@@ -46,8 +46,8 @@ use crate::{VoxelModel, VoxelModelInstance, VoxelQueryable};
 ///             mut commands: Commands,
 /// #           mut exit: EventWriter<AppExit>,
 ///         | {
-///             let name = trigger.event().model_name.as_str();
-///             match name {
+///             let Some(name) = &trigger.event().model_name else { return };
+///             match name.as_str() {
 ///                 "workstation/computer" => {
 ///                     commands
 ///                         .entity(trigger.event().entity)
@@ -67,7 +67,9 @@ pub struct VoxelInstanceSpawned {
     /// The entity on which the VoxelModelInstance spawned
     pub entity: Entity,
     /// The name of the model that spawned
-    pub model_name: String,
+    pub model_name: Option<String>,
+    /// The name of the model's layer (if it has been named in the MagicaVoxel editor)
+    pub layer_name: Option<String>,
 }
 
 impl Event for VoxelInstanceSpawned {
@@ -79,9 +81,9 @@ pub(crate) fn on_voxel_instance_spawned(
     trigger: Trigger<OnAdd, VoxelModelInstance>,
     models: Res<Assets<VoxelModel>>,
     mut commands: Commands,
-    query: Query<(&Name, &VoxelModelInstance)>,
+    query: Query<(&VoxelModelInstance, Option<&Name>, Option<&VoxelLayer>)>,
 ) {
-    let Ok((name, model_instance)) = query.get(trigger.entity()) else {
+    let Ok((model_instance, maybe_name, maybe_layer)) = query.get(trigger.entity()) else {
         return;
     };
     let Some(model) = models.get(&model_instance.model) else {
@@ -107,7 +109,8 @@ pub(crate) fn on_voxel_instance_spawned(
     };
     let event = VoxelInstanceSpawned {
         entity: trigger.entity(),
-        model_name: name.to_string(),
+        model_name: maybe_name.map(|name| name.to_string()),
+        layer_name: maybe_layer.map(|layer| layer.name.clone()).flatten(),
     };
     commands.trigger_targets(event, trigger.entity());
 }

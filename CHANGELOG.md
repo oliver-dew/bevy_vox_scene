@@ -4,6 +4,7 @@
 
 - MagicaVoxel cloud materials are now imported as volumetric fog textures
 - Because of this change, `VoxelModel`'s mesh and material handles are now optional. This is because if a model consists only of cloud materials, it won't have any surfaces to be meshed.
+- `VoxelInstanceSpawned` previously only fired for models that ha been named in the Magica Voxel editor. Now it fires for all models, named and unnamed, and also includes their layer name, if aname has been assigned to the model's layer in the Magica Voxel editor.
 
 ## 0.16
 
