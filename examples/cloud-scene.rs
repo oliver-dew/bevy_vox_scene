@@ -25,7 +25,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
         Camera3d::default(),
-        Transform::from_xyz(30.0, 30.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(-40., 4.5, 16.).looking_to(Dir3::new_unchecked(Vec3::new(0.873, 0.288, -0.393).normalize()), Vec3::Y),//looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera {
             radius: 60.0,
             ..default()
@@ -52,7 +52,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             shadows_enabled: true,
             ..Default::default()
         },
-        Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
+        Transform::IDENTITY.looking_to(Vec3::new(-2.5, -1., 0.85), Vec3::Y),
         VolumetricLight,
     ));
 
