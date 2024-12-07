@@ -1,7 +1,7 @@
 use bevy::{
     core_pipeline::{
         bloom::Bloom,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
+        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing}, tonemapping::Tonemapping,
     },
     pbr::{FogVolume, VolumetricFog, VolumetricLight},
     prelude::*,
@@ -41,6 +41,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             intensity: 0.3,
             ..default()
         },
+        Tonemapping::BlenderFilmic,
         Msaa::Off,
         TemporalAntiAliasing::default(),
         EnvironmentMapLight {
@@ -51,6 +52,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         VolumetricFog {
             ambient_intensity: 0.0,
+            jitter: 0.5,
             ..default()
         },
     ));
@@ -83,6 +85,7 @@ fn add_point_lights(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Comman
                 PointLight {
                     color: Color::linear_rgb(251. / 255., 226. / 255., 81. / 255.),
                     intensity: 10000.,
+                    radius: 0.5,
                     range: 150.,
                     shadows_enabled: true,
                     ..default()
@@ -96,6 +99,6 @@ fn add_point_lights(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Comman
 /// Moves fog density texture offset every frame.
 fn scroll_fog(time: Res<Time>, mut query: Query<&mut FogVolume>) {
     for mut fog_volume in query.iter_mut() {
-        fog_volume.density_texture_offset += Vec3::new(0.0, 0.0, 0.04) * time.delta_secs();
+        fog_volume.density_texture_offset += Vec3::new(0.01, -0.04, 0.02) * time.delta_secs();
     }
 }

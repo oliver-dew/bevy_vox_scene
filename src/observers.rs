@@ -91,7 +91,7 @@ pub(crate) fn on_voxel_instance_spawned(
         commands.entity(trigger.entity()).with_child((
             FogVolume {
                 density_texture: model.cloud_image.clone(),
-                // scattering: 1.0,
+                absorption: 0.1,
                 ..Default::default()
             },
             Transform::from_scale(model.model_size()),

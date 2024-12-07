@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17
+
+- MagicaVoxel cloud materials are now imported as volumetric fog textures
+- Because of this change, `VoxelModel`'s mesh and material handles are now optional. This is because if a model consists only of cloud materials, it won't have any surfaces to be meshed.
+
 ## 0.16
 
 - Update to Bevy 0.15
