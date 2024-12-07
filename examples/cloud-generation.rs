@@ -1,6 +1,6 @@
 use bevy::{
     core_pipeline::bloom::Bloom,
-    pbr::{VolumetricFog, VolumetricLight},
+    pbr::{FogVolume, VolumetricFog, VolumetricLight},
     prelude::*,
 };
 use bevy_vox_scene::{
@@ -18,6 +18,7 @@ fn main() {
             VoxScenePlugin::default(),
         ))
         .add_systems(Startup, (setup_light_camera, spawn_cloud))
+        .add_systems(Update, scroll_fog)
         .run();
 }
 
@@ -127,4 +128,11 @@ fn spawn_cloud(world: &mut World) {
             context,
         },
     ));
+}
+
+/// Moves fog density texture offset every frame.
+fn scroll_fog(time: Res<Time>, mut query: Query<&mut FogVolume>) {
+    for mut fog_volume in query.iter_mut() {
+        fog_volume.density_texture_offset += Vec3::new(0.03, -0.005, 0.02) * time.delta_secs();
+    }
 }
