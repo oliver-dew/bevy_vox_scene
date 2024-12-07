@@ -35,10 +35,12 @@ pub struct VoxelModel {
     pub name: String,
     /// The voxel data used to generate the mesh
     pub(crate) data: VoxelData,
-    /// Handle to the model's mesh
-    pub mesh: Handle<Mesh>,
-    /// Handle to the model's material
-    pub material: Handle<StandardMaterial>,
+    /// Optional handle to the model's mesh if the VoxelData contains solid or transmissive voxels
+    pub mesh: Option<Handle<Mesh>>,
+    /// Optional handle to the model's material if the VoxelData contains solid or transmissive voxels
+    pub material: Option<Handle<StandardMaterial>>,
+    /// Optional handle to the 3D cloud image if the VoxelData contains cloud voxels
+    pub cloud_image: Option<Handle<Image>>,
     /// True if the model contains translucent voxels.
     pub(crate) has_translucency: bool,
 }
@@ -65,7 +67,10 @@ impl VoxelModel {
         contexts: Res<Assets<VoxelContext>>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
         let context = contexts.get(&context_handle)?;
-        let (mesh, average_ior) = data.remesh(&context.palette.indices_of_refraction);
+        let (mesh, average_ior) = data.remesh(
+            &context.palette.indices_of_refraction,
+            &context.palette.density_for_voxel,
+        );
         let material = if let Some(ior) = average_ior {
             let mut transmissive_material =
                 materials.get(context.transmissive_material.id())?.clone();
@@ -78,8 +83,9 @@ impl VoxelModel {
         let model = VoxelModel {
             name: name.clone(),
             data,
-            mesh: meshes.add(mesh),
-            material,
+            mesh: Some(meshes.add(mesh)),
+            material: Some(material),
+            cloud_image: None,
             has_translucency: average_ior.is_some(),
         };
         let model_handle = models.add(model.clone());

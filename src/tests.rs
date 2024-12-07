@@ -83,11 +83,11 @@ async fn test_transmissive_mat() {
         .resource::<Assets<VoxelModel>>()
         .get(model_id)
         .expect("Walls has a model");
-    let mat_handle = &model.material;
+    let mat_handle = model.material.clone().expect("Model has a material handle");
     let material = app
         .world()
         .resource::<Assets<StandardMaterial>>()
-        .get(mat_handle)
+        .get(&mat_handle)
         .expect("material");
     #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_some());
@@ -121,11 +121,11 @@ async fn test_opaque_mat() {
         .resource::<Assets<VoxelModel>>()
         .get(model_id)
         .expect("voxel model");
-    let mat_handle = &model.material;
+    let mat_handle = model.material.clone().expect("Model has a material handle");
     let material = app
         .world()
         .resource::<Assets<StandardMaterial>>()
-        .get(mat_handle)
+        .get(&mat_handle)
         .expect("material");
     #[cfg(feature = "pbr_transmission_textures")]
     assert!(material.specular_transmission_texture.is_none());
@@ -280,10 +280,14 @@ fn test_generate_voxels() {
         VoxelModel::new(world, tall_box, "tall box".to_string(), context).expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");
     assert_eq!(tall_box_model.has_translucency, false);
+    let mesh_handle = tall_box_model
+        .mesh
+        .clone()
+        .expect("Model has a Mesh handle");
     let mesh = app
         .world()
         .resource::<Assets<Mesh>>()
-        .get(tall_box_model.mesh.id())
+        .get(&mesh_handle)
         .expect("mesh generated");
     assert_eq!(
         mesh.compute_aabb().expect("aabb").half_extents,

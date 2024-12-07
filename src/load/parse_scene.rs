@@ -3,10 +3,8 @@ use bevy::{
     core::Name,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
-    pbr::{MeshMaterial3d, StandardMaterial},
     prelude::{
-        BuildChildren, ChildBuild, EntityWorldMut, Mesh3d, Transform, Visibility, World,
-        WorldChildBuilder,
+        BuildChildren, ChildBuild, EntityWorldMut, Transform, Visibility, World, WorldChildBuilder,
     },
     scene::Scene,
     utils::HashSet,
@@ -274,16 +272,10 @@ fn load_xform_child(
             let model_name = model_names[model_id]
                 .clone()
                 .unwrap_or(format!("model-{}", model_id));
-            entity.insert((
-                Mesh3d(context.get_label_handle(format!("{}@mesh", model_name))),
-                MeshMaterial3d::<StandardMaterial>(
-                    context.get_label_handle(format!("{}@material", model_name)),
-                ),
-                VoxelModelInstance {
-                    model: context.get_label_handle(format!("{}@model", model_name)),
-                    context: context.get_label_handle("voxel-context"),
-                },
-            ));
+            entity.insert((VoxelModelInstance {
+                model: context.get_label_handle(format!("{}@model", model_name)),
+                context: context.get_label_handle("voxel-context"),
+            },));
         }
     }
 }

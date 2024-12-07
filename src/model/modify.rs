@@ -110,6 +110,7 @@ impl Command for ModifyVoxelModel {
             let context = contexts.get(self.instance.context.id())?;
             let model = models.get_mut(self.instance.model.id())?;
             let refraction_indices = &context.palette.indices_of_refraction;
+            let density_for_voxel = &context.palette.density_for_voxel;
             self.modify_model(
                 model,
                 &mut meshes,
@@ -117,6 +118,7 @@ impl Command for ModifyVoxelModel {
                 context.opaque_material.clone(),
                 context.transmissive_material.clone(),
                 refraction_indices,
+                density_for_voxel,
             );
             Some(())
         };
@@ -133,7 +135,12 @@ impl ModifyVoxelModel {
         opaque_material: Handle<StandardMaterial>,
         transmissive_material: Handle<StandardMaterial>,
         refraction_indices: &[Option<f32>],
+        density_for_voxel: &[Option<f32>],
     ) {
+        let Some(mesh_handle) = &model.mesh else {
+            // TODO: allow cloud voxels to be modified
+            return;
+        };
         let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
         let model_size = model.size();
         let region = self.region.clamped(model_size);
@@ -154,14 +161,14 @@ impl ModifyVoxelModel {
             }
         }
         model.data.voxels = updated;
-        let (mesh, average_ior) = model.data.remesh(refraction_indices);
-        meshes.insert(&model.mesh, mesh);
+        let (mesh, average_ior) = model.data.remesh(refraction_indices, &density_for_voxel);
+        meshes.insert(mesh_handle, mesh);
         let has_translucency_old_value = model.has_translucency;
         model.has_translucency = average_ior.is_some();
         match (has_translucency_old_value, average_ior) {
             (true, Some(..)) | (false, None) => (), // no change in model's translucency
             (true, None) => {
-                model.material = opaque_material;
+                model.material = Some(opaque_material);
             }
             (false, Some(ior)) => {
                 let Some(mut translucent_material) =
@@ -171,7 +178,7 @@ impl ModifyVoxelModel {
                 };
                 translucent_material.ior = ior;
                 translucent_material.thickness = model.size().min_element() as f32;
-                model.material = materials.add(translucent_material);
+                model.material = Some(materials.add(translucent_material));
             }
         }
     }

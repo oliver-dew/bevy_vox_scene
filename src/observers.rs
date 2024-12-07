@@ -1,9 +1,14 @@
 use bevy::{
+    asset::Assets,
     core::Name,
-    prelude::{Commands, Component, Entity, Event, OnAdd, Parent, Query, Trigger},
+    pbr::{FogVolume, MeshMaterial3d},
+    prelude::{
+        BuildChildren, Commands, Component, Entity, Event, Mesh3d, OnAdd, Parent, Query, Res,
+        Transform, Trigger,
+    },
 };
 
-use crate::VoxelModelInstance;
+use crate::{VoxelModel, VoxelModelInstance, VoxelQueryable};
 
 /// An Event triggered when a [`VoxelModelInstance`] is spawned.
 ///
@@ -47,7 +52,9 @@ use crate::VoxelModelInstance;
 ///                     commands
 ///                         .entity(trigger.event().entity)
 ///                         .insert(Computer);
-///                     trigger.propagate(false); // stop the event bubbling up further, if you like
+///                     // If you want, you can stop the event bubbling up further
+///                     // in this case I only want there to be one `Computer` marker in the scene:
+///                     trigger.propagate(false);
 /// #                   exit.send(AppExit::Success);
 ///                 }
 ///                 _ => {}
@@ -70,11 +77,33 @@ impl Event for VoxelInstanceSpawned {
 
 pub(crate) fn on_voxel_instance_spawned(
     trigger: Trigger<OnAdd, VoxelModelInstance>,
+    models: Res<Assets<VoxelModel>>,
     mut commands: Commands,
-    query: Query<&Name>,
+    query: Query<(&Name, &VoxelModelInstance)>,
 ) {
-    let Ok(name) = query.get(trigger.entity()) else {
+    let Ok((name, model_instance)) = query.get(trigger.entity()) else {
         return;
+    };
+    let Some(model) = models.get(&model_instance.model) else {
+        return;
+    };
+    if model.cloud_image.is_some() {
+        commands.entity(trigger.entity()).with_child((
+            FogVolume {
+                density_texture: model.cloud_image.clone(),
+                // scattering: 1.0,
+                ..Default::default()
+            },
+            Transform::from_scale(model.model_size()),
+        ));
+    };
+    if let Some(handle) = model.mesh.clone() {
+        commands.entity(trigger.entity()).insert(Mesh3d(handle));
+    };
+    if let Some(handle) = model.material.clone() {
+        commands
+            .entity(trigger.entity())
+            .insert(MeshMaterial3d(handle));
     };
     let event = VoxelInstanceSpawned {
         entity: trigger.entity(),

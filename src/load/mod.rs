@@ -4,16 +4,20 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, Handle, LoadContext},
+    asset::{io::Reader, AssetLoader, Handle, LoadContext, RenderAssetUsages},
     color::LinearRgba,
+    image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
     log::info,
-    math::Vec3,
+    math::{UVec3, Vec3},
     pbr::StandardMaterial,
+    render::render_resource::{Extent3d, TextureDimension, TextureFormat},
     scene::Scene,
     utils::HashSet,
 };
+use block_mesh::VoxelVisibility;
 use components::LayerInfo;
 pub use components::{VoxelLayer, VoxelModelInstance};
+use ndshape::Shape;
 use parse_scene::{find_model_names, parse_scene_graph};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -147,7 +151,6 @@ impl VoxSceneLoader {
                 non_emissive
             });
         }
-        let indices_of_refraction = palette.indices_of_refraction.clone();
 
         // Scene graph
         let layers: Vec<LayerInfo> = file
@@ -183,34 +186,86 @@ impl VoxSceneLoader {
             .for_each(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
                 let data = VoxelData::from_model(&model, settings.clone());
-                let (visible_voxels, ior) = data.visible_voxels(&indices_of_refraction);
-                let mesh = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
-                    crate::model::mesh::mesh_model(&visible_voxels, &data)
-                });
-
-                let material: Handle<StandardMaterial> = if let Some(ior) = ior {
-                    load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                        let mut material = translucent_material.clone();
-                        material.ior = ior;
-                        material.thickness = data.size().min_element() as f32;
-                        material
-                    })
+                let (visible_voxels, ior) =
+                    data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
+                let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
+                let needs_meshing = visible_voxels
+                    .iter()
+                    .any(|&v| v.visibility != VoxelVisibility::Empty);
+                let mesh = if needs_meshing {
+                    let mesh_handle = load_context
+                        .labeled_asset_scope(format!("{}@mesh", name), |_| {
+                            crate::model::mesh::mesh_model(&visible_voxels, &data)
+                        });
+                    Some(mesh_handle)
                 } else {
-                    load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                        let mut opaque_material = translucent_material.clone();
-                        #[cfg(feature = "pbr_transmission_textures")]
-                        {
-                            opaque_material.specular_transmission_texture = None;
-                        }
-                        opaque_material.specular_transmission = 0.0;
-                        opaque_material
-                    })
+                    None
+                };
+
+                let material: Option<Handle<StandardMaterial>> = if needs_meshing {
+                    if let Some(ior) = ior {
+                        let handle =
+                            load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                                let mut material = translucent_material.clone();
+                                material.ior = ior;
+                                material.thickness = data.size().min_element() as f32;
+                                material
+                            });
+                        Some(handle)
+                    } else {
+                        let handle =
+                            load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                                let mut opaque_material = translucent_material.clone();
+                                #[cfg(feature = "pbr_transmission_textures")]
+                                {
+                                    opaque_material.specular_transmission_texture = None;
+                                }
+                                opaque_material.specular_transmission = 0.0;
+                                opaque_material
+                            });
+                        Some(handle)
+                    }
+                } else {
+                    None
+                };
+                let cloud_image: Option<Handle<Image>> = if has_cloud {
+                    let cloud_handle =
+                        load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
+                            let model_size: UVec3 = data.shape.as_array().map(|v| v - 2).into();
+                            let image_size = Extent3d {
+                                width: model_size.x,
+                                height: model_size.y,
+                                depth_or_array_layers: model_size.z,
+                            };
+                            let data = cloud_voxels.iter().flat_map(|d| d.to_le_bytes()).collect();
+                            let mut image = Image::new(
+                                image_size,
+                                TextureDimension::D3,
+                                data,
+                                TextureFormat::R32Float,
+                                RenderAssetUsages::default(),
+                            );
+                            image.sampler = ImageSampler::Descriptor(ImageSamplerDescriptor {
+                                address_mode_u: ImageAddressMode::MirrorRepeat,
+                                address_mode_v: ImageAddressMode::MirrorRepeat,
+                                address_mode_w: ImageAddressMode::MirrorRepeat,
+                                mag_filter: ImageFilterMode::Nearest,
+                                min_filter: ImageFilterMode::Nearest,
+                                mipmap_filter: ImageFilterMode::Nearest,
+                                ..Default::default()
+                            });
+                            image
+                        });
+                    Some(cloud_handle)
+                } else {
+                    None
                 };
                 load_context.labeled_asset_scope(format!("{}@model", name), |_| VoxelModel {
                     name,
                     data,
                     mesh,
                     material,
+                    cloud_image,
                     has_translucency: ior.is_some(),
                 });
             });

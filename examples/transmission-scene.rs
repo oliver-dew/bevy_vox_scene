@@ -5,7 +5,7 @@ use bevy::{
         experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
-    pbr::{FogVolume, VolumetricFog, VolumetricLight},
+    pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog, VolumetricLight},
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
@@ -64,6 +64,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
         VolumetricFog::default(),
+        ScreenSpaceAmbientOcclusion::default(),
     ));
 
     commands.spawn((

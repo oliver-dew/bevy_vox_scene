@@ -70,8 +70,12 @@ impl VoxelData {
         }
     }
 
-    pub(crate) fn remesh(&self, ior_for_voxel: &[Option<f32>]) -> (Mesh, Option<f32>) {
-        let (visible_voxels, average_ior) = self.visible_voxels(ior_for_voxel);
+    pub(crate) fn remesh(
+        &self,
+        ior_for_voxel: &[Option<f32>],
+        density_for_voxel: &[Option<f32>],
+    ) -> (Mesh, Option<f32>) {
+        let (visible_voxels, average_ior) = self.visible_voxels(ior_for_voxel, density_for_voxel);
         (super::mesh::mesh_model(&visible_voxels, self), average_ior)
     }
 
@@ -80,7 +84,9 @@ impl VoxelData {
     pub(crate) fn visible_voxels(
         &self,
         ior_for_voxel: &[Option<f32>],
+        density_for_voxel: &[Option<f32>],
     ) -> (Vec<VisibleVoxel>, Option<f32>) {
+        // TODO: return a "has solid/ translucent voxels" bool to decide whether to mesh
         let mut refraction_indices: Vec<f32> = Vec::new();
         let voxels: Vec<VisibleVoxel> = self
             .voxels
@@ -92,6 +98,8 @@ impl VoxelData {
                 } else if let Some(ior) = ior_for_voxel[v.0 as usize] {
                     refraction_indices.push(ior);
                     VoxelVisibility::Translucent
+                } else if density_for_voxel[v.0 as usize].is_some() {
+                    VoxelVisibility::Empty
                 } else {
                     VoxelVisibility::Opaque
                 },
@@ -109,5 +117,35 @@ impl VoxelData {
             Some(ior)
         };
         (voxels, average_ior)
+    }
+
+    pub(crate) fn cloud_voxels(&self, density_for_voxel: &[Option<f32>]) -> (Vec<f32>, bool) {
+        let mut has_cloud: bool = false;
+        let max_bound = self.shape.as_array().map(|v| v - 1);
+        let densities: Vec<f32> = self
+            .voxels
+            .iter()
+            .enumerate()
+            .filter_map(|(index, v)| {
+                // remove the outer layer of voxels that the loader adds
+                let coords = self.shape.delinearize(index as u32);
+                if coords.contains(&0) {
+                    return None;
+                }
+                if coords[0] == max_bound[0]
+                    || coords[1] == max_bound[1]
+                    || coords[2] == max_bound[2]
+                {
+                    return None;
+                }
+                if let Some(density) = density_for_voxel[v.0 as usize] {
+                    has_cloud = true;
+                    Some(density * 10.)
+                } else {
+                    Some(0.0)
+                }
+            })
+            .collect();
+        (densities, has_cloud)
     }
 }
