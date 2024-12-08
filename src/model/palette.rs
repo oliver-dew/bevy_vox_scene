@@ -20,6 +20,7 @@ pub struct VoxelPalette {
     pub(crate) roughness: MaterialProperty,
     pub(crate) transmission: MaterialProperty,
     pub(crate) indices_of_refraction: Vec<Option<f32>>,
+    pub(crate) density_for_voxel: Vec<Option<f32>>,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -53,6 +54,8 @@ pub struct VoxelElement {
     pub translucency: f32,
     /// The index of refraction of translucent voxels. Has no effect if [`VoxelElement::translucency`] is 0.0
     pub refraction_index: f32,
+    /// The density of cloud materials.
+    pub density: f32,
 }
 
 impl Default for VoxelElement {
@@ -64,6 +67,7 @@ impl Default for VoxelElement {
             metalness: 0.0,
             translucency: 0.0,
             refraction_index: 1.5,
+            density: 0.0,
         }
     }
 }
@@ -87,6 +91,16 @@ impl VoxelPalette {
                 }
             })
             .collect();
+        let density_for_voxel = elements
+            .iter()
+            .map(|e| {
+                if e.density > 0.0 {
+                    Some(e.density)
+                } else {
+                    None
+                }
+            })
+            .collect();
         VoxelPalette {
             elements,
             emission: MaterialProperty::from_slice(&emission_data),
@@ -94,6 +108,7 @@ impl VoxelPalette {
             roughness: MaterialProperty::from_slice(&roughness_data),
             transmission: MaterialProperty::from_slice(&translucency_data),
             indices_of_refraction,
+            density_for_voxel,
         }
     }
 
@@ -135,6 +150,7 @@ impl VoxelPalette {
                     refraction_index: element
                         .refraction_index
                         .lerp(next_element.refraction_index, fraction),
+                    density: element.density.lerp(next_element.density, fraction),
                 };
             }
         }
@@ -145,18 +161,23 @@ impl VoxelPalette {
         data: &DotVoxData,
         diffuse_roughness: f32,
         emission_strength: f32,
+        uses_srgb: bool,
     ) -> Self {
         VoxelPalette::new(
             data.palette
                 .iter()
                 .zip(data.materials.iter())
                 .map(|(color, material)| VoxelElement {
-                    color: Color::linear_rgba(
-                        color.r as f32 / 255.,
-                        color.g as f32 / 255.,
-                        color.b as f32 / 255.,
-                        color.a as f32 / 255.,
-                    ), //srgba_u8(color.r, color.g, color.b, color.a),
+                    color: if uses_srgb {
+                        Color::srgba_u8(color.r, color.g, color.b, color.a)
+                    } else {
+                        Color::linear_rgba(
+                            color.r as f32 / 255.,
+                            color.g as f32 / 255.,
+                            color.b as f32 / 255.,
+                            color.a as f32 / 255.,
+                        )
+                    },
                     emission: material.emission().unwrap_or(0.0)
                         * (material.radiant_flux().unwrap_or(0.0) + 1.0)
                         * emission_strength,
@@ -169,6 +190,11 @@ impl VoxelPalette {
                     translucency: material.opacity().unwrap_or(0.0),
                     refraction_index: if material.material_type() == Some("_glass") {
                         1.0 + material.refractive_index().unwrap_or(0.0)
+                    } else {
+                        0.0
+                    },
+                    density: if material.material_type() == Some("_media") {
+                        material.density().unwrap_or(0.0) * 10.0
                     } else {
                         0.0
                     },

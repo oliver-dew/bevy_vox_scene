@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.16.0"
+bevy_vox_scene = "0.17.0"
 ```
 
    Then in code:
@@ -71,6 +71,7 @@ cargo run --example <example name>
 - If you want glowing emissive voxels, add an HDR and bloom-enabled camera. See the [`emissive-model` example](/examples/emissive-model.rs).
 - Enabling Screen-Space Ambient Occlusion can give your voxel scenes more pop. See the [`ssao-model` example](/examples/ssao-model.rs).
 - If you want glass voxels to refract other objects in the scene, enable specular transmission on your camera3d. See the [`transmission-scene` example](/examples/transmission-scene.rs).
+- If you want to render cloud voxels as volumetric fog, add `VolumetricFog` to your camera, and `VolumetricLight` to your lights. `bevy-vox-scene` will convert cloud voxels into density textures and insert them into your scene as `FogVolume`s. See the [`cloud-scene` example](/examples/cloud-scene.rs).
 
 ## Bevy and Magica Voxel compatibility
 
@@ -79,13 +80,12 @@ cargo run --example <example name>
 | 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12    | 
 | 0.13         |                      | 0.13                     |
 | 0.14         |                      | 0.14, 0.15               |
-| 0.15         |                      | 0.16                     |
+| 0.15         |                      | 0.16, 0.17               |
 
 ## Limitations and workarounds
 
 - When spawning individual named meshes as subassets (`assets.load("study.vox#desk")`), you'll need to ensure that the name you have given it in Magica Voxel is unique within the file. Avoid names that begin with the word `material` or `model` as these are reserved for the various subassets that make up the scene.
 - In MagicaVoxel's raytraced renders, emissive materials contribute to the lighting of a scene. Emissive materials do not currently do this in Bevy, they just glow. If in future Bevy implements a global illumination system, then emissive materials would contribute to the lighting.
-- MagicaVoxel "cloud" materials are not currently supported.
 - Material properties (color, roughness, metalness, emission, transparency) are achieved using 16x16 pixel texture atlases that are indexed from the meshes UVs. Therefore it isn't possible to do "Minecraft" style texturing (where a texture is tiled over each voxel). For that effect, consider using [the `bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) instead.
 
 ### Transparent materials
@@ -96,7 +96,6 @@ TLDR: split up models containing glass voxels into convex chunks using Magica Vo
 
 - If you have a concave model that contains glass voxels, the other parts of that model will not be visible through the glass voxels. This is a limitation of Bevy's screen-space specular transmission system. To work around this limitation, use the Magica Voxel world editor to break up models that contain glass elements into separate models that are each convex.
 - Bevy's StandardMaterial only allows a single Index of Refraction (IoR) per material. The IoR contained in a model are averaged together to arrive at this value. If your scene contains transmissive materials that have widely differing IoRs (eg water vs diamond), and you think that averaging those IoRs together makes a significant visible difference to the scene, consider breaking the model up into separate meshes for each transmissive medium.
-- Bevy's Screen Space Ambient Occlusion (SSAO) appears to block the blurring affect that you get from glass materials that have roughness. If you have rough glass materials, consider not using SSAO.
 
 ## Acknowledgements
 

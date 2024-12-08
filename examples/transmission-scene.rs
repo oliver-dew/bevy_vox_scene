@@ -5,7 +5,7 @@ use bevy::{
         experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
         tonemapping::Tonemapping,
     },
-    pbr::{FogVolume, VolumetricFog, VolumetricLight},
+    pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog, VolumetricLight},
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
@@ -60,10 +60,14 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 500.0,
+            intensity: 2000.0,
             ..default()
         },
-        VolumetricFog::default(),
+        VolumetricFog {
+            ambient_intensity: 0.0,
+            ..default()
+        },
+        ScreenSpaceAmbientOcclusion::default(),
     ));
 
     commands.spawn((

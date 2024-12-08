@@ -64,7 +64,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
-        Tonemapping::SomewhatBoringDisplayTransform,
+        Tonemapping::BlenderFilmic,
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 500.0,
+            intensity: 2000.0,
             ..default()
         },
         DepthOfField {
@@ -118,8 +118,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 /// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
 /// observer was added to).
 fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
-    let name = trigger.event().model_name.as_str();
-    match name {
+    let Some(name) = &trigger.event().model_name else {
+        return;
+    };
+    match name.as_str() {
         "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen

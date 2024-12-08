@@ -32,7 +32,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 500.0,
+            intensity: 2000.0,
             ..default()
         },
     ));
@@ -58,18 +58,11 @@ fn setup(world: &mut World) {
         );
     let context = VoxelContext::new(world, palette);
     let model_name = "my sdf model";
-    let Some((model_handle, model)) =
+    let (model_handle, _model) =
         VoxelModel::new(world, data, model_name.to_string(), context.clone())
-    else {
-        return;
-    };
-    world.spawn((
-        Mesh3d(model.mesh),
-        MeshMaterial3d(model.material),
-        // The [`VoxelModelInstance`] component is only needed if you want to be able to modify the model at a later time:
-        VoxelModelInstance {
-            model: model_handle,
-            context,
-        },
-    ));
+            .expect("Model has been generated");
+    world.spawn((VoxelModelInstance {
+        model: model_handle,
+        context,
+    },));
 }

@@ -123,6 +123,7 @@ fn pan_orbit_camera(
             let rot_matrix = Mat3::from_quat(transform.rotation);
             transform.translation =
                 pan_orbit.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, pan_orbit.radius));
+            // println!("camera pos: {}, forward: {:#?}", transform.translation, transform.forward());
         }
     }
 

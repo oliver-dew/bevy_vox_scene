@@ -1,4 +1,5 @@
 use bevy::{
+    image::Image,
     math::{IVec3, UVec3},
     render::mesh::Mesh,
 };
@@ -70,9 +71,25 @@ impl VoxelData {
         }
     }
 
-    pub(crate) fn remesh(&self, ior_for_voxel: &[Option<f32>]) -> (Mesh, Option<f32>) {
-        let (visible_voxels, average_ior) = self.visible_voxels(ior_for_voxel);
-        (super::mesh::mesh_model(&visible_voxels, self), average_ior)
+    pub(crate) fn remesh(
+        &self,
+        ior_for_voxel: &[Option<f32>],
+        density_for_voxel: &[Option<f32>],
+    ) -> (Option<Mesh>, Option<f32>, Option<Image>) {
+        let (visible_voxels, average_ior, needs_meshing) =
+            self.visible_voxels(ior_for_voxel, density_for_voxel);
+        let (cloud_voxels, has_cloud) = self.cloud_voxels(density_for_voxel);
+        let maybe_mesh = if needs_meshing {
+            Some(super::mesh::mesh_model(&visible_voxels, self))
+        } else {
+            None
+        };
+        let maybe_image = if has_cloud {
+            Some(super::cloud::create_cloud_image(&cloud_voxels, self))
+        } else {
+            None
+        };
+        (maybe_mesh, average_ior, maybe_image)
     }
 
     /// Returns the [`VoxelVisibility`] of each Voxel, and, if the model contains
@@ -80,7 +97,8 @@ impl VoxelData {
     pub(crate) fn visible_voxels(
         &self,
         ior_for_voxel: &[Option<f32>],
-    ) -> (Vec<VisibleVoxel>, Option<f32>) {
+        density_for_voxel: &[Option<f32>],
+    ) -> (Vec<VisibleVoxel>, Option<f32>, bool) {
         let mut refraction_indices: Vec<f32> = Vec::new();
         let voxels: Vec<VisibleVoxel> = self
             .voxels
@@ -92,6 +110,8 @@ impl VoxelData {
                 } else if let Some(ior) = ior_for_voxel[v.0 as usize] {
                     refraction_indices.push(ior);
                     VoxelVisibility::Translucent
+                } else if density_for_voxel[v.0 as usize].is_some() {
+                    VoxelVisibility::Empty
                 } else {
                     VoxelVisibility::Opaque
                 },
@@ -108,6 +128,39 @@ impl VoxelData {
                 / refraction_indices.len() as f32;
             Some(ior)
         };
-        (voxels, average_ior)
+        let needs_meshing = voxels
+            .iter()
+            .any(|&v| v.visibility != VoxelVisibility::Empty);
+        (voxels, average_ior, needs_meshing)
+    }
+
+    pub(crate) fn cloud_voxels(&self, density_for_voxel: &[Option<f32>]) -> (Vec<f32>, bool) {
+        let mut has_cloud: bool = false;
+        let max_bound = self.shape.as_array().map(|v| v - 1);
+        let densities: Vec<f32> = self
+            .voxels
+            .iter()
+            .enumerate()
+            .filter_map(|(index, v)| {
+                // remove the outer layer of voxels that the loader adds
+                let coords = self.shape.delinearize(index as u32);
+                if coords.contains(&0) {
+                    return None;
+                }
+                if coords[0] == max_bound[0]
+                    || coords[1] == max_bound[1]
+                    || coords[2] == max_bound[2]
+                {
+                    return None;
+                }
+                if let Some(density) = density_for_voxel[v.0 as usize] {
+                    has_cloud = true;
+                    Some(density)
+                } else {
+                    Some(0.0)
+                }
+            })
+            .collect();
+        (densities, has_cloud)
     }
 }
