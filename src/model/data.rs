@@ -99,7 +99,6 @@ impl VoxelData {
         ior_for_voxel: &[Option<f32>],
         density_for_voxel: &[Option<f32>],
     ) -> (Vec<VisibleVoxel>, Option<f32>, bool) {
-        // TODO: return a "has solid/ translucent voxels" bool to decide whether to mesh
         let mut refraction_indices: Vec<f32> = Vec::new();
         let voxels: Vec<VisibleVoxel> = self
             .voxels

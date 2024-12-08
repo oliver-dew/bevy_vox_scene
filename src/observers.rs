@@ -66,7 +66,7 @@ use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
 pub struct VoxelInstanceSpawned {
     /// The entity on which the VoxelModelInstance spawned
     pub entity: Entity,
-    /// The name of the model that spawned
+    /// The name of the model that spawned (if it has been named in the MagicaVoxel editor)
     pub model_name: Option<String>,
     /// The name of the model's layer (if it has been named in the MagicaVoxel editor)
     pub layer_name: Option<String>,
