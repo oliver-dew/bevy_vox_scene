@@ -5,6 +5,7 @@
 - MagicaVoxel cloud materials are now imported as volumetric fog textures. See the [`cloud-scene` example](/examples/cloud-scene.rs).
 - Because of this change, `VoxelModel`'s mesh and material handles are now optional. This is because if a model consists only of cloud materials, it won't have any surfaces to be meshed.
 - `VoxelInstanceSpawned` previously only fired for models that had been named in the Magica Voxel editor. Now it fires for all models, named and unnamed, and also includes their layer name, if a name has been assigned to the model's layer in the Magica Voxel editor.
+- Add `uses_srgb` field to `VoxLoaderSettings`, defaulting to true, to more accuratelty match the colors in the Magica Voxel render pane.
 
 ## 0.16
 

@@ -47,6 +47,8 @@ pub struct VoxLoaderSettings {
     pub mesh_offset: UnitOffset,
     /// Multiplier for emissive strength. Defaults to 10.0.
     pub emission_strength: f32,
+    /// Defaults to `true` to more accurately reflect the colours in Magica Voxel.
+    pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
 }
@@ -57,7 +59,8 @@ impl Default for VoxLoaderSettings {
             voxel_size: 1.0,
             mesh_outer_faces: true,
             mesh_offset: UnitOffset::CENTER,
-            emission_strength: 10.0,
+            emission_strength: 20.0,
+            uses_srgb: true,
             diffuse_roughness: 0.8,
         }
     }
@@ -129,6 +132,7 @@ impl VoxSceneLoader {
             &file,
             settings.diffuse_roughness,
             settings.emission_strength,
+            settings.uses_srgb,
         );
         let translucent_material = palette.create_material_in_load_context(load_context);
         let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {

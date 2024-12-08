@@ -64,7 +64,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
-        Tonemapping::SomewhatBoringDisplayTransform,
+        Tonemapping::BlenderFilmic,
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 500.0,
+            intensity: 2000.0,
             ..default()
         },
         DepthOfField {

@@ -161,6 +161,7 @@ impl VoxelPalette {
         data: &DotVoxData,
         diffuse_roughness: f32,
         emission_strength: f32,
+        uses_srgb: bool,
     ) -> Self {
         VoxelPalette::new(
             data.palette
@@ -168,12 +169,16 @@ impl VoxelPalette {
                 .zip(data.materials.iter())
                 .map(|(color, material)| {
                     VoxelElement {
-                        color: Color::linear_rgba(
-                            color.r as f32 / 255.,
-                            color.g as f32 / 255.,
-                            color.b as f32 / 255.,
-                            color.a as f32 / 255.,
-                        ), //srgba_u8(color.r, color.g, color.b, color.a),
+                        color: if uses_srgb { 
+                            Color::srgba_u8(color.r, color.g, color.b, color.a)
+                        } else {
+                            Color::linear_rgba(
+                                color.r as f32 / 255.,
+                                color.g as f32 / 255.,
+                                color.b as f32 / 255.,
+                                color.a as f32 / 255.,
+                            )
+                        },
                         emission: material.emission().unwrap_or(0.0)
                             * (material.radiant_flux().unwrap_or(0.0) + 1.0)
                             * emission_strength,
