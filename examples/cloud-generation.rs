@@ -101,7 +101,7 @@ fn spawn_cloud(world: &mut World) {
             UVec3::splat(32),
             VoxLoaderSettings::default(),
             |d, _| match d {
-                // higher density the deeper into the cloud we go. 
+                // higher density the deeper into the cloud we go.
                 // nb the `Voxel` values index from 1, with 0 reserved for `Voxel::EMPTY`
                 x if x < -3.0 => Voxel(4),
                 x if x < -2.0 => Voxel(3),

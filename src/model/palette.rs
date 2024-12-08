@@ -167,39 +167,37 @@ impl VoxelPalette {
             data.palette
                 .iter()
                 .zip(data.materials.iter())
-                .map(|(color, material)| {
-                    VoxelElement {
-                        color: if uses_srgb { 
-                            Color::srgba_u8(color.r, color.g, color.b, color.a)
-                        } else {
-                            Color::linear_rgba(
-                                color.r as f32 / 255.,
-                                color.g as f32 / 255.,
-                                color.b as f32 / 255.,
-                                color.a as f32 / 255.,
-                            )
-                        },
-                        emission: material.emission().unwrap_or(0.0)
-                            * (material.radiant_flux().unwrap_or(0.0) + 1.0)
-                            * emission_strength,
-                        roughness: if material.material_type() == Some("_diffuse") {
-                            diffuse_roughness
-                        } else {
-                            material.roughness().unwrap_or(0.0)
-                        },
-                        metalness: material.metalness().unwrap_or(0.0),
-                        translucency: material.opacity().unwrap_or(0.0),
-                        refraction_index: if material.material_type() == Some("_glass") {
-                            1.0 + material.refractive_index().unwrap_or(0.0)
-                        } else {
-                            0.0
-                        },
-                        density: if material.material_type() == Some("_media") {
-                            material.density().unwrap_or(0.0) * 10.0
-                        } else {
-                            0.0
-                        },
-                    }
+                .map(|(color, material)| VoxelElement {
+                    color: if uses_srgb {
+                        Color::srgba_u8(color.r, color.g, color.b, color.a)
+                    } else {
+                        Color::linear_rgba(
+                            color.r as f32 / 255.,
+                            color.g as f32 / 255.,
+                            color.b as f32 / 255.,
+                            color.a as f32 / 255.,
+                        )
+                    },
+                    emission: material.emission().unwrap_or(0.0)
+                        * (material.radiant_flux().unwrap_or(0.0) + 1.0)
+                        * emission_strength,
+                    roughness: if material.material_type() == Some("_diffuse") {
+                        diffuse_roughness
+                    } else {
+                        material.roughness().unwrap_or(0.0)
+                    },
+                    metalness: material.metalness().unwrap_or(0.0),
+                    translucency: material.opacity().unwrap_or(0.0),
+                    refraction_index: if material.material_type() == Some("_glass") {
+                        1.0 + material.refractive_index().unwrap_or(0.0)
+                    } else {
+                        0.0
+                    },
+                    density: if material.material_type() == Some("_media") {
+                        material.density().unwrap_or(0.0) * 10.0
+                    } else {
+                        0.0
+                    },
                 })
                 .collect(),
         )

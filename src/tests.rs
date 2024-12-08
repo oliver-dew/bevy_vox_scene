@@ -12,7 +12,7 @@ use bevy::{
     core::Name,
     hierarchy::Children,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
-    pbr::{MeshMaterial3d, StandardMaterial},
+    pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
     prelude::{
         GlobalTransform, HierarchyPlugin, InheritedVisibility, Mesh3d, OnAdd, Query, Transform,
         Trigger, ViewVisibility, Visibility,
@@ -53,8 +53,61 @@ async fn test_load_scene() {
     let models = app.world().resource::<Assets<VoxelModel>>();
     assert_eq!(
         models.len(),
-        3,
-        "Same 3 models are instanced through the scene"
+        4,
+        "Same 4 models are instanced through the scene"
+    );
+}
+
+#[async_std::test]
+async fn test_load_spawn_cloud() {
+    let mut app = App::new();
+    let handle =
+        setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
+    app.update();
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    app.update();
+    let entity = app
+        .world()
+        .get::<Children>(scene_root)
+        .expect("children")
+        .first()
+        .expect("scene root");
+    let model_instance = app
+        .world()
+        .get::<VoxelModelInstance>(*entity)
+        .expect("voxel model instance")
+        .clone();
+    let model = app
+        .world()
+        .resource::<Assets<VoxelModel>>()
+        .get(model_instance.model.id())
+        .expect("retrieve model from Res<Assets>");
+    let fog_entity = app
+        .world()
+        .get::<Children>(*entity)
+        .expect("children")
+        .first()
+        .expect("fog entity");
+    let fog_volume = app
+        .world()
+        .get::<FogVolume>(*fog_entity)
+        .expect("fog volume");
+
+    assert_ne!(
+        model.cloud_image, None,
+        "Model with cloud voxels should have a cloud image"
+    );
+    assert_eq!(
+        model.cloud_image, fog_volume.density_texture,
+        "FogVolume should have spawned with cloud texture from VoxelModel"
+    );
+    assert_eq!(
+        model.mesh, None,
+        "Model consisting solely of cloud voxels shouldn't have a mesh"
+    );
+    assert_eq!(
+        model.material, None,
+        "Model consisting solely of cloud voxels shouldn't have a material"
     );
 }
 
@@ -83,6 +136,10 @@ async fn test_transmissive_mat() {
         .resource::<Assets<VoxelModel>>()
         .get(model_id)
         .expect("Walls has a model");
+    assert_eq!(
+        model.cloud_image, None,
+        "Model with no cloud voxels should not have a cloud image"
+    );
     let mat_handle = model.material.clone().expect("Model has a material handle");
     let material = app
         .world()
@@ -147,10 +204,11 @@ async fn test_spawn_system() {
     ));
     app.add_observer(|trigger: Trigger<OnAdd, Name>, query: Query<&Name>| {
         let name = query.get(trigger.entity()).unwrap().as_str();
-        let expected_names: [&'static str; 3] = [
+        let expected_names: [&'static str; 4] = [
             "outer-group/inner-group",
             "outer-group/inner-group/dice",
             "outer-group/inner-group/walls",
+            "outer-group/inner-group/cloud",
         ];
         assert!(expected_names.contains(&name));
     });
@@ -161,25 +219,25 @@ async fn test_spawn_system() {
             .query::<&VoxelLayer>()
             .iter(&app.world())
             .len(),
-        5,
-        "5 voxel nodes spawned in this scene slice"
+        6,
+        "6 voxel nodes spawned in this scene slice"
     );
     assert_eq!(
         app.world_mut().query::<&Name>().iter(&app.world()).len(),
-        3,
-        "But only 3 of the voxel nodes are named"
+        4,
+        "But only 4 of the voxel nodes are named"
     );
     let mut instance_query = app.world_mut().query::<&VoxelModelInstance>();
     assert_eq!(
         instance_query.iter(&app.world()).len(),
-        4,
-        "4 model instances spawned in this scene slice"
+        5,
+        "5 model instances spawned in this scene slice"
     );
     let models: HashSet<String> = instance_query
         .iter(&app.world())
         .map(|c| c.model.id().to_string().clone())
         .collect();
-    assert_eq!(models.len(), 2, "Instances point to 2 unique models");
+    assert_eq!(models.len(), 3, "Instances point to 3 unique models");
     let entity = app
         .world()
         .get::<Children>(scene_root)
@@ -198,13 +256,13 @@ async fn test_spawn_system() {
         .get::<Children>(*entity)
         .expect("children of inner-group")
         .as_ref();
-    assert_eq!(children.len(), 4, "inner-group has 4 children");
+    assert_eq!(children.len(), 5, "inner-group has 5 children");
     assert_eq!(
         app.world()
             .get::<Name>(*children.last().expect("last child"))
             .expect("Name component")
             .as_str(),
-        "outer-group/inner-group/dice"
+        "outer-group/inner-group/cloud"
     );
     app.update(); // fire the hooks
 }
