@@ -59,7 +59,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: asset_server.load("pisa_diffuse.ktx2"),
             specular_map: asset_server.load("pisa_specular.ktx2"),
-            intensity: 2000.0,
+            intensity: 500.0,
             ..default()
         },
         ScreenSpaceAmbientOcclusion::default(),

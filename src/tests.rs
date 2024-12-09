@@ -326,7 +326,7 @@ fn test_generate_voxels() {
 
     let mut app = App::new();
     setup_app(&mut app);
-    let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()]);
+    let palette = VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()], true);
     let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
         UVec3::splat(6),
         VoxLoaderSettings::default(),

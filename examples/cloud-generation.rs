@@ -72,6 +72,7 @@ fn spawn_cloud(world: &mut World) {
                 ..Default::default()
             })
             .collect(),
+        true,
     );
 
     // Combine a bunch of random SDF::sphere to create the cloud

@@ -32,18 +32,21 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
         EnvironmentMapLight {
             diffuse_map: assets.load("pisa_diffuse.ktx2"),
             specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 2000.0,
+            intensity: 500.0,
             ..default()
         },
     ));
 }
 
 fn setup(world: &mut World) {
-    let palette = VoxelPalette::from_colors(vec![
-        bevy::color::palettes::css::BLUE.into(),
-        bevy::color::palettes::css::ALICE_BLUE.into(),
-        bevy::color::palettes::css::BISQUE.into(),
-    ]);
+    let palette = VoxelPalette::from_colors(
+        vec![
+            bevy::color::palettes::css::BLUE.into(),
+            bevy::color::palettes::css::ALICE_BLUE.into(),
+            bevy::color::palettes::css::BISQUE.into(),
+        ],
+        true,
+    );
     let data = SDF::cuboid(Vec3::splat(13.0))
         .subtract(SDF::sphere(16.0))
         .map_to_voxels(

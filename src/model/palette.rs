@@ -21,6 +21,8 @@ pub struct VoxelPalette {
     pub(crate) transmission: MaterialProperty,
     pub(crate) indices_of_refraction: Vec<Option<f32>>,
     pub(crate) density_for_voxel: Vec<Option<f32>>,
+    /// If true, uses SRGB for colors. Uses Linear colors if false.
+    pub(crate) uses_srgb: bool,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -74,7 +76,7 @@ impl Default for VoxelElement {
 
 impl VoxelPalette {
     /// Create a new [`VoxelPalette`] from the supplied [`VoxelElement`]s
-    pub fn new(mut elements: Vec<VoxelElement>) -> Self {
+    pub fn new(mut elements: Vec<VoxelElement>, uses_srgb: bool) -> Self {
         let emission_data: Vec<f32> = elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = elements.iter().map(|e| e.roughness).collect();
         let metalness_data: Vec<f32> = elements.iter().map(|e| e.metalness).collect();
@@ -109,11 +111,12 @@ impl VoxelPalette {
             transmission: MaterialProperty::from_slice(&translucency_data),
             indices_of_refraction,
             density_for_voxel,
+            uses_srgb,
         }
     }
 
     /// Create a new [`VoxelPalette`] from the supplied [`Color`]s
-    pub fn from_colors(colors: Vec<Color>) -> Self {
+    pub fn from_colors(colors: Vec<Color>, uses_srgb: bool) -> Self {
         VoxelPalette::new(
             colors
                 .iter()
@@ -122,11 +125,12 @@ impl VoxelPalette {
                     ..Default::default()
                 })
                 .collect(),
+            uses_srgb,
         )
     }
 
     /// Create a new [`VoxelPalette`] by interpolating between the [`VoxelElement`] in the gradient stops
-    pub fn from_gradient(stops: &[(u8, VoxelElement)]) -> Self {
+    pub fn from_gradient(stops: &[(u8, VoxelElement)], uses_srgb: bool) -> Self {
         let mut elements = vec![VoxelElement::default(); 256];
         for (index, (stop, element)) in stops.iter().enumerate() {
             let default = (u8::MAX - 1, element.clone());
@@ -154,7 +158,7 @@ impl VoxelPalette {
                 };
             }
         }
-        VoxelPalette::new(elements)
+        VoxelPalette::new(elements, uses_srgb)
     }
 
     pub(crate) fn from_data(
@@ -200,6 +204,7 @@ impl VoxelPalette {
                     },
                 })
                 .collect(),
+            uses_srgb,
         )
     }
 
@@ -226,7 +231,13 @@ impl VoxelPalette {
         let color_data: Vec<u8> = self
             .elements
             .iter()
-            .flat_map(|e| e.color.to_linear().to_u8_array())
+            .flat_map(|e| {
+                if self.uses_srgb {
+                    e.color.to_srgba().to_u8_array()
+                } else {
+                    e.color.to_linear().to_u8_array()
+                }
+            })
             .collect();
         let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
         let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
@@ -249,7 +260,11 @@ impl VoxelPalette {
                 image_size,
                 TextureDimension::D2,
                 color_data,
-                TextureFormat::Rgba8UnormSrgb,
+                if self.uses_srgb {
+                    TextureFormat::Rgba8UnormSrgb
+                } else {
+                    TextureFormat::Rgba8Unorm
+                },
                 RenderAssetUsages::default(),
             ),
         ));
