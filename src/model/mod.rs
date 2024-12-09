@@ -1,7 +1,7 @@
 use bevy::{
     asset::{Asset, Assets, Handle},
     ecs::{
-        system::{In, ResMut, RunSystemOnce},
+        system::{In, ResMut},
         world::World,
     },
     image::Image,
@@ -56,7 +56,7 @@ impl VoxelModel {
         context: Handle<VoxelContext>,
     ) -> Option<(Handle<VoxelModel>, VoxelModel)> {
         world
-            .run_system_once_with((data, name, context), Self::add_model)
+            .run_system_cached_with(Self::add_model, (data, name, context))
             .ok()?
     }
 
@@ -116,8 +116,8 @@ impl VoxelContext {
     /// Create a new context with the supplied palette
     pub fn new(world: &mut World, palette: VoxelPalette) -> Handle<VoxelContext> {
         world
-            .run_system_once_with(palette, Self::new_context)
-            .expect("ooh")
+            .run_system_cached_with(Self::new_context, palette)
+            .expect("Voxel context created")
     }
 
     fn new_context(

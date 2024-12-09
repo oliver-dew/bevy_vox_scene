@@ -118,16 +118,10 @@ fn spawn_cloud(world: &mut World) {
         VoxelModel::new(world, data, model_name.to_string(), context.clone())
             .expect("Model has been generated");
 
-    // When spawning an instance that only contains fog, we need to supply Transform and Visibility,
-    // because the FogVolume needs to spawn in a child entity to set the scale of the volume
-    world.spawn((
-        Transform::IDENTITY,
-        Visibility::Visible,
-        VoxelModelInstance {
-            model: model_handle,
-            context,
-        },
-    ));
+    world.spawn(VoxelModelInstance {
+        model: model_handle,
+        context,
+    });
 }
 
 /// Moves fog density texture offset every frame.
