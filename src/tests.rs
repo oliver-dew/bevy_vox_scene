@@ -333,7 +333,7 @@ fn test_generate_voxels() {
         Voxel(1),
     );
     let world = app.world_mut();
-    let context = VoxelContext::new(world, palette);
+    let context = VoxelContext::new(world, palette).expect("Context has been created");
     let (_, tall_box_model) =
         VoxelModel::new(world, tall_box, "tall box".to_string(), context).expect("Add box model");
     assert_eq!(tall_box_model.name, "tall box");

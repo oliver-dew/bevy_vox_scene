@@ -114,10 +114,10 @@ pub struct VoxelContext {
 #[cfg(feature = "generate_voxels")]
 impl VoxelContext {
     /// Create a new context with the supplied palette
-    pub fn new(world: &mut World, palette: VoxelPalette) -> Handle<VoxelContext> {
+    pub fn new(world: &mut World, palette: VoxelPalette) -> Option<Handle<VoxelContext>> {
         world
             .run_system_cached_with(Self::new_context, palette)
-            .expect("Voxel context created")
+            .ok()
     }
 
     fn new_context(

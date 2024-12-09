@@ -113,7 +113,7 @@ fn spawn_cloud(world: &mut World) {
             },
         );
 
-    let context = VoxelContext::new(world, palette);
+    let context = VoxelContext::new(world, palette).expect("Context has been generated");
     let model_name = "my sdf model";
     let (model_handle, _model) =
         VoxelModel::new(world, data, model_name.to_string(), context.clone())
