@@ -1,5 +1,5 @@
 use bevy::{
-    asset::LoadContext,
+    asset::{Handle, LoadContext},
     core::Name,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
@@ -11,9 +11,9 @@ use bevy::{
 };
 use dot_vox::{Frame, SceneNode};
 
-use crate::{VoxelLayer, VoxelModelInstance};
+use crate::{VoxelLayer, VoxelModel, VoxelModelInstance};
 
-use super::components::LayerInfo;
+use super::components::{LayerInfo, VoxelAnimation};
 
 pub(super) fn find_model_names(
     name_for_model: &mut Vec<Option<String>>,
@@ -178,6 +178,7 @@ fn load_xform_node(
                 &frames[0],
                 scene_scale,
             )));
+
             if let Some(node_name) = node_name {
                 // create sub-asset
                 if subassets.insert(node_name.clone()) {
@@ -268,14 +269,27 @@ fn load_xform_child(
             attributes: _,
             models,
         } => {
-            let model_id = models[0].model_id as usize;
-            let model_name = model_names[model_id]
-                .clone()
-                .unwrap_or(format!("model-{}", model_id));
-            entity.insert((VoxelModelInstance {
-                model: context.get_label_handle(format!("{}@model", model_name)),
+            let models: Vec<Handle<VoxelModel>> = models
+                .iter()
+                .map(|model| {
+                    let model_id = model.model_id as usize;
+                    let model_name = model_names[model_id]
+                        .clone()
+                        .unwrap_or(format!("model-{}", model_id));
+                    context.get_label_handle(format!("{}@model", model_name))
+                })
+                .collect();
+            let model_count = models.len();
+            entity.insert(VoxelModelInstance {
+                models,
                 context: context.get_label_handle("voxel-context"),
-            },));
+            });
+            if model_count > 1 {
+                entity.insert(VoxelAnimation {
+                    frames: (0..model_count).collect(),
+                    ..Default::default()
+                });
+            }
         }
     }
 }

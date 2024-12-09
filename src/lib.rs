@@ -41,20 +41,21 @@
 //!```
 
 use bevy::{
-    app::{App, Plugin},
+    app::{App, Plugin, Update},
     asset::AssetApp,
 };
 
 mod load;
 mod model;
 mod observers;
+mod systems;
 
 #[cfg(test)]
 mod tests;
 
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{UnitOffset, VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
+pub use load::{UnitOffset, VoxLoaderSettings, VoxelAnimation, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]
@@ -82,9 +83,11 @@ impl Plugin for VoxScenePlugin {
             .init_asset::<VoxelContext>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
+            .register_type::<VoxelAnimation>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })
-            .add_observer(observers::on_voxel_instance_spawned);
+            .add_observer(observers::on_voxel_instance_spawned)
+            .add_systems(Update, systems::update_animations);
     }
 }

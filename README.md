@@ -5,7 +5,7 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.17.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.17.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.18.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.18.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.17.0"
+bevy_vox_scene = "0.18.0"
 ```
 
    Then in code:
@@ -75,12 +75,13 @@ cargo run --example <example name>
 
 ## Bevy and Magica Voxel compatibility
 
-| Bevy version | Magica Voxel version | `bevy-vox-scene` version | 
-| ------------ | -------------- | --- |
-| 0.12         | 0.99.6               | 0.9, 0.10, 0.11, 0.12    | 
-| 0.13         |                      | 0.13                     |
-| 0.14         |                      | 0.14, 0.15               |
-| 0.15         |                      | 0.16, 0.17               |
+| Bevy version | Magica Voxel version           | `bevy-vox-scene` version | 
+| ------------ | ------------------------------ | ------------------------ |
+| 0.12         | 0.99.6, 0.99.7 (no animation)  | 0.9, 0.10, 0.11, 0.12    | 
+| 0.13         |                                | 0.13                     |
+| 0.14         |                                | 0.14, 0.15               |
+| 0.15         |                                | 0.16, 0.17               |
+|              |0.99.6, 0.99.7 (with animation) | 0.18                     |
 
 ## Limitations and workarounds
 
