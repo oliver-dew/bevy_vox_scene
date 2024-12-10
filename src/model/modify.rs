@@ -111,7 +111,7 @@ impl Command for ModifyVoxelModel {
             let (mut meshes, mut materials, mut images, mut models, contexts) =
                 system_state.get_mut(world);
             let context = contexts.get(self.instance.context.id())?;
-            let model = models.get_mut(self.instance.model.id())?;
+            let model = models.get_mut(self.instance.models[0].id())?;
             let refraction_indices = &context.palette.indices_of_refraction;
             let density_for_voxel = &context.palette.density_for_voxel;
             self.modify_model(

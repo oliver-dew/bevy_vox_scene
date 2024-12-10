@@ -80,7 +80,7 @@ async fn test_load_spawn_cloud() {
     let model = app
         .world()
         .resource::<Assets<VoxelModel>>()
-        .get(model_instance.model.id())
+        .get(model_instance.models[0].id())
         .expect("retrieve model from Res<Assets>");
     let fog_entity = app
         .world()
@@ -129,7 +129,7 @@ async fn test_transmissive_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .model;
+        .models[0];
 
     let model = app
         .world()
@@ -171,7 +171,7 @@ async fn test_opaque_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .model;
+        .models[0];
 
     let model = app
         .world()
@@ -235,7 +235,7 @@ async fn test_spawn_system() {
     );
     let models: HashSet<String> = instance_query
         .iter(&app.world())
-        .map(|c| c.model.id().to_string().clone())
+        .map(|c| c.models[0].id().to_string().clone())
         .collect();
     assert_eq!(models.len(), 3, "Instances point to 3 unique models");
     let entity = app
@@ -300,7 +300,7 @@ async fn test_modify_voxels() {
     let model = app
         .world()
         .resource::<Assets<VoxelModel>>()
-        .get(model_instance.model.id())
+        .get(model_instance.models[0].id())
         .expect("retrieve model from Res<Assets>");
 
     assert_eq!(

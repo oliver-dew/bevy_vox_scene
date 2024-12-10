@@ -3,12 +3,14 @@ use bevy::{
     core::Name,
     pbr::{FogVolume, MeshMaterial3d},
     prelude::{
-        BuildChildren, Commands, Component, Entity, Event, Mesh3d, OnAdd, Parent, Query, Res,
-        Transform, Trigger,
+        BuildChildren, ChildBuild, Commands, Component, Entity, Event, Mesh3d, OnAdd, Parent,
+        Query, Res, Transform, Trigger, Visibility,
     },
 };
 
-use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
+use crate::{
+    load::VoxelAnimationFrame, VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable,
+};
 
 /// An Event triggered when a [`VoxelModelInstance`] is spawned.
 ///
@@ -81,32 +83,66 @@ pub(crate) fn on_voxel_instance_spawned(
     trigger: Trigger<OnAdd, VoxelModelInstance>,
     models: Res<Assets<VoxelModel>>,
     mut commands: Commands,
-    query: Query<(&VoxelModelInstance, Option<&Name>, Option<&VoxelLayer>)>,
+    model_query: Query<(&VoxelModelInstance, Option<&Name>, Option<&VoxelLayer>)>,
 ) {
-    let Ok((model_instance, maybe_name, maybe_layer)) = query.get(trigger.entity()) else {
+    let Ok((model_instance, maybe_name, maybe_layer)) = model_query.get(trigger.entity()) else {
         return;
     };
-    let Some(model) = models.get(&model_instance.model) else {
-        return;
-    };
-    if model.cloud_image.is_some() {
-        commands.entity(trigger.entity()).with_child((
-            FogVolume {
-                density_texture: model.cloud_image.clone(),
-                absorption: 0.1,
-                ..Default::default()
-            },
-            Transform::from_scale(model.model_size()),
-        ));
-    };
-    if let Some(handle) = model.mesh.clone() {
-        commands.entity(trigger.entity()).insert(Mesh3d(handle));
-    };
-    if let Some(handle) = model.material.clone() {
-        commands
-            .entity(trigger.entity())
-            .insert(MeshMaterial3d(handle));
-    };
+    if model_instance.has_animation() {
+        commands.entity(trigger.entity()).with_children(|builder| {
+            for (index, model_handle) in model_instance.models.iter().enumerate() {
+                let Some(model) = models.get(model_handle) else {
+                    continue;
+                };
+                let mut frame = builder.spawn((
+                    VoxelAnimationFrame(index),
+                    if index == 0 {
+                        Visibility::Inherited
+                    } else {
+                        Visibility::Hidden
+                    },
+                ));
+                if let Some(handle) = model.mesh.clone() {
+                    frame.insert(Mesh3d(handle));
+                };
+                if let Some(handle) = model.material.clone() {
+                    frame.insert(MeshMaterial3d(handle));
+                };
+                if model.cloud_image.is_some() {
+                    frame.with_child((
+                        FogVolume {
+                            density_texture: model.cloud_image.clone(),
+                            absorption: 0.1,
+                            ..Default::default()
+                        },
+                        Transform::from_scale(model.model_size()),
+                    ));
+                };
+            }
+        });
+    } else if let Some(model_handle) = model_instance.models.first() {
+        let Some(model) = models.get(model_handle) else {
+            return;
+        };
+        if let Some(handle) = model.mesh.clone() {
+            commands.entity(trigger.entity()).insert(Mesh3d(handle));
+        };
+        if let Some(handle) = model.material.clone() {
+            commands
+                .entity(trigger.entity())
+                .insert(MeshMaterial3d(handle));
+        };
+        if model.cloud_image.is_some() {
+            commands.entity(trigger.entity()).with_child((
+                FogVolume {
+                    density_texture: model.cloud_image.clone(),
+                    absorption: 0.1,
+                    ..Default::default()
+                },
+                Transform::from_scale(model.model_size()),
+            ));
+        };
+    }
     let event = VoxelInstanceSpawned {
         entity: trigger.entity(),
         model_name: maybe_name.map(|name| name.to_string()),
