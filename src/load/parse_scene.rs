@@ -13,7 +13,7 @@ use dot_vox::{Frame, SceneNode};
 
 use crate::{VoxelLayer, VoxelModel, VoxelModelInstance};
 
-use super::components::{LayerInfo, VoxelAnimation};
+use super::components::{LayerInfo, VoxelAnimationPlayer};
 
 pub(super) fn find_model_names(
     name_for_model: &mut Vec<Option<String>>,
@@ -285,7 +285,7 @@ fn load_xform_child(
                 context: context.get_label_handle("voxel-context"),
             });
             if model_count > 1 {
-                entity.insert(VoxelAnimation {
+                entity.insert(VoxelAnimationPlayer {
                     frames: (0..model_count).collect(),
                     ..Default::default()
                 });

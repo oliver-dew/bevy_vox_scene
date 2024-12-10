@@ -31,9 +31,9 @@ pub struct VoxelModelInstance {
 impl VoxelModelInstance {
     /// Create a new instance for a single model (no animation frames)
     pub fn new(model: Handle<VoxelModel>, context: Handle<VoxelContext>) -> Self {
-        Self { 
-            models: vec![model], 
-            context 
+        Self {
+            models: vec![model],
+            context,
         }
     }
 
@@ -45,8 +45,8 @@ impl VoxelModelInstance {
 /// Plays Voxel Animations
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
-pub struct VoxelAnimation {
-    /// Frame indexes
+pub struct VoxelAnimationPlayer {
+    /// Frame indices
     pub frames: Vec<usize>,
     /// index of currently displayed frame
     pub current_frame: usize,
@@ -64,7 +64,7 @@ pub struct VoxelAnimation {
     pub is_paused: bool,
 }
 
-impl Default for VoxelAnimation {
+impl Default for VoxelAnimationPlayer {
     fn default() -> Self {
         Self {
             frames: vec![],
@@ -85,7 +85,7 @@ pub enum AnimationUpdate {
     ReachedEnd,
 }
 
-impl VoxelAnimation {
+impl VoxelAnimationPlayer {
     pub(crate) fn did_advance_frame(&mut self, delta: Duration) -> AnimationUpdate {
         if self.is_paused {
             return AnimationUpdate::SameFrame;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18
+
+- Support for loading animations from Magica Voxel 0.99.7 files, and also generating animations procedurally. Instead of a single model handle, `VoxelModelInstance` now has a vec of model handles. If you're generating your own animation, you will also need to add a `VoxelAnimationPlayer` component. See the [animation-generation example](./examples/animation-generation.rs). When loading animations from vox files, the loader will add a `VoxelAnimationPlayer` automatically. This can be adjusted using the `VoxelInstanceSpawned` hook. See the [animation-scene example](./examples/animation-scene.rs).
+- `VoxelContext::new` now returns an Optional.
+
 ## 0.17
 
 - MagicaVoxel cloud materials are now imported as volumetric fog textures. See the [`cloud-scene` example](/examples/cloud-scene.rs).

@@ -5,12 +5,12 @@ use bevy::{
 
 use crate::{
     load::{AnimationUpdate, VoxelAnimationFrame},
-    VoxelAnimation,
+    VoxelAnimationPlayer,
 };
 
 pub(super) fn update_animations(
     mut commands: Commands,
-    mut animation_query: Query<(Entity, &mut VoxelAnimation, &Children)>,
+    mut animation_query: Query<(Entity, &mut VoxelAnimationPlayer, &Children)>,
     mut frame_query: Query<(&VoxelAnimationFrame, &mut Visibility)>,
     time: Res<Time>,
 ) {

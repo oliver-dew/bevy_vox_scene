@@ -55,7 +55,9 @@ mod tests;
 
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{UnitOffset, VoxLoaderSettings, VoxelAnimation, VoxelLayer, VoxelModelInstance};
+pub use load::{
+    UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
+};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]
@@ -83,7 +85,7 @@ impl Plugin for VoxScenePlugin {
             .init_asset::<VoxelContext>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
-            .register_type::<VoxelAnimation>()
+            .register_type::<VoxelAnimationPlayer>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })

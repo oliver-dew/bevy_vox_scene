@@ -15,7 +15,7 @@ use bevy::{
 };
 use components::LayerInfo;
 pub use components::{
-    AnimationUpdate, VoxelAnimation, VoxelAnimationFrame, VoxelLayer, VoxelModelInstance,
+    AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
 use parse_scene::{find_model_names, parse_scene_graph};
 use serde::{Deserialize, Serialize};

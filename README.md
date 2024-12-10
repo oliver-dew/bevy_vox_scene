@@ -77,11 +77,12 @@ cargo run --example <example name>
 
 | Bevy version | Magica Voxel version           | `bevy-vox-scene` version | 
 | ------------ | ------------------------------ | ------------------------ |
-| 0.12         | 0.99.6, 0.99.7 (no animation)  | 0.9, 0.10, 0.11, 0.12    | 
+| 0.12         | 0.99.6, 0.99.7                 | 0.9, 0.10, 0.11, 0.12    | 
 | 0.13         |                                | 0.13                     |
 | 0.14         |                                | 0.14, 0.15               |
-| 0.15         |                                | 0.16, 0.17               |
-|              |0.99.6, 0.99.7 (with animation) | 0.18                     |
+| 0.15         |                                | 0.16                     |
+|              | - support cloud materials      | 0.17                     |
+|              | - support animation            | 0.18                     |
 
 ## Limitations and workarounds
 
