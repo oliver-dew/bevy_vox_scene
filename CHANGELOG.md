@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.1
+
+- Fix srgb color palettes
+- `VoxelModelInstance` now has `Transform` and `Visibility` as required components
+
 ## 0.17
 
 - MagicaVoxel cloud materials are now imported as volumetric fog textures. See the [`cloud-scene` example](/examples/cloud-scene.rs).
