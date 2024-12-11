@@ -49,7 +49,7 @@ pub struct VoxelAnimationPlayer {
     /// Frame indices
     pub frames: Vec<usize>,
     /// index of currently displayed frame
-    pub current_frame: usize,
+    pub current_frame_index: usize,
     /// timer that determines when frame should advance
     pub frame_timer: Stopwatch,
     /// Duration that each frame remains on screen
@@ -68,7 +68,7 @@ impl Default for VoxelAnimationPlayer {
     fn default() -> Self {
         Self {
             frames: vec![],
-            current_frame: 0,
+            current_frame_index: 0,
             frame_timer: Stopwatch::new(),
             frame_rate: Duration::from_secs_f32(1.0 / 8.0),
             repeat_mode: RepeatAnimation::Forever,
@@ -92,8 +92,8 @@ impl VoxelAnimationPlayer {
         }
         self.frame_timer.tick(delta);
         if self.frame_timer.elapsed() > self.frame_rate {
-            self.current_frame += 1;
-            if self.current_frame == self.frames.len() {
+            self.current_frame_index += 1;
+            if self.current_frame_index == self.frames.len() {
                 match self.repeat_mode {
                     RepeatAnimation::Never => return AnimationUpdate::ReachedEnd,
                     RepeatAnimation::Count(end_count) => {
@@ -101,17 +101,17 @@ impl VoxelAnimationPlayer {
                         if self.play_count >= end_count {
                             return AnimationUpdate::ReachedEnd;
                         } else {
-                            self.current_frame = 0;
+                            self.current_frame_index = 0;
                         }
                     }
                     RepeatAnimation::Forever => {
                         self.play_count += 1;
-                        self.current_frame = 0;
+                        self.current_frame_index = 0;
                     }
                 }
             }
             self.frame_timer.reset();
-            return AnimationUpdate::AdvanceFrame(self.current_frame);
+            return AnimationUpdate::AdvanceFrame(self.frames[self.current_frame_index]);
         }
         AnimationUpdate::SameFrame
     }
