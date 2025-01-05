@@ -51,7 +51,17 @@ pub(super) fn find_model_names(
                     let model_id = models[0].model_id as usize;
                     match (&name_for_model[model_id], node_name) {
                         (None, Some(name)) | (Some(_), Some(name)) => {
-                            name_for_model[model_id] = Some(name.to_string())
+                            let mut node_name = name.clone();
+                            // disambiguate model name if we have a scene where different models have the same name
+                            let name_root = name;
+                            let mut disambiguator = 0;
+                            let mut names_to_disambiguate = name_for_model.clone();
+                            names_to_disambiguate.remove(model_id);
+                            while names_to_disambiguate.contains(&Some(node_name.clone()))  {
+                                node_name = format_args!("{}_{}", name_root, disambiguator).to_string();
+                                disambiguator += 1;
+                            }
+                            name_for_model[model_id] = Some(node_name)
                         }
                         (None, None) | (Some(_), None) => (),
                     };
