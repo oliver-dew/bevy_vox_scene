@@ -48,33 +48,44 @@ impl VoxelModelInstance {
 pub struct VoxelAnimationPlayer {
     /// Frame indices
     pub frames: Vec<usize>,
-    /// index of currently displayed frame
-    pub current_frame_index: usize,
-    /// timer that determines when frame should advance
-    pub frame_timer: Stopwatch,
     /// Duration that each frame remains on screen
     pub frame_rate: Duration,
     /// Whether the animation repeats
     pub repeat_mode: RepeatAnimation,
     /// If true (default), and [`VoxelAnimation::repeat_mode`] is not [`RepeatAnimation::Forever`], entity will despawn upon completion
     pub despawn_on_finish: bool,
-    /// How many times the animation has played
-    pub play_count: u32,
     /// If true, playback is paused
     pub is_paused: bool,
+    /// timer that determines when frame should advance
+    pub timer: AnimationTimer,
 }
 
 impl Default for VoxelAnimationPlayer {
     fn default() -> Self {
         Self {
             frames: vec![],
-            current_frame_index: 0,
-            frame_timer: Stopwatch::new(),
             frame_rate: Duration::from_secs_f32(1.0 / 8.0),
             repeat_mode: RepeatAnimation::Forever,
             despawn_on_finish: true,
-            play_count: 0,
             is_paused: false,
+            timer: AnimationTimer::default()
+        }
+    }
+}
+
+#[derive(Clone, Reflect)]
+pub struct AnimationTimer {
+    current_frame_index: usize,
+    stopwatch: Stopwatch,
+    play_count: u32,
+}
+
+impl Default for AnimationTimer {
+    fn default() -> Self {
+        Self {
+            current_frame_index: 0,
+            stopwatch: Stopwatch::new(),
+            play_count: 0,
         }
     }
 }
@@ -90,28 +101,28 @@ impl VoxelAnimationPlayer {
         if self.is_paused {
             return AnimationUpdate::SameFrame;
         }
-        self.frame_timer.tick(delta);
-        if self.frame_timer.elapsed() > self.frame_rate {
-            self.current_frame_index += 1;
-            if self.current_frame_index == self.frames.len() {
+        self.timer.stopwatch.tick(delta);
+        if self.timer.stopwatch.elapsed() > self.frame_rate {
+            self.timer.current_frame_index += 1;
+            if self.timer.current_frame_index == self.frames.len() {
                 match self.repeat_mode {
                     RepeatAnimation::Never => return AnimationUpdate::ReachedEnd,
                     RepeatAnimation::Count(end_count) => {
-                        self.play_count += 1;
-                        if self.play_count >= end_count {
+                        self.timer.play_count += 1;
+                        if self.timer.play_count >= end_count {
                             return AnimationUpdate::ReachedEnd;
                         } else {
-                            self.current_frame_index = 0;
+                            self.timer.current_frame_index = 0;
                         }
                     }
                     RepeatAnimation::Forever => {
-                        self.play_count += 1;
-                        self.current_frame_index = 0;
+                        self.timer.play_count += 1;
+                        self.timer.current_frame_index = 0;
                     }
                 }
             }
-            self.frame_timer.reset();
-            return AnimationUpdate::AdvanceFrame(self.frames[self.current_frame_index]);
+            self.timer.stopwatch.reset();
+            return AnimationUpdate::AdvanceFrame(self.frames[self.timer.current_frame_index]);
         }
         AnimationUpdate::SameFrame
     }
