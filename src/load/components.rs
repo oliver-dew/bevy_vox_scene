@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use bevy::{
-    animation::RepeatAnimation,
     asset::Handle,
     ecs::component::Component,
     prelude::{ReflectComponent, Transform, Visibility},
@@ -51,7 +50,7 @@ pub struct VoxelAnimationPlayer {
     /// Duration that each frame remains on screen
     pub frame_rate: Duration,
     /// Whether the animation repeats
-    pub repeat_mode: RepeatAnimation,
+    pub repeat_mode: AnimationRepeatMode,
     /// If true (default), and [`VoxelAnimation::repeat_mode`] is not [`RepeatAnimation::Forever`], entity will despawn upon completion
     pub despawn_on_finish: bool,
     /// If true, playback is paused
@@ -65,12 +64,20 @@ impl Default for VoxelAnimationPlayer {
         Self {
             frames: vec![],
             frame_rate: Duration::from_secs_f32(1.0 / 8.0),
-            repeat_mode: RepeatAnimation::Forever,
+            repeat_mode: AnimationRepeatMode::Forever,
             despawn_on_finish: true,
             is_paused: false,
             timer: AnimationTimer::default(),
         }
     }
+}
+
+#[derive(Clone, Reflect)]
+pub enum AnimationRepeatMode {
+    /// The animation will finish after running "n" times.
+    Count(u32),
+    /// The animation will never finish.
+    Forever,
 }
 
 #[derive(Clone, Reflect)]
@@ -106,8 +113,7 @@ impl VoxelAnimationPlayer {
             self.timer.current_frame_index += 1;
             if self.timer.current_frame_index == self.frames.len() {
                 match self.repeat_mode {
-                    RepeatAnimation::Never => return AnimationUpdate::ReachedEnd,
-                    RepeatAnimation::Count(end_count) => {
+                    AnimationRepeatMode::Count(end_count) => {
                         self.timer.play_count += 1;
                         if self.timer.play_count >= end_count {
                             return AnimationUpdate::ReachedEnd;
@@ -115,7 +121,7 @@ impl VoxelAnimationPlayer {
                             self.timer.current_frame_index = 0;
                         }
                     }
-                    RepeatAnimation::Forever => {
+                    AnimationRepeatMode::Forever => {
                         self.timer.play_count += 1;
                         self.timer.current_frame_index = 0;
                     }
