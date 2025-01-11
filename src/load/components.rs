@@ -68,7 +68,7 @@ impl Default for VoxelAnimationPlayer {
             repeat_mode: RepeatAnimation::Forever,
             despawn_on_finish: true,
             is_paused: false,
-            timer: AnimationTimer::default()
+            timer: AnimationTimer::default(),
         }
     }
 }

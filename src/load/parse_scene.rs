@@ -57,8 +57,9 @@ pub(super) fn find_model_names(
                             let mut disambiguator = 0;
                             let mut names_to_disambiguate = name_for_model.clone();
                             names_to_disambiguate.remove(model_id);
-                            while names_to_disambiguate.contains(&Some(node_name.clone()))  {
-                                node_name = format_args!("{}_{}", name_root, disambiguator).to_string();
+                            while names_to_disambiguate.contains(&Some(node_name.clone())) {
+                                node_name =
+                                    format_args!("{}_{}", name_root, disambiguator).to_string();
                                 disambiguator += 1;
                             }
                             name_for_model[model_id] = Some(node_name)

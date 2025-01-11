@@ -1,4 +1,4 @@
-use std::f32::consts::FRAC_PI_2;
+use std::{f32::consts::FRAC_PI_2, time::Duration};
 
 use super::*;
 
@@ -14,12 +14,12 @@ use bevy::{
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
     prelude::{
-        GlobalTransform, HierarchyPlugin, InheritedVisibility, Mesh3d, OnAdd, Query, Transform,
-        Trigger, ViewVisibility, Visibility,
+        Commands, GlobalTransform, HierarchyPlugin, InheritedVisibility, Mesh3d, OnAdd, Query,
+        Transform, Trigger, ViewVisibility, Visibility,
     },
     render::{mesh::Mesh, texture::ImagePlugin},
     scene::{Scene, ScenePlugin, SceneRoot},
-    utils::hashbrown::HashSet,
+    utils::{default, hashbrown::HashSet},
     MinimalPlugins,
 };
 
@@ -108,6 +108,72 @@ async fn test_load_spawn_cloud() {
     assert_eq!(
         model.material, None,
         "Model consisting solely of cloud voxels shouldn't have a material"
+    );
+}
+
+#[async_std::test]
+async fn test_spawn_play_animation() {
+    let frame_count: usize = 4;
+    let mut app = App::new();
+    let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+    app.update();
+    let scene_root = app
+        .world_mut()
+        .spawn(SceneRoot(handle))
+        // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
+        // so we can advance a frame on each call to `app.update`
+        .observe(
+            move |trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands| {
+                commands
+                    .entity(trigger.event().entity)
+                    .insert(VoxelAnimationPlayer {
+                        frames: (0..frame_count).collect(),
+                        frame_rate: Duration::from_millis(1),
+                        ..default()
+                    });
+            },
+        )
+        .id();
+    app.update();
+    app.update(); // trigger second frame
+    let top_entity = app
+        .world()
+        .get::<Children>(scene_root)
+        .expect("children")
+        .first()
+        .expect("scene root");
+    let entity = app
+        .world()
+        .get::<Children>(*top_entity)
+        .expect("children")
+        .first()
+        .expect("model entity");
+    let model_instance = app
+        .world()
+        .get::<VoxelModelInstance>(*entity)
+        .expect("voxel model instance")
+        .clone();
+    assert!(model_instance.has_animation());
+    assert_eq!(model_instance.models.len(), frame_count);
+    let frame_entities = app.world().get::<Children>(*entity).expect("children");
+    assert_eq!(frame_entities.len(), frame_count);
+    let first_frame_visibility = app
+        .world()
+        .get::<Visibility>(frame_entities[0])
+        .expect("Visibility of first frame");
+    assert_eq!(
+        first_frame_visibility,
+        Visibility::Hidden,
+        "Frame 0 invisible"
+    );
+    let second_frame_visibility = app
+        .world()
+        .get::<Visibility>(frame_entities[1])
+        .expect("Visibility of second frame");
+    assert_eq!(
+        second_frame_visibility,
+        Visibility::Inherited,
+        "Frame 1 is showing"
     );
 }
 
