@@ -1,5 +1,5 @@
 use bevy::{input::keyboard::KeyboardInput, prelude::*};
-use bevy_vox_scene::{VoxScenePlugin, VoxelAnimationPlayer, VoxelInstanceSpawned};
+use bevy_vox_scene::{VoxScenePlugin, VoxelAnimationPlayer, VoxelInstanceReady};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -28,10 +28,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands.spawn(SceneRoot(assets.load("deer.vox"))).observe(
-        |trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands| {
+        |trigger: Trigger<VoxelInstanceReady>, mut commands: Commands| {
             if trigger.event().model_name == Some("deer".to_string()) {
                 // add marker component to scope pause action
-                commands.entity(trigger.event().entity).insert(Deer);
+                commands.entity(trigger.event().instance).insert(Deer);
             }
         },
     );
@@ -42,7 +42,7 @@ fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut VoxelAnimationPlayer, With<Deer>>,
 ) {
-    let Ok(mut animation_player) = query.get_single_mut() else {
+    let Ok(mut animation_player) = query.single_mut() else {
         return;
     };
     if keys.get_just_pressed().next().is_some() {

@@ -1,13 +1,11 @@
 use bevy::{
     asset::{Handle, LoadContext},
-    core::Name,
+    ecs::{hierarchy::ChildSpawner, name::Name},
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
-    prelude::{
-        BuildChildren, ChildBuild, EntityWorldMut, Transform, Visibility, World, WorldChildBuilder,
-    },
+    platform_support::collections::HashSet,
+    prelude::{EntityWorldMut, Transform, Visibility, World},
     scene::Scene,
-    utils::HashSet,
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -94,7 +92,18 @@ pub(super) fn parse_scene_graph(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut entity = world.spawn_empty();
+            let mut entity = world.spawn(
+                Transform::IDENTITY
+            );
+            let maybe_layer = layers.get(*layer_id as usize);
+            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
+            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
+            let visibility = if node_is_hidden || layer_is_hidden {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+            entity.insert(visibility);
             load_xform_child(
                 context,
                 graph,
@@ -107,21 +116,13 @@ pub(super) fn parse_scene_graph(
                 scene_scale,
             );
 
-            let maybe_layer = layers.get(*layer_id as usize);
             if let Some(layer) = maybe_layer {
                 entity.insert(VoxelLayer {
                     id: *layer_id,
                     name: layer.name.clone(),
                 });
             }
-            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
-            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
-            let visibility = if node_is_hidden || layer_is_hidden {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            };
-            entity.insert(visibility);
+
             if let Some(node_name) = node_name.clone() {
                 entity.insert(Name::new(node_name.clone()));
             }
@@ -133,7 +134,7 @@ pub(super) fn parse_scene_graph(
 
 fn load_xform_node(
     context: &mut LoadContext,
-    builder: &mut WorldChildBuilder,
+    builder: &mut ChildSpawner,
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
@@ -241,6 +242,7 @@ fn load_xform_child(
         SceneNode::Transform { .. } => {
             warn!("Found nested Transform nodes");
             entity.insert(Transform::IDENTITY);
+
             entity.with_children(|builder| {
                 load_xform_node(
                     context,

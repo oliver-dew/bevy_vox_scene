@@ -5,7 +5,8 @@
 //!```
 //!use bevy::prelude::*;
 //!use bevy_vox_scene::VoxScenePlugin;
-//! # use bevy::{app::AppExit, utils::HashSet};
+//!use std::collections::HashSet;
+//! # use bevy::{app::AppExit};
 //!
 //!fn main() {
 //!    App::new()
@@ -36,7 +37,7 @@
 //! #     if all_names.is_empty() { return };
 //! #     let expected_names: HashSet<&str> = ["snowflake", "wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
 //! #     assert_eq!(all_names, expected_names);
-//! #     exit.send(AppExit::Success);
+//! #     exit.write(AppExit::Success);
 //! # }
 //!```
 
@@ -66,7 +67,7 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
-pub use observers::VoxelInstanceSpawned;
+pub use observers::VoxelInstanceReady;
 
 /// Plugin adding functionality for loading `.vox` files.
 ///
@@ -90,6 +91,7 @@ impl Plugin for VoxScenePlugin {
                 global_settings: self.global_settings.clone(),
             })
             .add_observer(observers::on_voxel_instance_spawned)
+            .add_observer(observers::on_voxel_scene_ready)
             .add_systems(Update, systems::update_animations);
     }
 }

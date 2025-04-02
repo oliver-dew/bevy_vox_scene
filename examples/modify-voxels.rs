@@ -10,6 +10,7 @@ use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
+//TODO fix
 fn main() {
     App::new()
         .add_plugins((
@@ -73,11 +74,11 @@ fn on_spawn_voxel_instance(
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let Ok(name) = model_query.get(trigger.entity()).map(|n| n.as_str()) else {
+    let Ok(name) = model_query.get(trigger.target()).map(|n| n.as_str()) else {
         return;
     };
     if name == "floor" {
-        commands.entity(trigger.entity()).insert(Floor);
+        commands.entity(trigger.target()).insert(Floor);
     }
 }
 
@@ -98,8 +99,8 @@ fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Flo
                 // don't overwrite any voxels
                 return voxel.clone();
             };
-            let mut rng = rand::thread_rng();
-            let value: u16 = rng.gen_range(0..5000);
+            let mut rng = rand::rng();
+            let value: u16 = rng.random_range(0..5000);
             if value > 20 {
                 return Voxel::EMPTY;
             };

@@ -1,8 +1,8 @@
 use bevy::{
     asset::{Assets, Handle},
     ecs::{
-        system::{Commands, ResMut, SystemState},
-        world::{Command, World},
+        system::{Command, Commands, ResMut, SystemState},
+        world::World,
     },
     image::Image,
     math::{IVec3, Vec3},

@@ -76,22 +76,22 @@ fn spawn_cloud(world: &mut World) {
     );
 
     // Combine a bunch of random SDF::sphere to create the cloud
-    let mut rng = rand::thread_rng();
-    let mut rng2 = rand::thread_rng();
+    let mut rng = rand::rng();
+    let mut rng2 = rand::rng();
     let data = (0..30)
         .map(|_| {
             let translation = Vec3::new(
-                rng.gen_range(-6.0..=6.0),
-                rng.gen_range(-6.0..=6.0),
-                rng.gen_range(-6.0..=6.0),
+                rng.random_range(-6.0..=6.0),
+                rng.random_range(-6.0..=6.0),
+                rng.random_range(-6.0..=6.0),
             );
             // spheres are bigger the closer they are to the center
             let inverse_length = (10.4 - translation.length()) * 0.3;
-            SDF::sphere(rng.gen_range(0.5..=3.12) + inverse_length).translate(translation)
+            SDF::sphere(rng.random_range(0.5..=3.12) + inverse_length).translate(translation)
         })
         .reduce(|acc, new| {
             // 75% of the time we add the new sphere
-            if rng2.gen_ratio(3, 4) {
+            if rng2.random_ratio(3, 4) {
                 acc.add(new)
             } else {
                 acc.subtract(new)

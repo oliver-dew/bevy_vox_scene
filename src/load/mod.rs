@@ -10,8 +10,8 @@ use bevy::{
     log::info,
     math::Vec3,
     pbr::StandardMaterial,
+    platform_support::collections::HashSet,
     scene::Scene,
-    utils::HashSet,
 };
 use components::LayerInfo;
 pub use components::{
@@ -166,7 +166,7 @@ impl VoxSceneLoader {
             .collect();
 
         let model_count = file.models.len();
-        let mut subassets: HashSet<String> = HashSet::new();
+        let mut subassets: HashSet<String> = HashSet::default();
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
         let scene = parse_scene_graph(

@@ -140,7 +140,7 @@ pub struct VoxelAnimationFrame(pub usize);
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///
 /// This can be configured in the Magica Voxel world editor.
-#[derive(Component, Clone, Reflect)]
+#[derive(Component, Clone, Reflect, Debug)]
 #[reflect(Component)]
 pub struct VoxelLayer {
     /// The identifier for the layer. Magic Voxel 0.99.6 allows you to assign nodes to one of 8 layers,

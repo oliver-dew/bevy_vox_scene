@@ -9,17 +9,18 @@ use crate::{model::RawVoxel, VoxScenePlugin, VoxelModelInstance};
 use bevy::{
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
-    core::Name,
-    hierarchy::Children,
+    ecs::{hierarchy::Children, name::Name},
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
     pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
+    platform_support::collections::HashSet,
     prelude::{
-        Commands, GlobalTransform, HierarchyPlugin, InheritedVisibility, Mesh3d, OnAdd, Query,
-        Transform, Trigger, ViewVisibility, Visibility,
+        Commands, GlobalTransform, InheritedVisibility, Mesh3d, OnAdd, Query, Transform, Trigger,
+        ViewVisibility, Visibility,
     },
     render::{mesh::Mesh, texture::ImagePlugin},
     scene::{Scene, ScenePlugin, SceneRoot},
-    utils::{default, hashbrown::HashSet},
+    transform::components::TransformTreeChanged,
+    utils::default,
     MinimalPlugins,
 };
 
@@ -123,9 +124,9 @@ async fn test_spawn_play_animation() {
         // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
         // so we can advance a frame on each call to `app.update`
         .observe(
-            move |trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands| {
+            move |trigger: Trigger<VoxelInstanceReady>, mut commands: Commands| {
                 commands
-                    .entity(trigger.event().entity)
+                    .entity(trigger.event().instance)
                     .insert(VoxelAnimationPlayer {
                         frames: (0..frame_count).collect(),
                         frame_rate: Duration::from_millis(1),
@@ -269,7 +270,7 @@ async fn test_spawn_system() {
         LoadState::Loaded
     ));
     app.add_observer(|trigger: Trigger<OnAdd, Name>, query: Query<&Name>| {
-        let name = query.get(trigger.entity()).unwrap().as_str();
+        let name = query.get(trigger.target()).unwrap().as_str();
         let expected_names: [&'static str; 4] = [
             "outer-group/inner-group",
             "outer-group/inner-group/dice",
@@ -497,7 +498,6 @@ fn setup_app(app: &mut App) {
         AssetPlugin::default(),
         ImagePlugin::default(),
         ScenePlugin,
-        HierarchyPlugin,
         VoxScenePlugin::default(),
     ))
     .init_asset::<StandardMaterial>()
@@ -508,6 +508,7 @@ fn setup_app(app: &mut App) {
     .register_type::<InheritedVisibility>()
     .register_type::<Transform>()
     .register_type::<GlobalTransform>()
+    .register_type::<TransformTreeChanged>()
     .register_type::<Mesh3d>()
     .register_type::<MeshMaterial3d<StandardMaterial>>();
 }

@@ -12,7 +12,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceSpawned, VoxelModel,
+    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel,
     VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
@@ -24,6 +24,8 @@ enum AppState {
     Loading,
     Ready,
 }
+
+//TODO: fix
 
 // When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
@@ -117,7 +119,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 /// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
 /// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
 /// observer was added to).
-fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
+fn identify_scenery(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands) {
     let Some(name) = &trigger.event().model_name else {
         return;
     };
@@ -126,12 +128,12 @@ fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Comman
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             commands
-                .entity(trigger.event().entity)
+                .entity(trigger.event().instance)
                 .insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
         _ => {}
     }
-    commands.entity(trigger.event().entity).insert(Scenery);
+    commands.entity(trigger.event().instance).insert(Scenery);
 }
 
 /// A snowflake with an angular velocity represented by a [`Quat`]
@@ -147,11 +149,20 @@ struct Scenery;
 struct FocalPoint(Vec3);
 
 fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
-    let mut rng = rand::thread_rng();
-    let position = Vec3::new(rng.gen_range(-30.0..30.0), 80.0, rng.gen_range(-20.0..20.0)).round()
+    let mut rng = rand::rng();
+    let position = Vec3::new(
+        rng.random_range(-30.0..30.0),
+        80.0,
+        rng.random_range(-20.0..20.0),
+    )
+    .round()
         + Vec3::splat(0.5);
-    let rotation_axis =
-        Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
+    let rotation_axis = Vec3::new(
+        rng.random_range(-0.5..0.5),
+        1.0,
+        rng.random_range(-0.5..0.5),
+    )
+    .normalize();
     let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
     commands.spawn((
         Name::new("snowflake"),
@@ -226,7 +237,7 @@ fn focus_camera(
     let Some((target_xform, focal_point)) = target.iter().next() else {
         return;
     };
-    let Ok((mut dof, camera_xform)) = camera.get_single_mut() else {
+    let Ok((mut dof, camera_xform)) = camera.single_mut() else {
         return;
     };
     let target_point = target_xform.transform_point(focal_point.0);
