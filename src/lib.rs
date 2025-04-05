@@ -63,7 +63,7 @@ pub use load::{
 pub use model::sdf::SDF;
 #[cfg(feature = "modify_voxels")]
 pub use model::{
-    modify::{ModifyVoxelCommandsExt, VoxelRegion, VoxelRegionMode},
+    modify::{modify_voxel_model, VoxelModifier, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
 pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};

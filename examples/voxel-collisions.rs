@@ -12,8 +12,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel,
-    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    modify_voxel_model, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
+    VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -43,7 +43,7 @@ fn main() {
             Update,
             (
                 spawn_snow.run_if(on_timer(snow_spawn_freq)),
-                update_snow,
+                update_snow.pipe(modify_voxel_model),
                 focus_camera,
             )
                 .run_if(in_state(AppState::Ready)),
@@ -178,7 +178,7 @@ fn update_snow(
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
     models: Res<Assets<VoxelModel>>,
-) {
+) -> Option<VoxelModifier> {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
         snowflake_xform.translation.y -= 0.1;
@@ -207,7 +207,7 @@ fn update_snow(
                 origin: vox_pos - IVec3::splat(flake_radius),
                 size: IVec3::splat(1 + (flake_radius * 2)),
             };
-            commands.modify_voxel_model(
+            let modifier = VoxelModifier::new(
                 item_instance.clone(),
                 VoxelRegionMode::Box(flake_region),
                 move |pos, voxel, model| {
@@ -225,8 +225,10 @@ fn update_snow(
                 },
             );
             commands.entity(snowflake).despawn();
+            return Some(modifier);
         }
     }
+    None
 }
 
 // Focus the camera on the focal point when the camera is first added and when it moves

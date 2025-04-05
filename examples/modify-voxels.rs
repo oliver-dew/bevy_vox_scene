@@ -4,7 +4,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion, VoxelRegionMode,
+    modify_voxel_model, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
+    VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -21,7 +22,9 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
+            grow_grass
+                .pipe(modify_voxel_model)
+                .run_if(on_timer(Duration::from_secs_f32(0.1))),
         )
         .run();
 }
@@ -82,16 +85,16 @@ fn on_spawn_voxel_instance(
     }
 }
 
-fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
+fn grow_grass(query: Query<&VoxelModelInstance, With<Floor>>) -> Option<VoxelModifier> {
     // All the floor tiles are instances of the same model, so we only need one instance
     let Some(instance) = query.iter().next() else {
-        return;
+        return None;
     };
     let region = VoxelRegion {
         origin: IVec3::new(0, 4, 0),
         size: IVec3::new(64, 8, 64),
     };
-    commands.modify_voxel_model(
+    Some(VoxelModifier::new(
         instance.clone(),
         VoxelRegionMode::Box(region),
         |pos, voxel, model| {
@@ -129,5 +132,5 @@ fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Flo
                 Voxel::EMPTY
             }
         },
-    );
+    ))
 }

@@ -92,9 +92,7 @@ pub(super) fn parse_scene_graph(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut entity = world.spawn(
-                Transform::IDENTITY
-            );
+            let mut entity = world.spawn(Transform::IDENTITY);
             let maybe_layer = layers.get(*layer_id as usize);
             let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
             let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
