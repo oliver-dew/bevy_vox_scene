@@ -1,9 +1,6 @@
 use bevy::{
-    asset::{Assets, Handle},
-    ecs::{
-        system::{Command, Commands, In, ResMut, SystemState},
-        world::World,
-    },
+    asset::Assets,
+    ecs::system::{In, ResMut},
     image::Image,
     math::{IVec3, Vec3},
     pbr::StandardMaterial,

@@ -21,7 +21,7 @@ pub(crate) struct LayerInfo {
 #[reflect(Component)]
 #[require(Transform, Visibility)]
 pub struct VoxelModelInstance {
-    /// Handle to the model
+    /// Handles to the models. Will only contain one value if the instance is not an animation.
     pub models: Vec<Handle<VoxelModel>>,
     /// Handle to the context
     pub context: Handle<VoxelContext>,
