@@ -1,5 +1,5 @@
 use bevy::{
-    asset::Assets,
+    asset::{Assets, Handle},
     ecs::system::{In, ResMut},
     image::Image,
     math::{IVec3, Vec3},
@@ -16,6 +16,7 @@ use super::{RawVoxel, Voxel, VoxelContext, VoxelModel, VoxelQueryable};
 /// Data object passed into [`modify_voxel_model`] system
 pub struct VoxelModifier {
     instance: VoxelModelInstance,
+    mesh: Handle<Mesh>,
     region: VoxelRegionMode,
     modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
 }
@@ -37,11 +38,13 @@ impl VoxelModifier {
     /// The smaller the `region` is, the more performant the operation will be.
     pub fn new<F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>(
         instance: VoxelModelInstance,
+        mesh: Handle<Mesh>,
         region: VoxelRegionMode,
         modify: F,
     ) -> Self {
         VoxelModifier {
             instance,
+            mesh,
             region,
             modify: Box::new(modify),
         }
@@ -50,7 +53,7 @@ impl VoxelModifier {
 
 /// System that programmatically modifies the voxels in a model.
 ///
-/// This command will run the closure against every voxel within the region of the model.
+/// Takes a [`VoxelModifier`] as its input
 ///
 /// ### Example
 /// ```no_run
@@ -96,7 +99,7 @@ pub fn modify_voxel_model(
     let Some(context) = contexts.get(modifier.instance.context.id()) else {
         return;
     };
-    let Some(model) = models.get_mut(modifier.instance.models[0].id()) else {
+    let Some(model) = models.get_mut(modifier.instance.model.id()) else {
         return;
     };
     let refraction_indices = &context.palette.indices_of_refraction;
@@ -123,36 +126,34 @@ pub fn modify_voxel_model(
     model.data.voxels = updated;
     let (maybe_mesh, average_ior, maybe_cloud) =
         model.data.remesh(refraction_indices, &density_for_voxel);
-    if let Some(mesh_handle) = &model.mesh {
-        // TODO handle handle being nil.
-        if let Some(mesh) = maybe_mesh {
-            meshes.insert(mesh_handle, mesh);
-        }
-    }
-    if let Some(image_handle) = &model.cloud_image {
-        if let Some(cloud) = maybe_cloud {
-            images.insert(image_handle, cloud);
-        }
-    }
 
-    let has_translucency_old_value = model.has_translucency;
-    model.has_translucency = average_ior.is_some();
-    match (has_translucency_old_value, average_ior) {
-        (true, Some(..)) | (false, None) => (), // no change in model's translucency
-        (true, None) => {
-            model.material = Some(context.opaque_material.clone());
-        }
-        (false, Some(ior)) => {
-            let Some(mut translucent_material) =
-                materials.get(context.transmissive_material.id()).cloned()
-            else {
-                return;
-            };
-            translucent_material.ior = ior;
-            translucent_material.thickness = model.size().min_element() as f32;
-            model.material = Some(materials.add(translucent_material));
-        }
+    if let Some(mesh) = maybe_mesh {
+        meshes.insert(&modifier.mesh, mesh);
     }
+    // if let Some(image_handle) = &model.cloud_image {
+    //     if let Some(cloud) = maybe_cloud {
+    //         images.insert(image_handle, cloud);
+    //     }
+    // }
+
+    // let has_translucency_old_value = model.has_translucency;
+    // model.has_translucency = average_ior.is_some();
+    // match (has_translucency_old_value, average_ior) {
+    //     (true, Some(..)) | (false, None) => (), // no change in model's translucency
+    //     (true, None) => {
+    //         model.material = Some(context.opaque_material.clone());
+    //     }
+    //     (false, Some(ior)) => {
+    //         let Some(mut translucent_material) =
+    //             materials.get(context.transmissive_material.id()).cloned()
+    //         else {
+    //             return;
+    //         };
+    //         translucent_material.ior = ior;
+    //         translucent_material.thickness = model.size().min_element() as f32;
+    //         model.material = Some(materials.add(translucent_material));
+    //     }
+    // }
 }
 
 /// The region of the model to modify

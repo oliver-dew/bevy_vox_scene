@@ -56,17 +56,21 @@ mod tests;
 
 #[doc(inline)]
 use load::VoxSceneLoader;
+use load::VoxelAnimationFrame;
 pub use load::{
     UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
+pub use model::{
+    create_voxel_animation, create_voxel_context, create_voxel_scene, Voxel, VoxelContext,
+    VoxelData, VoxelElement, VoxelModel, VoxelPalette,
+};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
     modify::{modify_voxel_model, VoxelModifier, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
-pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 pub use observers::VoxelInstanceReady;
 
 /// Plugin adding functionality for loading `.vox` files.
@@ -87,10 +91,10 @@ impl Plugin for VoxScenePlugin {
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
             .register_type::<VoxelAnimationPlayer>()
+            .register_type::<VoxelAnimationFrame>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })
-            .add_observer(observers::on_voxel_instance_spawned)
             .add_observer(observers::on_voxel_scene_ready)
             .add_systems(Update, systems::update_animations);
     }

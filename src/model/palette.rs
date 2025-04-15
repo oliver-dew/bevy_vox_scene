@@ -265,7 +265,7 @@ impl VoxelPalette {
                 } else {
                     TextureFormat::Rgba8Unorm
                 },
-                RenderAssetUsages::default(),
+                RenderAssetUsages::RENDER_WORLD,
             ),
         ));
 
@@ -288,7 +288,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     emission_bytes,
                     TextureFormat::Rgba32Float,
-                    RenderAssetUsages::default(),
+                    RenderAssetUsages::RENDER_WORLD,
                 ),
             ))
         } else {
@@ -314,7 +314,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::Rgba16Unorm,
-                    RenderAssetUsages::default(),
+                    RenderAssetUsages::RENDER_WORLD,
                 ),
             );
             Some(handle)
@@ -335,7 +335,7 @@ impl VoxelPalette {
                     TextureDimension::D2,
                     raw,
                     TextureFormat::R16Unorm,
-                    RenderAssetUsages::default(),
+                    RenderAssetUsages::RENDER_WORLD,
                 ),
             );
             Some(handle)

@@ -4,13 +4,11 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, Handle, LoadContext},
+    asset::{io::Reader, AssetLoader, LoadContext},
     color::LinearRgba,
-    image::Image,
     log::info,
     math::Vec3,
-    pbr::StandardMaterial,
-    platform_support::collections::HashSet,
+    platform::collections::HashSet,
     scene::Scene,
 };
 use components::LayerInfo;
@@ -169,83 +167,58 @@ impl VoxSceneLoader {
         let mut subassets: HashSet<String> = HashSet::default();
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
         find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
-        let scene = parse_scene_graph(
-            load_context,
-            &file.scenes,
-            &file.scenes[0],
-            None,
-            &mut model_names,
-            &mut subassets,
-            &layers,
-            settings.voxel_size,
-        );
 
         // Models
 
-        model_names
+        let models: Vec<VoxelModel> = model_names
             .iter()
             .zip(file.models)
             .enumerate()
-            .for_each(|(index, (maybe_name, model))| {
+            .map(|(index, (maybe_name, model))| {
                 let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
                 let data = VoxelData::from_model(&model, settings.clone());
-                let (visible_voxels, ior, needs_meshing) =
+                let (visible_voxels, ior, has_mesh) =
                     data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
                 let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
-                let mesh = if needs_meshing {
-                    let mesh_handle = load_context
-                        .labeled_asset_scope(format!("{}@mesh", name), |_| {
-                            crate::model::mesh::mesh_model(&visible_voxels, &data)
-                        });
-                    Some(mesh_handle)
-                } else {
-                    None
-                };
+                if has_mesh {
+                    load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
+                        crate::model::mesh::mesh_model(&visible_voxels, &data)
+                    });
 
-                let material: Option<Handle<StandardMaterial>> = if needs_meshing {
                     if let Some(ior) = ior {
-                        let handle =
-                            load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                                let mut material = translucent_material.clone();
-                                material.ior = ior;
-                                material.thickness = data.size().min_element() as f32;
-                                material
-                            });
-                        Some(handle)
-                    } else {
-                        let handle =
-                            load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                                let mut opaque_material = translucent_material.clone();
-                                #[cfg(feature = "pbr_transmission_textures")]
-                                {
-                                    opaque_material.specular_transmission_texture = None;
-                                }
-                                opaque_material.specular_transmission = 0.0;
-                                opaque_material
-                            });
-                        Some(handle)
-                    }
-                } else {
-                    None
-                };
-                let cloud_image: Option<Handle<Image>> = if has_cloud {
-                    let cloud_handle = load_context
-                        .labeled_asset_scope(format!("{}@cloud-image", name), |_| {
-                            crate::model::cloud::create_cloud_image(&cloud_voxels, &data)
+                        load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                            let mut material = translucent_material.clone();
+                            material.ior = ior;
+                            material.thickness = data.size().min_element() as f32;
+                            material
                         });
-                    Some(cloud_handle)
-                } else {
-                    None
-                };
-                load_context.labeled_asset_scope(format!("{}@model", name), |_| VoxelModel {
-                    name,
+                    } else {
+                        load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                            let mut opaque_material = translucent_material.clone();
+                            #[cfg(feature = "pbr_transmission_textures")]
+                            {
+                                opaque_material.specular_transmission_texture = None;
+                            }
+                            opaque_material.specular_transmission = 0.0;
+                            opaque_material
+                        });
+                    }
+                }
+                if has_cloud {
+                    load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
+                        crate::model::cloud::create_cloud_image(&cloud_voxels, &data)
+                    });
+                }
+                let model = VoxelModel {
+                    name: name.clone(),
                     data,
-                    mesh,
-                    material,
-                    cloud_image,
-                    has_translucency: ior.is_some(),
-                });
-            });
+                    has_mesh,
+                    has_cloud,
+                };
+                load_context.labeled_asset_scope(format!("{}@model", name), |_| model.clone());
+                model
+            })
+            .collect();
 
         let transmissive_material = load_context
             .add_labeled_asset("material-transmissive".to_string(), translucent_material);
@@ -257,6 +230,17 @@ impl VoxSceneLoader {
                 transmissive_material,
             },
         );
+        let scene = parse_scene_graph(
+            load_context,
+            &file.scenes,
+            &file.scenes[0],
+            None,
+            &models,
+            &mut subassets,
+            &layers,
+            settings.voxel_size,
+        );
+
         Ok(scene)
     }
 }

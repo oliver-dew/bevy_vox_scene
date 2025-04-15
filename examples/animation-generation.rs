@@ -9,8 +9,8 @@ use bevy::{
     scene::SceneInstanceReady,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelAnimationPlayer, VoxelContext, VoxelModel,
-    VoxelModelInstance, SDF,
+    create_voxel_animation, VoxLoaderSettings, VoxScenePlugin, Voxel,
+    VoxelContext, VoxelData, SDF,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -77,9 +77,9 @@ fn generate_ripples(world: &mut World) {
     let frame_count = frequency as usize;
     let blacklight_radius = 3.0;
     let ripple_centre = Vec3::new(30.0, 0.0, 20.0);
-    let models: Vec<Handle<VoxelModel>> = (0..frame_count)
+    let models: Vec<VoxelData> = (0..frame_count)
         .map(|frame_index| {
-            let data = SDF::new(move |pos| {
+            SDF::new(move |pos| {
                 let mut pos2d = pos - ripple_centre;
                 pos2d.y = 0.0;
                 (((pos2d.length() - frame_index as f32) % frequency) - blacklight_radius).abs()
@@ -94,23 +94,17 @@ fn generate_ripples(world: &mut World) {
                         Voxel::EMPTY
                     }
                 },
-            );
-            let (model_handle, _) = VoxelModel::new(
-                world,
-                data,
-                format!("ripple-{}", frame_index),
-                context.clone(),
             )
-            .expect("model created");
-            model_handle
         })
         .collect();
+    let scene_root = world
+        .run_system_cached_with(
+            create_voxel_animation,
+            (models, "ripples".to_string(), context.clone_weak()),
+        )
+        .expect("animation created");
     world.spawn((
-        VoxelModelInstance { models, context },
-        VoxelAnimationPlayer {
-            frames: (0..frame_count).collect(),
-            ..default()
-        },
+        SceneRoot(scene_root),
         Transform::from_xyz(0., 7., 0.), // position the ripples on the surface of the water
     ));
 }

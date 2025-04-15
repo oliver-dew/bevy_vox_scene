@@ -176,7 +176,10 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
 fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
-    scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
+    scenery: Query<
+        (&GlobalTransform, &VoxelModelInstance, &Mesh3d),
+        (With<Scenery>, Without<Snowflake>),
+    >,
     models: Res<Assets<VoxelModel>>,
 ) -> Option<VoxelModifier> {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
@@ -187,8 +190,8 @@ fn update_snow(
         if old_ypos.trunc() == snowflake_xform.translation.y.trunc() {
             continue;
         }
-        for (item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(&item_instance.models[0]) else {
+        for (item_xform, item_instance, mesh) in scenery.iter() {
+            let Some(model) = models.get(&item_instance.model) else {
                 continue;
             };
             let vox_pos =
@@ -209,6 +212,7 @@ fn update_snow(
             };
             let modifier = VoxelModifier::new(
                 item_instance.clone(),
+                mesh.0.clone(),
                 VoxelRegionMode::Box(flake_region),
                 move |pos, voxel, model| {
                     // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels

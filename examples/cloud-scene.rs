@@ -18,6 +18,7 @@ fn main() {
             VoxScenePlugin::default(),
             PanOrbitCameraPlugin,
         ))
+        .register_type::<FogVolume>()
         .add_systems(Startup, setup)
         .add_systems(Update, scroll_fog)
         .run();

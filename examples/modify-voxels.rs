@@ -85,9 +85,9 @@ fn on_spawn_voxel_instance(
     }
 }
 
-fn grow_grass(query: Query<&VoxelModelInstance, With<Floor>>) -> Option<VoxelModifier> {
+fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Option<VoxelModifier> {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some(instance) = query.iter().next() else {
+    let Some((instance, mesh)) = query.iter().next() else {
         return None;
     };
     let region = VoxelRegion {
@@ -96,6 +96,7 @@ fn grow_grass(query: Query<&VoxelModelInstance, With<Floor>>) -> Option<VoxelMod
     };
     Some(VoxelModifier::new(
         instance.clone(),
+        mesh.0.clone(),
         VoxelRegionMode::Box(region),
         |pos, voxel, model| {
             if *voxel != Voxel::EMPTY {

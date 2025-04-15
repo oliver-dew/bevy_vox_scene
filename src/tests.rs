@@ -81,7 +81,7 @@ async fn test_load_spawn_cloud() {
     let model = app
         .world()
         .resource::<Assets<VoxelModel>>()
-        .get(model_instance.models[0].id())
+        .get(model_instance.model[0].id())
         .expect("retrieve model from Res<Assets>");
     let fog_entity = app
         .world()
@@ -155,7 +155,7 @@ async fn test_spawn_play_animation() {
         .expect("voxel model instance")
         .clone();
     assert!(model_instance.has_animation());
-    assert_eq!(model_instance.models.len(), frame_count);
+    assert_eq!(model_instance.model.len(), frame_count);
     let frame_entities = app.world().get::<Children>(*entity).expect("children");
     assert_eq!(frame_entities.len(), frame_count);
     let first_frame_visibility = app
@@ -196,7 +196,7 @@ async fn test_transmissive_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .models[0];
+        .model[0];
 
     let model = app
         .world()
@@ -238,7 +238,7 @@ async fn test_opaque_mat() {
         .world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance")
-        .models[0];
+        .model[0];
 
     let model = app
         .world()
@@ -302,7 +302,7 @@ async fn test_spawn_system() {
     );
     let models: HashSet<String> = instance_query
         .iter(&app.world())
-        .map(|c| c.models[0].id().to_string().clone())
+        .map(|c| c.model[0].id().to_string().clone())
         .collect();
     assert_eq!(models.len(), 3, "Instances point to 3 unique models");
     let entity = app
@@ -367,7 +367,7 @@ async fn test_modify_voxels() {
     let model = app
         .world()
         .resource::<Assets<VoxelModel>>()
-        .get(model_instance.models[0].id())
+        .get(model_instance.model[0].id())
         .expect("retrieve model from Res<Assets>");
 
     assert_eq!(

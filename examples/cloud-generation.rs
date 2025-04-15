@@ -4,8 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelElement, VoxelModel,
-    VoxelModelInstance, VoxelPalette, SDF,
+    create_voxel_context, create_voxel_scene, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, SDF,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -17,6 +16,7 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin::default(),
         ))
+        .register_type::<FogVolume>()
         .add_systems(Startup, (setup_light_camera, spawn_cloud))
         .add_systems(Update, scroll_fog)
         .run();
@@ -113,13 +113,18 @@ fn spawn_cloud(world: &mut World) {
             },
         );
 
-    let context = VoxelContext::new(world, palette).expect("Context has been generated");
+    let context = world
+        .run_system_cached_with(create_voxel_context, palette)
+        .expect("Context has been generated");
     let model_name = "my sdf model";
-    let (model_handle, _model) =
-        VoxelModel::new(world, data, model_name.to_string(), context.clone())
-            .expect("Model has been generated");
+    let scene_handle = world
+        .run_system_cached_with(
+            create_voxel_scene,
+            (data, model_name.to_string(), context.clone()),
+        )
+        .expect("Model has been generated");
 
-    world.spawn(VoxelModelInstance::new(model_handle, context));
+    world.spawn(SceneRoot(scene_handle));
 }
 
 /// Moves fog density texture offset every frame.
