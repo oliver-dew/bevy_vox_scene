@@ -190,6 +190,13 @@ pub struct VoxelRegion {
 }
 
 impl VoxelRegion {
+    /// Create a new region from a center and a half size
+    pub fn from_center(center: IVec3, half_size: IVec3) -> Self {
+        Self {
+            origin: center - half_size,
+            size: half_size * 2,
+        }
+    }
     /// Computes the center of the region
     pub fn center(&self) -> Vec3 {
         let origin = Vec3::new(

@@ -194,6 +194,27 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug example 'picking'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=picking",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "picking",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug example 'recentering-model'",
             "cargo": {
                 "args": [
