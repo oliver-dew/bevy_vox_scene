@@ -51,6 +51,8 @@ pub struct VoxLoaderSettings {
     pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
+    /// Set to `true` if you want to modify the voxel model after it has been spawned, `false` if the voxels will be immutable
+    pub supports_remeshing: bool,
 }
 
 impl Default for VoxLoaderSettings {
@@ -62,6 +64,7 @@ impl Default for VoxLoaderSettings {
             emission_strength: 20.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
+            supports_remeshing: false,
         }
     }
 }

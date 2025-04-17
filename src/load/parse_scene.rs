@@ -290,7 +290,7 @@ fn load_xform_child(
             if model_count == 1 {
                 let model = &vox_models[models[0].model_id as usize];
                 entity.insert(VoxelModelInstance {
-                    model:  context.get_label_handle(format!("{}@model", model.name)),
+                    model: context.get_label_handle(format!("{}@model", model.name)),
                     context: context.get_label_handle("voxel-context"),
                 });
                 if model.has_mesh {
@@ -322,7 +322,7 @@ fn load_xform_child(
                         let model = &vox_models[models[index].model_id as usize];
                         let mut frame = spawner.spawn((
                             VoxelModelInstance {
-                                model:  context.get_label_handle(format!("{}@model", model.name)),
+                                model: context.get_label_handle(format!("{}@model", model.name)),
                                 context: context.get_label_handle("voxel-context"),
                             },
                             VoxelAnimationFrame(index),
@@ -332,7 +332,7 @@ fn load_xform_child(
                                 Visibility::Hidden
                             },
                         ));
-                        
+
                         if model.has_mesh {
                             let mesh: Handle<Mesh> =
                                 context.get_label_handle(format!("{}@mesh", model.name));

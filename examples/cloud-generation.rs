@@ -4,7 +4,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    create_voxel_context, create_voxel_scene, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, SDF,
+    create_voxel_context, create_voxel_scene, VoxLoaderSettings, VoxScenePlugin, Voxel,
+    VoxelElement, VoxelPalette, SDF,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};

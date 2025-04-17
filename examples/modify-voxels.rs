@@ -4,8 +4,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    modify_voxel_model, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
-    VoxelRegionMode,
+    modify_voxel_model, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance,
+    VoxelModifier, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -67,7 +67,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        SceneRoot(assets.load("study.vox")),
+        SceneRoot(
+            assets.load_with_settings("study.vox", |settings: &mut VoxLoaderSettings| {
+                settings.supports_remeshing = true
+            }),
+        ),
         Transform::from_scale(Vec3::splat(0.05)),
     ));
 }

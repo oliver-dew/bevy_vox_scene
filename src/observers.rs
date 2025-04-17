@@ -1,14 +1,10 @@
 use bevy::{
     ecs::{hierarchy::Children, name::Name},
-    prelude::{
-        Commands, Component, Entity, Event, Query, Trigger,
-    },
+    prelude::{Commands, Component, Entity, Event, Query, Trigger},
     scene::SceneInstanceReady,
 };
 
-use crate::{
-    VoxelLayer, VoxelModelInstance,
-};
+use crate::{VoxelLayer, VoxelModelInstance};
 
 ///  each [`Voance`] in a scene, the scene is spawned and ready,
 /// targeted at the entity containing the [`bevy::prelude::SceneRoot`].

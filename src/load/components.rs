@@ -28,12 +28,9 @@ pub struct VoxelModelInstance {
 }
 
 impl VoxelModelInstance {
-    /// Create a new instance 
+    /// Create a new instance
     pub fn new(model: Handle<VoxelModel>, context: Handle<VoxelContext>) -> Self {
-        Self {
-            model,
-            context,
-        }
+        Self { model, context }
     }
 }
 
