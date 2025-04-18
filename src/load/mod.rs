@@ -4,7 +4,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{io::Reader, AssetLoader, LoadContext},
+    asset::{AssetLoader, LoadContext, io::Reader},
     color::LinearRgba,
     log::info,
     math::Vec3,
@@ -20,8 +20,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    model::{MaterialProperty, VoxelModel, VoxelPalette},
     VoxelContext, VoxelData, VoxelQueryable,
+    model::{MaterialProperty, VoxelModel, VoxelPalette},
 };
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::scene::Scene`]s.

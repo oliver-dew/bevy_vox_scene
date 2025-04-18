@@ -4,8 +4,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    modify_voxel_model, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance,
-    VoxelModifier, VoxelRegion, VoxelRegionMode,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
+    VoxelRegionMode, modify_voxel_model,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};

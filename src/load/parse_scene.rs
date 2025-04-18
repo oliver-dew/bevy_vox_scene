@@ -15,8 +15,8 @@ use dot_vox::{Frame, SceneNode};
 use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
 
 use super::{
-    components::{LayerInfo, VoxelAnimationPlayer},
     VoxelAnimationFrame,
+    components::{LayerInfo, VoxelAnimationPlayer},
 };
 
 pub(super) fn find_model_names(

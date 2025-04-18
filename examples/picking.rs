@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_vox_scene::{
-    create_voxel_context, create_voxel_scene, modify_voxel_model, VoxLoaderSettings,
-    VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelModifier, VoxelPalette,
-    VoxelQueryable, VoxelRegion, VoxelRegionMode, SDF,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelModifier,
+    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, create_voxel_context,
+    create_voxel_scene, modify_voxel_model,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 

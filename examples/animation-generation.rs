@@ -9,7 +9,7 @@ use bevy::{
     scene::SceneInstanceReady,
 };
 use bevy_vox_scene::{
-    create_voxel_animation, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, SDF,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, create_voxel_animation,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 

@@ -1,7 +1,7 @@
 use bevy::{core_pipeline::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    create_voxel_context, create_voxel_scene, VoxLoaderSettings, VoxScenePlugin, Voxel,
-    VoxelPalette, SDF,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelPalette, create_voxel_context,
+    create_voxel_scene,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 

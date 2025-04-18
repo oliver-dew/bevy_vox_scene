@@ -4,8 +4,8 @@ use bevy::{
 };
 
 use crate::{
-    load::{AnimationUpdate, VoxelAnimationFrame},
     VoxelAnimationPlayer,
+    load::{AnimationUpdate, VoxelAnimationFrame},
 };
 
 pub(super) fn update_animations(

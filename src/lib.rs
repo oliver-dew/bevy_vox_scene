@@ -63,12 +63,12 @@ pub use load::{
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 pub use model::{
-    create_voxel_animation, create_voxel_context, create_voxel_scene, Voxel, VoxelContext,
-    VoxelData, VoxelElement, VoxelModel, VoxelPalette,
+    Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette, create_voxel_animation,
+    create_voxel_context, create_voxel_scene,
 };
 #[cfg(feature = "modify_voxels")]
 pub use model::{
-    modify::{modify_voxel_model, VoxelModifier, VoxelRegion, VoxelRegionMode},
+    modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},
     queryable::VoxelQueryable,
 };
 pub use observers::VoxelInstanceReady;

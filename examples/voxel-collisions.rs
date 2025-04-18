@@ -12,8 +12,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    modify_voxel_model, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel,
-    VoxelModelInstance, VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
+    VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode, modify_voxel_model,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -127,7 +127,9 @@ fn identify_scenery(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands
         return;
     };
     match name.as_str() {
-        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "snowflake" => panic!(
+            "This should never be executed, because this observer is scoped to the 'workstation' scene graph"
+        ),
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             commands

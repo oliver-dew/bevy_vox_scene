@@ -6,10 +6,10 @@ use bevy::{
         render_resource::PrimitiveTopology,
     },
 };
-use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
+use block_mesh::{GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG, greedy_quads};
 use ndshape::Shape;
 
-use super::{voxel::VisibleVoxel, VoxelData, VoxelQueryable};
+use super::{VoxelData, VoxelQueryable, voxel::VisibleVoxel};
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);

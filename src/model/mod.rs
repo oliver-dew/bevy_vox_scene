@@ -18,7 +18,7 @@ use bevy::{
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
-use crate::{load::VoxelAnimationFrame, VoxelAnimationPlayer};
+use crate::{VoxelAnimationPlayer, load::VoxelAnimationFrame};
 pub(crate) use palette::MaterialProperty;
 pub(crate) use voxel::RawVoxel;
 pub(super) mod data;
