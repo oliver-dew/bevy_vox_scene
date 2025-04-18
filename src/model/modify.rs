@@ -58,9 +58,10 @@ impl VoxelModifier {
 /// ### Example
 /// ```no_run
 /// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModelInstance, ModifyVoxelCommandsExt, VoxelRegionMode, VoxelRegion, Voxel};
+/// # use bevy_vox_scene::{VoxelModelInstance, VoxelRegionMode, VoxelRegion, Voxel, VoxelModifier, modify_voxel_model};
 /// # let mut commands: Commands = panic!();
 /// # let model_instance: VoxelModelInstance = panic!();
+/// # let mesh_handle: Handle<Mesh> = panic!();
 /// // cut a sphere-shaped hole out of the loaded model
 /// let sphere_center = IVec3::new(10, 10, 10);
 /// let radius = 10;
@@ -71,6 +72,7 @@ impl VoxelModifier {
 /// };
 /// let modifier = VoxelModifier::new(
 ///     model_instance.clone(),
+/// 	mesh_handle.clone(),
 ///     VoxelRegionMode::Box(region),
 ///     move | position, voxel, model | {
 ///         // a signed-distance function for a sphere:
@@ -83,7 +85,7 @@ impl VoxelModifier {
 ///         }
 ///     },
 /// );
-/// commands.run_system_cached_with(modify_voxel_model, modifier);
+/// commands.run_system_cached_with(modify_voxel_model, Some(modifier));
 /// ```
 pub fn modify_voxel_model(
     In(maybe_modifier): In<Option<VoxelModifier>>,

@@ -18,7 +18,7 @@ use bevy::{
         Commands, GlobalTransform, InheritedVisibility, Mesh3d, OnAdd, Query, Transform, Trigger,
         ViewVisibility, Visibility,
     },
-    render::{mesh::Mesh, texture::ImagePlugin},
+    render::{mesh::Mesh, texture::ImagePlugin, view::VisibilityClass},
     scene::{Scene, ScenePlugin, SceneRoot},
     transform::components::TransformTreeChanged,
     utils::default,
@@ -89,7 +89,7 @@ async fn test_load_spawn_cloud() {
         .expect("children")
         .first()
         .expect("fog entity");
-    let fog_volume = app
+    app
         .world()
         .get::<FogVolume>(*fog_entity)
         .expect("fog volume");
@@ -98,10 +98,6 @@ async fn test_load_spawn_cloud() {
         model.has_cloud, true,
         "Model with cloud voxels should have a cloud image"
     );
-    // assert_eq!(
-    //     model.cloud_image, fog_volume.density_texture,
-    //     "FogVolume should have spawned with cloud texture from VoxelModel"
-    // );
     assert_eq!(
         model.has_mesh, false,
         "Model consisting solely of cloud voxels shouldn't have a mesh"
@@ -114,23 +110,20 @@ async fn test_spawn_play_animation() {
     let mut app = App::new();
     let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
     app.update();
-    let scene_root = app
-        .world_mut()
-        .spawn(SceneRoot(handle))
-        // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
-        // so we can advance a frame on each call to `app.update`
-        .observe(
-            move |trigger: Trigger<VoxelInstanceReady>, mut commands: Commands| {
-                commands
-                    .entity(trigger.event().instance)
-                    .insert(VoxelAnimationPlayer {
-                        frames: (0..frame_count).collect(),
-                        frame_rate: Duration::from_millis(1),
-                        ..default()
-                    });
-            },
-        )
-        .id();
+    // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
+    // so we can advance a frame on each call to `app.update`
+    app.add_observer(
+        move |trigger: Trigger<OnAdd, VoxelAnimationPlayer>, mut commands: Commands| {
+            commands
+                .entity(trigger.target())
+                .insert(VoxelAnimationPlayer {
+                    frames: (0..frame_count).collect(),
+                    frame_rate: Duration::from_millis(1),
+                    ..default()
+                });
+        },
+    );
+    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
     app.update();
     app.update(); // trigger second frame
     let top_entity = app
@@ -145,12 +138,6 @@ async fn test_spawn_play_animation() {
         .expect("children")
         .first()
         .expect("model entity");
-    let model_instance = app
-        .world()
-        .get::<VoxelModelInstance>(*entity)
-        .expect("voxel model instance")
-        .clone();
-    // assert_eq!(model_instance.model.len(), frame_count);
     let frame_entities = app.world().get::<Children>(*entity).expect("children");
     assert_eq!(frame_entities.len(), frame_count);
     let first_frame_visibility = app
@@ -202,17 +189,21 @@ async fn test_transmissive_mat() {
         model.has_cloud, false,
         "Model with no cloud voxels should not have a cloud image"
     );
-    // let mat_handle = model.material.clone().expect("Model has a material handle");
-    // let material = app
-    //     .world()
-    //     .resource::<Assets<StandardMaterial>>()
-    //     .get(&mat_handle)
-    //     .expect("material");
-    // #[cfg(feature = "pbr_transmission_textures")]
-    // assert!(material.specular_transmission_texture.is_some());
-    // assert_eq!(material.specular_transmission, 1.0);
-    // assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
-    // assert!(material.metallic_roughness_texture.is_some());
+    let mat_handle = &app
+        .world()
+        .get::<MeshMaterial3d<StandardMaterial>>(*entity)
+        .expect("Walls has a material")
+        .0;
+    let material = app
+        .world()
+        .resource::<Assets<StandardMaterial>>()
+        .get(mat_handle)
+        .expect("material");
+    #[cfg(feature = "pbr_transmission_textures")]
+    assert!(material.specular_transmission_texture.is_some());
+    assert_eq!(material.specular_transmission, 1.0);
+    assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
+    assert!(material.metallic_roughness_texture.is_some());
 }
 
 #[async_std::test]
@@ -229,27 +220,24 @@ async fn test_opaque_mat() {
         .first()
         .expect("scene root");
 
-    let model_id = &app
+    app
         .world()
         .get::<VoxelModelInstance>(*entity)
-        .expect("Voxel model instance")
-        .model;
-
-    let model = app
+        .expect("Voxel model instance");
+    let mat_handle = &app
         .world()
-        .resource::<Assets<VoxelModel>>()
-        .get(model_id)
-        .expect("voxel model");
-    // let mat_handle = model.material.clone().expect("Model has a material handle");
-    // let material = app
-    //     .world()
-    //     .resource::<Assets<StandardMaterial>>()
-    //     .get(&mat_handle)
-    //     .expect("material");
-    // #[cfg(feature = "pbr_transmission_textures")]
-    // assert!(material.specular_transmission_texture.is_none());
-    // assert_eq!(material.specular_transmission, 0.0);
-    // assert!(material.metallic_roughness_texture.is_some());
+        .get::<MeshMaterial3d<StandardMaterial>>(*entity)
+        .expect("Walls has a material")
+        .0;
+    let material = app
+        .world()
+        .resource::<Assets<StandardMaterial>>()
+        .get(mat_handle)
+        .expect("material");
+    #[cfg(feature = "pbr_transmission_textures")]
+    assert!(material.specular_transmission_texture.is_none());
+    assert_eq!(material.specular_transmission, 0.0);
+    assert!(material.metallic_roughness_texture.is_some());
 }
 
 #[async_std::test]
@@ -365,7 +353,8 @@ async fn test_modify_voxels() {
         |_pos, _voxel, _model| Voxel(7),
     );
     app.world_mut()
-        .run_system_cached_with(modify_voxel_model, Some(modifier)).expect("model modified");
+        .run_system_cached_with(modify_voxel_model, Some(modifier))
+        .expect("model modified");
     app.update();
     let model = app
         .world()
@@ -414,7 +403,14 @@ fn test_generate_voxels() {
         .expect("Add box model");
     let scene_root = world.spawn(SceneRoot(scene_handle)).id();
     app.update();
-    let mesh_handle = &app.world().get::<Mesh3d>(scene_root).expect("voxel mesh").0;
+    let entity = app
+        .world()
+        .get::<Children>(scene_root)
+        .expect("children")
+        .first()
+        .expect("model entity");
+
+    let mesh_handle = &app.world().get::<Mesh3d>(*entity).expect("voxel mesh").0;
     let mesh = app
         .world()
         .resource::<Assets<Mesh>>()
@@ -512,9 +508,11 @@ fn setup_app(app: &mut App) {
     .register_type::<Visibility>()
     .register_type::<ViewVisibility>()
     .register_type::<InheritedVisibility>()
+    .register_type::<VisibilityClass>()
     .register_type::<Transform>()
     .register_type::<GlobalTransform>()
     .register_type::<TransformTreeChanged>()
     .register_type::<Mesh3d>()
-    .register_type::<MeshMaterial3d<StandardMaterial>>();
+    .register_type::<MeshMaterial3d<StandardMaterial>>()
+    .register_type::<FogVolume>();
 }
