@@ -6,7 +6,7 @@ use bevy::{
 
 use crate::{VoxelLayer, VoxelModelInstance};
 
-///  each [`Voance`] in a scene, the scene is spawned and ready,
+/// An Event triggered once for each [`VoxelModelInstance`] in a scene, triggered after the scene is spawned and ready,
 /// targeted at the entity containing the [`bevy::prelude::SceneRoot`].
 ///
 /// The advantage of observing [`VoxelInstanceReady`] over using `Trigger<OnAdd, VoxelModelInstance>`,
