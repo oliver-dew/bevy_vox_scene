@@ -1,12 +1,7 @@
 use bevy::{
     asset::{Assets, Handle},
-    ecs::{
-        system::{Commands, ResMut, SystemState},
-        world::{Command, World},
-    },
-    image::Image,
+    ecs::system::{In, ResMut},
     math::{IVec3, Vec3},
-    pbr::StandardMaterial,
     prelude::Res,
     render::mesh::Mesh,
 };
@@ -16,40 +11,15 @@ use crate::VoxelModelInstance;
 
 use super::{RawVoxel, Voxel, VoxelContext, VoxelModel, VoxelQueryable};
 
-/// Command that programmatically modifies the voxels in a model.
-///
-/// This command will run the closure against every voxel within the region of the model.
-///
-/// ### Example
-/// ```no_run
-/// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModelInstance, ModifyVoxelCommandsExt, VoxelRegionMode, VoxelRegion, Voxel};
-/// # let mut commands: Commands = panic!();
-/// # let model_instance: VoxelModelInstance = panic!();
-/// // cut a sphere-shaped hole out of the loaded model
-/// let sphere_center = IVec3::new(10, 10, 10);
-/// let radius = 10;
-/// let radius_squared = radius * radius;
-/// let region = VoxelRegion {
-///     origin: sphere_center - IVec3::splat(radius),
-///     size: IVec3::splat(1 + (radius * 2)),
-/// };
-/// commands.modify_voxel_model(
-///     model_instance.clone(),
-///     VoxelRegionMode::Box(region),
-///     move | position, voxel, model | {
-///         // a signed-distance function for a sphere:
-///         if position.distance_squared(sphere_center) <= radius_squared {
-///             // inside of the sphere, return an empty cell
-///             Voxel::EMPTY
-///         } else {
-///             // outside the sphere, return the underlying voxel value from the model
-///             voxel.clone()
-///         }
-///     },
-/// );
-/// ```
-pub trait ModifyVoxelCommandsExt {
+/// Data object passed into [`modify_voxel_model`] system
+pub struct VoxelModifier {
+    instance: VoxelModelInstance,
+    mesh: Handle<Mesh>,
+    region: VoxelRegionMode,
+    modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
+}
+
+impl VoxelModifier {
     /// Run the `modify` closure against every voxel within the `region` of the `model`.
     ///
     /// ### Arguments
@@ -64,136 +34,99 @@ pub trait ModifyVoxelCommandsExt {
     ///
     /// ### Notes
     /// The smaller the `region` is, the more performant the operation will be.
-    fn modify_voxel_model<
-        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
-    >(
-        &mut self,
-        model: VoxelModelInstance,
+    pub fn new<F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>(
+        instance: VoxelModelInstance,
+        mesh: Handle<Mesh>,
         region: VoxelRegionMode,
         modify: F,
-    ) -> &mut Self;
-}
-
-impl ModifyVoxelCommandsExt for Commands<'_, '_> {
-    fn modify_voxel_model<
-        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static,
-    >(
-        &mut self,
-        model: VoxelModelInstance,
-        region: VoxelRegionMode,
-        modify: F,
-    ) -> &mut Self {
-        self.queue(ModifyVoxelModel {
-            instance: model,
+    ) -> Self {
+        VoxelModifier {
+            instance,
+            mesh,
             region,
             modify: Box::new(modify),
-        });
-        self
+        }
     }
 }
 
-struct ModifyVoxelModel {
-    instance: VoxelModelInstance,
-    region: VoxelRegionMode,
-    modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
-}
-
-impl Command for ModifyVoxelModel {
-    fn apply(self, world: &mut World) {
-        let mut perform = || -> Option<()> {
-            let mut system_state: SystemState<(
-                ResMut<Assets<Mesh>>,
-                ResMut<Assets<StandardMaterial>>,
-                ResMut<Assets<Image>>,
-                ResMut<Assets<VoxelModel>>,
-                Res<Assets<VoxelContext>>,
-            )> = SystemState::new(world);
-            let (mut meshes, mut materials, mut images, mut models, contexts) =
-                system_state.get_mut(world);
-            let context = contexts.get(self.instance.context.id())?;
-            let model = models.get_mut(self.instance.models[0].id())?;
-            let refraction_indices = &context.palette.indices_of_refraction;
-            let density_for_voxel = &context.palette.density_for_voxel;
-            self.modify_model(
-                model,
-                &mut meshes,
-                &mut materials,
-                &mut images,
-                context.opaque_material.clone(),
-                context.transmissive_material.clone(),
-                refraction_indices,
-                density_for_voxel,
-            );
-            Some(())
-        };
-        perform();
+/// System that programmatically modifies the voxels in a model.
+///
+/// Takes a [`VoxelModifier`] as its input
+///
+/// ### Example
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use bevy_vox_scene::{VoxelModelInstance, VoxelRegionMode, VoxelRegion, Voxel, VoxelModifier, modify_voxel_model};
+/// # let mut commands: Commands = panic!();
+/// # let model_instance: VoxelModelInstance = panic!();
+/// # let mesh_handle: Handle<Mesh> = panic!();
+/// // cut a sphere-shaped hole out of the loaded model
+/// let sphere_center = IVec3::new(10, 10, 10);
+/// let radius = 10;
+/// let radius_squared = radius * radius;
+/// let region = VoxelRegion {
+///     origin: sphere_center - IVec3::splat(radius),
+///     size: IVec3::splat(1 + (radius * 2)),
+/// };
+/// let modifier = VoxelModifier::new(
+///     model_instance.clone(),
+/// 	mesh_handle.clone(),
+///     VoxelRegionMode::Box(region),
+///     move | position, voxel, model | {
+///         // a signed-distance function for a sphere:
+///         if position.distance_squared(sphere_center) <= radius_squared {
+///             // inside of the sphere, return an empty cell
+///             Voxel::EMPTY
+///         } else {
+///             // outside the sphere, return the underlying voxel value from the model
+///             voxel.clone()
+///         }
+///     },
+/// );
+/// commands.run_system_cached_with(modify_voxel_model, Some(modifier));
+/// ```
+pub fn modify_voxel_model(
+    In(maybe_modifier): In<Option<VoxelModifier>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut models: ResMut<Assets<VoxelModel>>,
+    contexts: Res<Assets<VoxelContext>>,
+) {
+    let Some(modifier) = maybe_modifier else {
+        return;
+    };
+    let Some(context) = contexts.get(modifier.instance.context.id()) else {
+        return;
+    };
+    let Some(model) = models.get_mut(modifier.instance.model.id()) else {
+        return;
+    };
+    let refraction_indices = &context.palette.indices_of_refraction;
+    let density_for_voxel = &context.palette.density_for_voxel;
+    let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+    let model_size = model.size();
+    let region = modifier.region.clamped(model_size);
+    let start = leading_padding + region.origin;
+    let end = start + region.size;
+    let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
+    for x in start.x..end.x {
+        for y in start.y..end.y {
+            for z in start.z..end.z {
+                let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
+                let source: Voxel = model.data.voxels[index].clone().into();
+                updated[index] = RawVoxel::from((modifier.modify)(
+                    IVec3::new(x, y, z) - leading_padding,
+                    &source,
+                    model,
+                ));
+            }
+        }
     }
-}
+    model.data.voxels = updated;
+    let (maybe_mesh, _average_ior, _maybe_cloud) =
+        model.data.remesh(refraction_indices, &density_for_voxel);
 
-impl ModifyVoxelModel {
-    fn modify_model(
-        &self,
-        model: &mut VoxelModel,
-        meshes: &mut Assets<Mesh>,
-        materials: &mut Assets<StandardMaterial>,
-        images: &mut Assets<Image>,
-        opaque_material: Handle<StandardMaterial>,
-        transmissive_material: Handle<StandardMaterial>,
-        refraction_indices: &[Option<f32>],
-        density_for_voxel: &[Option<f32>],
-    ) {
-        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
-        let model_size = model.size();
-        let region = self.region.clamped(model_size);
-        let start = leading_padding + region.origin;
-        let end = start + region.size;
-        let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
-        for x in start.x..end.x {
-            for y in start.y..end.y {
-                for z in start.z..end.z {
-                    let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
-                    let source: Voxel = model.data.voxels[index].clone().into();
-                    updated[index] = RawVoxel::from((self.modify)(
-                        IVec3::new(x, y, z) - leading_padding,
-                        &source,
-                        model,
-                    ));
-                }
-            }
-        }
-        model.data.voxels = updated;
-        let (maybe_mesh, average_ior, maybe_cloud) =
-            model.data.remesh(refraction_indices, &density_for_voxel);
-        if let Some(mesh_handle) = &model.mesh {
-            // TODO handle handle being nil.
-            if let Some(mesh) = maybe_mesh {
-                meshes.insert(mesh_handle, mesh);
-            }
-        }
-        if let Some(image_handle) = &model.cloud_image {
-            if let Some(cloud) = maybe_cloud {
-                images.insert(image_handle, cloud);
-            }
-        }
-
-        let has_translucency_old_value = model.has_translucency;
-        model.has_translucency = average_ior.is_some();
-        match (has_translucency_old_value, average_ior) {
-            (true, Some(..)) | (false, None) => (), // no change in model's translucency
-            (true, None) => {
-                model.material = Some(opaque_material);
-            }
-            (false, Some(ior)) => {
-                let Some(mut translucent_material) =
-                    materials.get(transmissive_material.id()).cloned()
-                else {
-                    return;
-                };
-                translucent_material.ior = ior;
-                translucent_material.thickness = model.size().min_element() as f32;
-                model.material = Some(materials.add(translucent_material));
-            }
-        }
+    if let Some(mesh) = maybe_mesh {
+        meshes.insert(&modifier.mesh, mesh);
     }
 }
 
@@ -231,6 +164,13 @@ pub struct VoxelRegion {
 }
 
 impl VoxelRegion {
+    /// Create a new region from a center and a half size
+    pub fn from_center(center: IVec3, half_size: IVec3) -> Self {
+        Self {
+            origin: center - half_size,
+            size: half_size * 2,
+        }
+    }
     /// Computes the center of the region
     pub fn center(&self) -> Vec3 {
         let origin = Vec3::new(

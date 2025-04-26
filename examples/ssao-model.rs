@@ -22,6 +22,7 @@ fn main() {
     .insert_resource(AmbientLight {
         color: Color::srgb_u8(128, 126, 124),
         brightness: 0.5,
+        ..default()
     })
     .add_systems(Startup, setup)
     .add_systems(Update, toggle_ssao.run_if(on_event::<KeyboardInput>));
@@ -77,7 +78,7 @@ fn toggle_ssao(
     keys: Res<ButtonInput<KeyCode>>,
     mut query: Query<(Entity, &mut SSAOVisible)>,
 ) {
-    let Ok((entity, mut ssao_visible)) = query.get_single_mut() else {
+    let Ok((entity, mut ssao_visible)) = query.single_mut() else {
         return;
     };
     if keys.get_just_pressed().next().is_some() {

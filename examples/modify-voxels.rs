@@ -4,12 +4,14 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelRegion, VoxelRegionMode,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
+    VoxelRegionMode, modify_voxel_model,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
+//TODO fix
 fn main() {
     App::new()
         .add_plugins((
@@ -20,7 +22,9 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
+            grow_grass
+                .pipe(modify_voxel_model)
+                .run_if(on_timer(Duration::from_secs_f32(0.1))),
         )
         .run();
 }
@@ -63,7 +67,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        SceneRoot(assets.load("study.vox")),
+        SceneRoot(
+            assets.load_with_settings("study.vox", |settings: &mut VoxLoaderSettings| {
+                settings.supports_remeshing = true
+            }),
+        ),
         Transform::from_scale(Vec3::splat(0.05)),
     ));
 }
@@ -73,33 +81,34 @@ fn on_spawn_voxel_instance(
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let Ok(name) = model_query.get(trigger.entity()).map(|n| n.as_str()) else {
+    let Ok(name) = model_query.get(trigger.target()).map(|n| n.as_str()) else {
         return;
     };
     if name == "floor" {
-        commands.entity(trigger.entity()).insert(Floor);
+        commands.entity(trigger.target()).insert(Floor);
     }
 }
 
-fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Floor>>) {
+fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Option<VoxelModifier> {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some(instance) = query.iter().next() else {
-        return;
+    let Some((instance, mesh)) = query.iter().next() else {
+        return None;
     };
     let region = VoxelRegion {
         origin: IVec3::new(0, 4, 0),
         size: IVec3::new(64, 8, 64),
     };
-    commands.modify_voxel_model(
+    Some(VoxelModifier::new(
         instance.clone(),
+        mesh.0.clone(),
         VoxelRegionMode::Box(region),
         |pos, voxel, model| {
             if *voxel != Voxel::EMPTY {
                 // don't overwrite any voxels
                 return voxel.clone();
             };
-            let mut rng = rand::thread_rng();
-            let value: u16 = rng.gen_range(0..5000);
+            let mut rng = rand::rng();
+            let value: u16 = rng.random_range(0..5000);
             if value > 20 {
                 return Voxel::EMPTY;
             };
@@ -128,5 +137,5 @@ fn grow_grass(mut commands: Commands, query: Query<&VoxelModelInstance, With<Flo
                 Voxel::EMPTY
             }
         },
-    );
+    ))
 }

@@ -1,0 +1,342 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'utilities'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=utilities"
+                ],
+                "filter": {
+                    "name": "utilities",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'animation-generation'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=animation-generation",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "animation-generation",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'animation-scene'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=animation-scene",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "animation-scene",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'basic-model'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=basic-model",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "basic-model",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'cloud-generation'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=cloud-generation",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "cloud-generation",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'cloud-scene'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=cloud-scene",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "cloud-scene",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'emissive-model'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=emissive-model",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "emissive-model",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'modify-scene'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=modify-scene",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "modify-scene",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'modify-voxels'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=modify-voxels",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "modify-voxels",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'picking'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=picking",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "picking",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'recentering-model'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=recentering-model",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "recentering-model",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'scene-slice'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=scene-slice",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "scene-slice",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'ssao-model'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=ssao-model",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "ssao-model",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'transmission-scene'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=transmission-scene",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "transmission-scene",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'voxel-collisions'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=voxel-collisions",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "voxel-collisions",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'voxel-generation'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=voxel-generation",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "voxel-generation",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+    ]
+}

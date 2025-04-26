@@ -133,7 +133,7 @@ fn pan_orbit_camera(
 }
 
 fn get_primary_window_size(window_query: &Query<&Window, With<PrimaryWindow>>) -> Vec2 {
-    let window = window_query.get_single().expect("no window found");
+    let window = window_query.single().expect("no window found");
     let window = Vec2::new(window.width() as f32, window.height() as f32);
     window
 }

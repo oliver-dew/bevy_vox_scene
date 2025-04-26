@@ -7,7 +7,7 @@ use bevy::{
     pbr::{FogVolume, VolumetricFog, VolumetricLight},
     prelude::*,
 };
-use bevy_vox_scene::{VoxScenePlugin, VoxelInstanceSpawned};
+use bevy_vox_scene::{VoxScenePlugin, VoxelInstanceReady};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -18,6 +18,7 @@ fn main() {
             VoxScenePlugin::default(),
             PanOrbitCameraPlugin,
         ))
+        .register_type::<FogVolume>()
         .add_systems(Startup, setup)
         .add_systems(Update, scroll_fog)
         .run();
@@ -74,13 +75,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 // replace "point_light" marker models with point lights
-fn add_point_lights(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
+fn add_point_lights(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands) {
     let Some(name) = &trigger.event().model_name else {
         return;
     };
     if name.contains("point_light") {
         commands
-            .entity(trigger.event().entity)
+            .entity(trigger.event().instance)
             .remove::<Mesh3d>()
             .remove::<MeshMaterial3d<StandardMaterial>>()
             .insert((

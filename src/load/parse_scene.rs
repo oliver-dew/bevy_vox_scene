@@ -1,19 +1,23 @@
 use bevy::{
     asset::{Handle, LoadContext},
-    core::Name,
+    ecs::{hierarchy::ChildSpawner, name::Name},
+    image::Image,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
-    prelude::{
-        BuildChildren, ChildBuild, EntityWorldMut, Transform, Visibility, World, WorldChildBuilder,
-    },
+    pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
+    platform::collections::HashSet,
+    prelude::{EntityWorldMut, Transform, Visibility, World},
+    render::mesh::{Mesh, Mesh3d},
     scene::Scene,
-    utils::HashSet,
 };
 use dot_vox::{Frame, SceneNode};
 
-use crate::{VoxelLayer, VoxelModel, VoxelModelInstance};
+use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
 
-use super::components::{LayerInfo, VoxelAnimationPlayer};
+use super::{
+    VoxelAnimationFrame,
+    components::{LayerInfo, VoxelAnimationPlayer},
+};
 
 pub(super) fn find_model_names(
     name_for_model: &mut Vec<Option<String>>,
@@ -79,7 +83,7 @@ pub(super) fn parse_scene_graph(
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
-    model_names: &mut Vec<Option<String>>,
+    vox_models: &Vec<VoxelModel>,
     subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
@@ -94,26 +98,8 @@ pub(super) fn parse_scene_graph(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut entity = world.spawn_empty();
-            load_xform_child(
-                context,
-                graph,
-                &graph[*child as usize],
-                &mut entity,
-                accumulated.as_ref(),
-                model_names,
-                subassets,
-                layers,
-                scene_scale,
-            );
-
+            let mut entity = world.spawn(Transform::IDENTITY);
             let maybe_layer = layers.get(*layer_id as usize);
-            if let Some(layer) = maybe_layer {
-                entity.insert(VoxelLayer {
-                    id: *layer_id,
-                    name: layer.name.clone(),
-                });
-            }
             let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
             let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
             let visibility = if node_is_hidden || layer_is_hidden {
@@ -122,6 +108,25 @@ pub(super) fn parse_scene_graph(
                 Visibility::Inherited
             };
             entity.insert(visibility);
+            load_xform_child(
+                context,
+                graph,
+                &graph[*child as usize],
+                &mut entity,
+                accumulated.as_ref(),
+                vox_models,
+                subassets,
+                layers,
+                scene_scale,
+            );
+
+            if let Some(layer) = maybe_layer {
+                entity.insert(VoxelLayer {
+                    id: *layer_id,
+                    name: layer.name.clone(),
+                });
+            }
+
             if let Some(node_name) = node_name.clone() {
                 entity.insert(Name::new(node_name.clone()));
             }
@@ -133,11 +138,11 @@ pub(super) fn parse_scene_graph(
 
 fn load_xform_node(
     context: &mut LoadContext,
-    builder: &mut WorldChildBuilder,
+    builder: &mut ChildSpawner,
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
     parent_name: Option<&String>,
-    model_names: &mut Vec<Option<String>>,
+    vox_models: &Vec<VoxelModel>,
     subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
@@ -179,7 +184,7 @@ fn load_xform_node(
                 &graph[*child as usize],
                 &mut entity,
                 accumulated.as_ref(),
-                model_names,
+                vox_models,
                 subassets,
                 layers,
                 scene_scale,
@@ -199,7 +204,7 @@ fn load_xform_node(
                             graph,
                             scene_node,
                             parent_name,
-                            model_names,
+                            vox_models,
                             subassets,
                             layers,
                             scene_scale,
@@ -217,7 +222,7 @@ fn load_xform_node(
                 scene_node,
                 &mut node,
                 parent_name,
-                model_names,
+                vox_models,
                 subassets,
                 layers,
                 scene_scale,
@@ -232,7 +237,7 @@ fn load_xform_child(
     scene_node: &SceneNode,
     entity: &mut EntityWorldMut,
     parent_name: Option<&String>,
-    model_names: &mut Vec<Option<String>>,
+    vox_models: &Vec<VoxelModel>,
     subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
@@ -241,6 +246,7 @@ fn load_xform_child(
         SceneNode::Transform { .. } => {
             warn!("Found nested Transform nodes");
             entity.insert(Transform::IDENTITY);
+
             entity.with_children(|builder| {
                 load_xform_node(
                     context,
@@ -248,7 +254,7 @@ fn load_xform_child(
                     graph,
                     scene_node,
                     parent_name,
-                    model_names,
+                    vox_models,
                     subassets,
                     layers,
                     scene_scale,
@@ -268,7 +274,7 @@ fn load_xform_child(
                         graph,
                         &graph[*child as usize],
                         parent_name,
-                        model_names,
+                        vox_models,
                         subassets,
                         layers,
                         scene_scale,
@@ -280,25 +286,74 @@ fn load_xform_child(
             attributes: _,
             models,
         } => {
-            let models: Vec<Handle<VoxelModel>> = models
-                .iter()
-                .map(|model| {
-                    let model_id = model.model_id as usize;
-                    let model_name = model_names[model_id]
-                        .clone()
-                        .unwrap_or(format!("model-{}", model_id));
-                    context.get_label_handle(format!("{}@model", model_name))
-                })
-                .collect();
             let model_count = models.len();
-            entity.insert(VoxelModelInstance {
-                models,
-                context: context.get_label_handle("voxel-context"),
-            });
-            if model_count > 1 {
+            if model_count == 1 {
+                let model = &vox_models[models[0].model_id as usize];
+                entity.insert(VoxelModelInstance {
+                    model: context.get_label_handle(format!("{}@model", model.name)),
+                    context: context.get_label_handle("voxel-context"),
+                });
+                if model.has_mesh {
+                    let mesh: Handle<Mesh> =
+                        context.get_label_handle(format!("{}@mesh", model.name));
+                    let material: Handle<StandardMaterial> =
+                        context.get_label_handle(format!("{}@material", model.name));
+                    entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
+                }
+                if model.has_cloud {
+                    let cloud_image: Handle<Image> =
+                        context.get_label_handle(format!("{}@cloud-image", model.name));
+                    entity.with_child((
+                        FogVolume {
+                            density_texture: Some(cloud_image),
+                            absorption: 0.1,
+                            ..Default::default()
+                        },
+                        Transform::from_scale(model.model_size()),
+                    ));
+                }
+            } else if model_count > 1 {
                 entity.insert(VoxelAnimationPlayer {
                     frames: (0..model_count).collect(),
                     ..Default::default()
+                });
+                entity.with_children(|spawner| {
+                    for index in 0..model_count {
+                        let model = &vox_models[models[index].model_id as usize];
+                        let mut frame = spawner.spawn((
+                            VoxelModelInstance {
+                                model: context.get_label_handle(format!("{}@model", model.name)),
+                                context: context.get_label_handle("voxel-context"),
+                            },
+                            VoxelAnimationFrame(index),
+                            if index == 0 {
+                                Visibility::Inherited
+                            } else {
+                                Visibility::Hidden
+                            },
+                        ));
+
+                        if model.has_mesh {
+                            let mesh: Handle<Mesh> =
+                                context.get_label_handle(format!("{}@mesh", model.name));
+                            let material: Handle<StandardMaterial> =
+                                context.get_label_handle(format!("{}@material", model.name));
+                            frame.insert((Mesh3d(mesh), MeshMaterial3d(material)));
+                        }
+
+                        if model.has_cloud {
+                            let cloud_image: Handle<Image> =
+                                context.get_label_handle(format!("{}@cloud-image", model.name));
+                            frame.with_child((
+                                FogVolume {
+                                    density_texture: Some(cloud_image),
+                                    absorption: 0.1,
+                                    ..Default::default()
+                                },
+                                Transform::from_scale(model.model_size()),
+                            ));
+                        }
+                    }
                 });
             }
         }

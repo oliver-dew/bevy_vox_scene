@@ -6,14 +6,11 @@ use bevy::{
         dof::{DepthOfField, DepthOfFieldMode},
         post_process::ChromaticAberration,
         tonemapping::Tonemapping,
-    },
-    prelude::*,
-    scene::SceneInstanceReady,
-    time::common_conditions::on_timer,
+    }, pbr::Atmosphere, prelude::*, scene::SceneInstanceReady, time::common_conditions::on_timer
 };
 use bevy_vox_scene::{
-    ModifyVoxelCommandsExt, VoxScenePlugin, Voxel, VoxelInstanceSpawned, VoxelModel,
-    VoxelModelInstance, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
+    VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode, modify_voxel_model,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -25,6 +22,8 @@ enum AppState {
     Ready,
 }
 
+//TODO: fix
+
 // When a snowflake lands on the scenery, it is added to scenery's voxel data, so that snow gradually builds up
 fn main() {
     // Making this frequency not cleanly divisible by the snowflake speed ensures that expensive collisions
@@ -34,7 +33,12 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             PanOrbitCameraPlugin,
-            VoxScenePlugin::default(),
+            VoxScenePlugin {
+                global_settings: Some(VoxLoaderSettings { 
+                    supports_remeshing: true,
+                    ..default()
+                 })
+            },
         ))
         .add_systems(Startup, setup)
         .add_systems(
@@ -65,9 +69,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
+        Atmosphere::EARTH,
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
+            scale: Vec2::new(2.35, 1.0),
             ..default()
         },
         EnvironmentMapLight {
@@ -87,17 +93,21 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
     ));
-    commands.insert_resource(Scenes {
-        snowflake: assets.load("study.vox#snowflake@mesh"),
-        voxel_material: assets.load("study.vox#snowflake@material"),
-    });
 
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::CLEAR_SUNRISE,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::IDENTITY.looking_to(Vec3::new(0., -1., 0.85), Vec3::Y),
+    ));
     // Scope the observer to this SceneRoot so that it doesn't run
     // againt the snowflakes when they spawn
     commands
         .spawn(
             // Load a slice of the scene
-            SceneRoot(assets.load("study.vox#workstation")),
+            SceneRoot(assets.load("study.vox#workstation"))
         )
         .observe(identify_scenery)
         .observe(
@@ -105,6 +115,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
                 app_state.set(AppState::Ready);
             },
         );
+    commands.insert_resource(Scenes {
+        snowflake: assets.load("study.vox#snowflake@mesh"),
+        voxel_material: assets.load("study.vox#snowflake@material"),
+    });
 }
 
 /// An observer that marks all objects in the workstation scene with the [`Scenery`] component,
@@ -117,21 +131,23 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 /// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
 /// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
 /// observer was added to).
-fn identify_scenery(trigger: Trigger<VoxelInstanceSpawned>, mut commands: Commands) {
+fn identify_scenery(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands) {
     let Some(name) = &trigger.event().model_name else {
         return;
     };
     match name.as_str() {
-        "snowflake" => panic!("This should never be executed, because this observer is scoped to the 'workstation' scene graph"),
+        "snowflake" => panic!(
+            "This should never be executed, because this observer is scoped to the 'workstation' scene graph"
+        ),
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             commands
-                .entity(trigger.event().entity)
+                .entity(trigger.event().instance)
                 .insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
         _ => {}
     }
-    commands.entity(trigger.event().entity).insert(Scenery);
+    commands.entity(trigger.event().instance).insert(Scenery);
 }
 
 /// A snowflake with an angular velocity represented by a [`Quat`]
@@ -147,11 +163,20 @@ struct Scenery;
 struct FocalPoint(Vec3);
 
 fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
-    let mut rng = rand::thread_rng();
-    let position = Vec3::new(rng.gen_range(-30.0..30.0), 80.0, rng.gen_range(-20.0..20.0)).round()
+    let mut rng = rand::rng();
+    let position = Vec3::new(
+        rng.random_range(-30.0..30.0),
+        80.0,
+        rng.random_range(-20.0..20.0),
+    )
+    .round()
         + Vec3::splat(0.5);
-    let rotation_axis =
-        Vec3::new(rng.gen_range(-0.5..0.5), 1.0, rng.gen_range(-0.5..0.5)).normalize();
+    let rotation_axis = Vec3::new(
+        rng.random_range(-0.5..0.5),
+        1.0,
+        rng.random_range(-0.5..0.5),
+    )
+    .normalize();
     let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
     commands.spawn((
         Name::new("snowflake"),
@@ -165,7 +190,10 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
 fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
-    scenery: Query<(&GlobalTransform, &VoxelModelInstance), (With<Scenery>, Without<Snowflake>)>,
+    scenery: Query<
+        (&GlobalTransform, &VoxelModelInstance, &Mesh3d),
+        (With<Scenery>, Without<Snowflake>),
+    >,
     models: Res<Assets<VoxelModel>>,
 ) {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
@@ -176,8 +204,8 @@ fn update_snow(
         if old_ypos.trunc() == snowflake_xform.translation.y.trunc() {
             continue;
         }
-        for (item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(&item_instance.models[0]) else {
+        for (item_xform, item_instance, mesh) in scenery.iter() {
+            let Some(model) = models.get(&item_instance.model) else {
                 continue;
             };
             let vox_pos =
@@ -196,8 +224,9 @@ fn update_snow(
                 origin: vox_pos - IVec3::splat(flake_radius),
                 size: IVec3::splat(1 + (flake_radius * 2)),
             };
-            commands.modify_voxel_model(
+            let modifier = VoxelModifier::new(
                 item_instance.clone(),
+                mesh.0.clone(),
                 VoxelRegionMode::Box(flake_region),
                 move |pos, voxel, model| {
                     // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
@@ -213,6 +242,7 @@ fn update_snow(
                     voxel.clone()
                 },
             );
+            commands.run_system_cached_with(modify_voxel_model, Some(modifier));
             commands.entity(snowflake).despawn();
         }
     }
@@ -226,7 +256,7 @@ fn focus_camera(
     let Some((target_xform, focal_point)) = target.iter().next() else {
         return;
     };
-    let Ok((mut dof, camera_xform)) = camera.get_single_mut() else {
+    let Ok((mut dof, camera_xform)) = camera.single_mut() else {
         return;
     };
     let target_point = target_xform.transform_point(focal_point.0);

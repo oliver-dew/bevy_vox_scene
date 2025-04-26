@@ -87,8 +87,8 @@ fn on_spawn_voxel_instance(
     mut commands: Commands,
     assets: Res<AssetServer>,
 ) {
-    let mut entity_commands = commands.entity(trigger.entity());
-    let name = model_query.get(trigger.entity()).unwrap().as_str();
+    let mut entity_commands = commands.entity(trigger.target());
+    let name = model_query.get(trigger.target()).unwrap().as_str();
     match name {
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {
@@ -99,8 +99,8 @@ fn on_spawn_voxel_instance(
         }
         "tank/goldfish" | "tank/tetra" => {
             // Make fish go brrrrr
-            let mut rng = rand::thread_rng(); // random speed
-            entity_commands.insert(Fish(rng.gen_range(5.0..10.0)));
+            let mut rng = rand::rng(); // random speed
+            entity_commands.insert(Fish(rng.random_range(5.0..10.0)));
         }
         _ => {}
     }
@@ -114,7 +114,7 @@ fn toggle_black_light(
     if keys.get_just_pressed().next().is_none() {
         return;
     };
-    let Ok((entity, mut emissive_toggle)) = query.get_single_mut() else {
+    let Ok((entity, mut emissive_toggle)) = query.single_mut() else {
         return;
     };
     emissive_toggle.toggle();

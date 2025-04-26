@@ -5,7 +5,7 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.18.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.18.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.19.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.19.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
@@ -34,7 +34,7 @@ All Magica Voxel material types except "cloud" are supported. Bevy's screen spac
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.18.0"
+bevy_vox_scene = "0.19.0"
 ```
 
    Then in code:
@@ -83,6 +83,7 @@ cargo run --example <example name>
 | 0.15         |                                | 0.16                     |
 |              | - support cloud materials      | 0.17                     |
 |              | - support animation            | 0.18                     |
+| 0.16         |                                | 0.19                     |
 
 ## Limitations and workarounds
 

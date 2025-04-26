@@ -1,11 +1,11 @@
 use bevy::{
-    prelude::{Children, Commands, DespawnRecursiveExt, Entity, Query, Res, Visibility},
+    prelude::{Children, Commands, Entity, Query, Res, Visibility},
     time::Time,
 };
 
 use crate::{
-    load::{AnimationUpdate, VoxelAnimationFrame},
     VoxelAnimationPlayer,
+    load::{AnimationUpdate, VoxelAnimationFrame},
 };
 
 pub(super) fn update_animations(
@@ -32,7 +32,7 @@ pub(super) fn update_animations(
             }
             AnimationUpdate::ReachedEnd => {
                 if animation.despawn_on_finish {
-                    commands.entity(entity).despawn_recursive();
+                    commands.entity(entity).despawn();
                 }
             }
         };

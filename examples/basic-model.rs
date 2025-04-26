@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{pbr::Atmosphere, prelude::*};
 use bevy_vox_scene::VoxScenePlugin;
 
 fn main() {
@@ -11,13 +11,12 @@ fn main() {
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(30.0, 30.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
-        EnvironmentMapLight {
-            diffuse_map: assets.load("pisa_diffuse.ktx2"),
-            specular_map: assets.load("pisa_specular.ktx2"),
-            intensity: 500.0,
+        Camera {
+            hdr: true,
             ..default()
         },
+        Transform::from_xyz(30.0, 30.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Atmosphere::EARTH,
     ));
 
     commands.spawn(
@@ -26,4 +25,9 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         // Path components are separated with a slash
         SceneRoot(assets.load("study.vox#workstation/desk")),
     );
+
+    commands.spawn((
+        DirectionalLight::default(),
+        Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
+    ));
 }

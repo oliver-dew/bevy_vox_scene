@@ -6,10 +6,10 @@ use bevy::{
         render_resource::PrimitiveTopology,
     },
 };
-use block_mesh::{greedy_quads, GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG};
+use block_mesh::{GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG, greedy_quads};
 use ndshape::Shape;
 
-use super::{voxel::VisibleVoxel, VoxelData, VoxelQueryable};
+use super::{VoxelData, VoxelQueryable, voxel::VisibleVoxel};
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
@@ -36,7 +36,11 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
 
     let mut render_mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
-        RenderAssetUsages::RENDER_WORLD,
+        if data.settings.supports_remeshing {
+            RenderAssetUsages::default()
+        } else {
+            RenderAssetUsages::RENDER_WORLD
+        },
     );
 
     for (group, face) in greedy_quads_buffer

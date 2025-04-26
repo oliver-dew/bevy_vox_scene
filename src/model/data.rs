@@ -9,7 +9,7 @@ use std::fmt::Debug;
 
 use crate::VoxLoaderSettings;
 
-use super::{voxel::VisibleVoxel, RawVoxel};
+use super::{RawVoxel, voxel::VisibleVoxel};
 
 /// The voxel data used to create a mesh and a material.
 #[derive(Clone)]
@@ -64,11 +64,7 @@ impl VoxelData {
 
     /// If the outer faces are to be meshed, the mesher requires 1 voxel of padding around the edge of the model
     pub(crate) fn padding(&self) -> u32 {
-        if self.settings.mesh_outer_faces {
-            2
-        } else {
-            0
-        }
+        if self.settings.mesh_outer_faces { 2 } else { 0 }
     }
 
     pub(crate) fn remesh(

@@ -16,28 +16,21 @@ pub(crate) struct LayerInfo {
     pub is_hidden: bool,
 }
 
-/// An instance of a [`VoxelModel`], or an animation consisting of a series of models.
+/// An instance of a [`VoxelModel`].
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
 #[require(Transform, Visibility)]
 pub struct VoxelModelInstance {
-    /// Handle to the model
-    pub models: Vec<Handle<VoxelModel>>,
+    /// Handles to the model.
+    pub model: Handle<VoxelModel>,
     /// Handle to the context
     pub context: Handle<VoxelContext>,
 }
 
 impl VoxelModelInstance {
-    /// Create a new instance for a single model (no animation frames)
+    /// Create a new instance
     pub fn new(model: Handle<VoxelModel>, context: Handle<VoxelContext>) -> Self {
-        Self {
-            models: vec![model],
-            context,
-        }
-    }
-
-    pub(crate) fn has_animation(&self) -> bool {
-        self.models.len() > 1
+        Self { model, context }
     }
 }
 
@@ -134,13 +127,14 @@ impl VoxelAnimationPlayer {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct VoxelAnimationFrame(pub usize);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///
 /// This can be configured in the Magica Voxel world editor.
-#[derive(Component, Clone, Reflect)]
+#[derive(Component, Clone, Reflect, Debug)]
 #[reflect(Component)]
 pub struct VoxelLayer {
     /// The identifier for the layer. Magic Voxel 0.99.6 allows you to assign nodes to one of 8 layers,

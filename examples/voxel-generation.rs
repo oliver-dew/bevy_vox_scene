@@ -1,7 +1,7 @@
 use bevy::{core_pipeline::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelModel, VoxelModelInstance,
-    VoxelPalette, SDF,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelPalette, create_voxel_context,
+    create_voxel_scene,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -59,10 +59,15 @@ fn setup(world: &mut World) {
                 _ => Voxel::EMPTY,
             },
         );
-    let context = VoxelContext::new(world, palette).expect("Context has been generated");
+    let context = world
+        .run_system_cached_with(create_voxel_context, palette)
+        .expect("Context has been generated");
     let model_name = "my sdf model";
-    let (model_handle, _model) =
-        VoxelModel::new(world, data, model_name.to_string(), context.clone())
-            .expect("Model has been generated");
-    world.spawn(VoxelModelInstance::new(model_handle, context));
+    let scene_root = world
+        .run_system_cached_with(
+            create_voxel_scene,
+            (data, model_name.to_string(), context.clone()),
+        )
+        .expect("Voxel scene created");
+    world.spawn(SceneRoot(scene_root));
 }
