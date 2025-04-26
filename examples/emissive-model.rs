@@ -25,6 +25,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
+            scale: Vec2::new(2.4, 1.0),
             ..default()
         },
         EnvironmentMapLight {

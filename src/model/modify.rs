@@ -1,9 +1,7 @@
 use bevy::{
     asset::{Assets, Handle},
     ecs::system::{In, ResMut},
-    image::Image,
     math::{IVec3, Vec3},
-    pbr::StandardMaterial,
     prelude::Res,
     render::mesh::Mesh,
 };
@@ -90,8 +88,6 @@ impl VoxelModifier {
 pub fn modify_voxel_model(
     In(maybe_modifier): In<Option<VoxelModifier>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut images: ResMut<Assets<Image>>,
     mut models: ResMut<Assets<VoxelModel>>,
     contexts: Res<Assets<VoxelContext>>,
 ) {
@@ -126,36 +122,12 @@ pub fn modify_voxel_model(
         }
     }
     model.data.voxels = updated;
-    let (maybe_mesh, average_ior, maybe_cloud) =
+    let (maybe_mesh, _average_ior, _maybe_cloud) =
         model.data.remesh(refraction_indices, &density_for_voxel);
 
     if let Some(mesh) = maybe_mesh {
         meshes.insert(&modifier.mesh, mesh);
     }
-    // if let Some(image_handle) = &model.cloud_image {
-    //     if let Some(cloud) = maybe_cloud {
-    //         images.insert(image_handle, cloud);
-    //     }
-    // }
-
-    // let has_translucency_old_value = model.has_translucency;
-    // model.has_translucency = average_ior.is_some();
-    // match (has_translucency_old_value, average_ior) {
-    //     (true, Some(..)) | (false, None) => (), // no change in model's translucency
-    //     (true, None) => {
-    //         model.material = Some(context.opaque_material.clone());
-    //     }
-    //     (false, Some(ior)) => {
-    //         let Some(mut translucent_material) =
-    //             materials.get(context.transmissive_material.id()).cloned()
-    //         else {
-    //             return;
-    //         };
-    //         translucent_material.ior = ior;
-    //         translucent_material.thickness = model.size().min_element() as f32;
-    //         model.material = Some(materials.add(translucent_material));
-    //     }
-    // }
 }
 
 /// The region of the model to modify

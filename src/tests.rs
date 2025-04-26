@@ -89,8 +89,7 @@ async fn test_load_spawn_cloud() {
         .expect("children")
         .first()
         .expect("fog entity");
-    app
-        .world()
+    app.world()
         .get::<FogVolume>(*fog_entity)
         .expect("fog volume");
 
@@ -220,8 +219,7 @@ async fn test_opaque_mat() {
         .first()
         .expect("scene root");
 
-    app
-        .world()
+    app.world()
         .get::<VoxelModelInstance>(*entity)
         .expect("Voxel model instance");
     let mat_handle = &app

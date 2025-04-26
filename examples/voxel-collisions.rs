@@ -6,10 +6,7 @@ use bevy::{
         dof::{DepthOfField, DepthOfFieldMode},
         post_process::ChromaticAberration,
         tonemapping::Tonemapping,
-    },
-    prelude::*,
-    scene::SceneInstanceReady,
-    time::common_conditions::on_timer,
+    }, pbr::Atmosphere, prelude::*, scene::SceneInstanceReady, time::common_conditions::on_timer
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
@@ -36,14 +33,19 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             PanOrbitCameraPlugin,
-            VoxScenePlugin::default(),
+            VoxScenePlugin {
+                global_settings: Some(VoxLoaderSettings { 
+                    supports_remeshing: true,
+                    ..default()
+                 })
+            },
         ))
         .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
                 spawn_snow.run_if(on_timer(snow_spawn_freq)),
-                update_snow.pipe(modify_voxel_model),
+                update_snow,
                 focus_camera,
             )
                 .run_if(in_state(AppState::Ready)),
@@ -67,9 +69,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
+        Atmosphere::EARTH,
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
+            scale: Vec2::new(2.35, 1.0),
             ..default()
         },
         EnvironmentMapLight {
@@ -89,20 +93,21 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             ..default()
         },
     ));
-    commands.insert_resource(Scenes {
-        snowflake: assets.load("study.vox#snowflake@mesh"),
-        voxel_material: assets.load("study.vox#snowflake@material"),
-    });
 
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::CLEAR_SUNRISE,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::IDENTITY.looking_to(Vec3::new(0., -1., 0.85), Vec3::Y),
+    ));
     // Scope the observer to this SceneRoot so that it doesn't run
     // againt the snowflakes when they spawn
     commands
         .spawn(
             // Load a slice of the scene
-            SceneRoot(assets.load_with_settings(
-                "study.vox#workstation",
-                |settings: &mut VoxLoaderSettings| settings.supports_remeshing = true,
-            )),
+            SceneRoot(assets.load("study.vox#workstation"))
         )
         .observe(identify_scenery)
         .observe(
@@ -110,6 +115,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
                 app_state.set(AppState::Ready);
             },
         );
+    commands.insert_resource(Scenes {
+        snowflake: assets.load("study.vox#snowflake@mesh"),
+        voxel_material: assets.load("study.vox#snowflake@material"),
+    });
 }
 
 /// An observer that marks all objects in the workstation scene with the [`Scenery`] component,
@@ -186,7 +195,7 @@ fn update_snow(
         (With<Scenery>, Without<Snowflake>),
     >,
     models: Res<Assets<VoxelModel>>,
-) -> Option<VoxelModifier> {
+) {
     for (snowflake, snowflake_angular_vel, mut snowflake_xform) in snowflakes.iter_mut() {
         let old_ypos = snowflake_xform.translation.y;
         snowflake_xform.translation.y -= 0.1;
@@ -233,11 +242,10 @@ fn update_snow(
                     voxel.clone()
                 },
             );
+            commands.run_system_cached_with(modify_voxel_model, Some(modifier));
             commands.entity(snowflake).despawn();
-            return Some(modifier);
         }
     }
-    None
 }
 
 // Focus the camera on the focal point when the camera is first added and when it moves
