@@ -9,14 +9,14 @@
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
-A plugin for [the Bevy Engine](https://bevyengine.org) which allows loading [Magica Voxel](https://ephtracy.github.io) `.vox` files directly into a Bevy scene graph.
-`bevy_vox_scene` is forked from the excellent [`bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh).
+A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files into bevy, including:
+- __Voxel models__, with support for almost all Magica Voxel's material types and properties, such as metalness, roughness, emission, transmission, and cloud.
+- __Voxel animations__
+- __Voxel scenes__, allowing efficient instancing of voxel models, organisation of models into layers, controlling visibility of layers and instances. Use Magica Voxel as your level editor!
 
 ## Why `bevy-vox-scene`?
 
-Whereas other voxel crates load a single model with voxel colors but no other material properties, `bevy_vox_scene` can load an entire scene graph from a Magica Voxel world file, and it attempts to recreate the material properties from Magica Voxel's render tab. This means you can produce a scene in Bevy that approximates Magica Voxel's raytraced renders, but at Bevy's real-time interactive framerates.
-
-Use Magica Voxel as your Bevy level editor.
+Whereas other voxel crates focus on massive voxel worlds and efficient spatial partitioning, or on loading a single model with voxel colors but no other material properties, `bevy_vox_scene` can load an entire scene graph from a Magica Voxel world file, or a voxel animation, and it attempts to recreate the material properties from Magica Voxel's render tab. This means you can produce a scene in Bevy that approximates Magica Voxel's raytraced renders, but at Bevy's real-time interactive framerates.
 
 Here is the [study example scene](examples/transmission-scene.rs) as rendered by Magica Voxel's raytracer:
 ![The study scene rendered in Magica Voxel](assets/studyMV.jpg)
@@ -24,9 +24,9 @@ Here is the [study example scene](examples/transmission-scene.rs) as rendered by
 And this is the same scene in Bevy:
 ![The same scene in Bevy](assets/study-bevy.jpg)
 
-All Magica Voxel material types except "cloud" are supported. Bevy's screen space transmission does a great job of rendering glass materials. 
+Almost all Magica Voxel material types are supported. Bevy's screen space transmission does a great job of rendering glass materials, while Magica Voxel cloud materials are imported into Bevy as volumetric fog.
 
-`bevy_vox_scene` achieves this by generating a series of texture atlases for the scene to capture the differing color, metalness, roughness, emission, and transparency for each Voxel type in the scene.
+`bevy_vox_scene` achieves this by generating a series of texture atlases for the scene to capture the differing color, metalness, roughness, emission, and transparency for each Voxel type in the scene, and a volumetric texture for models containing cloud materials.
 
 ## Usage
 
