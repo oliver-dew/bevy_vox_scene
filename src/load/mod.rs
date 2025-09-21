@@ -149,7 +149,7 @@ impl VoxSceneLoader {
             Ok::<_, BevyError>(opaque_material)
         });
         if palette.emission == MaterialProperty::VariesPerElement {
-            load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
+            _ = load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
                 let mut non_emissive = translucent_material.clone();
                 non_emissive.emissive_texture = None;
                 non_emissive.emissive = LinearRgba::BLACK;
@@ -185,19 +185,19 @@ impl VoxSceneLoader {
                     data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
                 let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
                 if has_mesh {
-                    load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
+                    _ = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
                         Ok::<_, BevyError>(crate::model::mesh::mesh_model(&visible_voxels, &data))
                     });
 
                     if let Some(ior) = ior {
-                        load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
                             let mut material = translucent_material.clone();
                             material.ior = ior;
                             material.thickness = data.size().min_element() as f32;
                             Ok::<_, BevyError>(material)
                         });
                     } else {
-                        load_context.labeled_asset_scope(format!("{}@material", name), |_| {
+                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
                             let mut opaque_material = translucent_material.clone();
                             #[cfg(feature = "pbr_transmission_textures")]
                             {
@@ -209,7 +209,7 @@ impl VoxSceneLoader {
                     }
                 }
                 if has_cloud {
-                    load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
+                    _ = load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
                         Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(
                             &cloud_voxels,
                             &data,
@@ -222,7 +222,7 @@ impl VoxSceneLoader {
                     has_mesh,
                     has_cloud,
                 };
-                load_context.labeled_asset_scope(format!("{}@model", name), |_| {
+                _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
                     Ok::<_, BevyError>(model.clone())
                 });
                 model

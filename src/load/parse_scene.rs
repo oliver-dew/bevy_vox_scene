@@ -200,7 +200,7 @@ fn load_xform_node(
             if let Some(node_name) = node_name {
                 // create sub-asset
                 if subassets.insert(node_name.clone()) {
-                    context.labeled_asset_scope(node_name, |context| {
+                    _ = context.labeled_asset_scope(node_name, |context| {
                         let scene = parse_scene_graph(
                             context,
                             graph,
