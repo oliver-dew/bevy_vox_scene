@@ -1,13 +1,14 @@
 use bevy::{
     asset::{Handle, LoadContext},
-    ecs::{hierarchy::ChildSpawner, name::Name},
+    ecs::{error::BevyError, hierarchy::ChildSpawner, name::Name},
     image::Image,
+    light::FogVolume,
     log::warn,
     math::{Mat3, Mat4, Quat, Vec3},
-    pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
+    mesh::{Mesh, Mesh3d},
+    pbr::{MeshMaterial3d, StandardMaterial},
     platform::collections::HashSet,
     prelude::{EntityWorldMut, Transform, Visibility, World},
-    render::mesh::{Mesh, Mesh3d},
     scene::Scene,
 };
 use dot_vox::{Frame, SceneNode};
@@ -78,6 +79,7 @@ pub(super) fn find_model_names(
     }
 }
 
+//TODO: consider returning a Result and bubbling up errors
 pub(super) fn parse_scene_graph(
     context: &mut LoadContext,
     graph: &Vec<SceneNode>,
@@ -198,8 +200,8 @@ fn load_xform_node(
             if let Some(node_name) = node_name {
                 // create sub-asset
                 if subassets.insert(node_name.clone()) {
-                    context.labeled_asset_scope(node_name, |context| {
-                        parse_scene_graph(
+                    _ = context.labeled_asset_scope(node_name, |context| {
+                        let scene = parse_scene_graph(
                             context,
                             graph,
                             scene_node,
@@ -208,7 +210,8 @@ fn load_xform_node(
                             subassets,
                             layers,
                             scene_scale,
-                        )
+                        );
+                        Ok::<Scene, BevyError>(scene)
                     });
                 }
             }
@@ -313,10 +316,13 @@ fn load_xform_child(
                     ));
                 }
             } else if model_count > 1 {
-                entity.insert(VoxelAnimationPlayer {
-                    frames: (0..model_count).collect(),
-                    ..Default::default()
-                });
+                entity.insert((
+                    VoxelAnimationPlayer {
+                        frames: (0..model_count).collect(),
+                        ..Default::default()
+                    },
+                    Transform::IDENTITY,
+                ));
                 entity.with_children(|spawner| {
                     for index in 0..model_count {
                         let model = &vox_models[models[index].model_id as usize];

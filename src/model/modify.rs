@@ -2,8 +2,8 @@ use bevy::{
     asset::{Assets, Handle},
     ecs::system::{In, ResMut},
     math::{IVec3, Vec3},
+    mesh::Mesh,
     prelude::Res,
-    render::mesh::Mesh,
 };
 use ndshape::Shape;
 
@@ -126,7 +126,7 @@ pub fn modify_voxel_model(
         model.data.remesh(refraction_indices, &density_for_voxel);
 
     if let Some(mesh) = maybe_mesh {
-        meshes.insert(&modifier.mesh, mesh);
+        let _ = meshes.insert(&modifier.mesh, mesh);
     }
 }
 

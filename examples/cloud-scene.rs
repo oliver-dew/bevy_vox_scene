@@ -1,10 +1,8 @@
 use bevy::{
-    core_pipeline::{
-        bloom::Bloom,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
-        tonemapping::Tonemapping,
-    },
-    pbr::{FogVolume, VolumetricFog, VolumetricLight},
+    anti_alias::taa::TemporalAntiAliasing,
+    core_pipeline::tonemapping::Tonemapping,
+    light::{FogVolume, VolumetricFog, VolumetricLight},
+    post_process::bloom::Bloom,
     prelude::*,
 };
 use bevy_vox_scene::{VoxScenePlugin, VoxelInstanceReady};
@@ -14,7 +12,6 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            TemporalAntiAliasPlugin,
             VoxScenePlugin::default(),
             PanOrbitCameraPlugin,
         ))
@@ -26,10 +23,6 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Camera3d::default(),
         Transform::from_xyz(-40., 4.5, 16.).looking_to(
             Dir3::new_unchecked(Vec3::new(0.873, 0.288, -0.393).normalize()),
@@ -75,13 +68,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 // replace "point_light" marker models with point lights
-fn add_point_lights(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands) {
-    let Some(name) = &trigger.event().model_name else {
+fn add_point_lights(trigger: On<VoxelInstanceReady>, mut commands: Commands) {
+    let Some(name) = &trigger.model_name else {
         return;
     };
     if name.contains("point_light") {
         commands
-            .entity(trigger.event().instance)
+            .entity(trigger.instance)
             .remove::<Mesh3d>()
             .remove::<MeshMaterial3d<StandardMaterial>>()
             .insert((

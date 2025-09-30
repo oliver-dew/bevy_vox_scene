@@ -1,12 +1,8 @@
+#[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    core_pipeline::{
-        bloom::Bloom,
-        core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
-        tonemapping::Tonemapping,
-    },
-    input::keyboard::KeyboardInput,
-    prelude::*,
+    camera::ScreenSpaceTransmissionQuality, core_pipeline::tonemapping::Tonemapping,
+    input::keyboard::KeyboardInput, post_process::bloom::Bloom, prelude::*,
 };
 use bevy_vox_scene::VoxScenePlugin;
 use rand::Rng;
@@ -16,39 +12,27 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 /// Uses an observer triggered by `VoxelModelInstance` being added to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
 fn main() {
-    let mut app = App::new();
-
-    app.add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin::default(),
-    ))
-    .add_systems(Startup, setup)
-    .add_systems(
-        Update,
-        (
-            toggle_black_light.run_if(on_event::<KeyboardInput>),
-            swim_fish,
-        ),
-    );
-
-    // *Note:* TAA is not _required_ for specular transmission, but
-    // it _greatly enhances_ the look of the resulting blur effects.
-    // Sadly, it's not available under WebGL.
-    #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.add_plugins(TemporalAntiAliasPlugin);
-
-    app.run();
+    App::new()
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin::default(),
+        ))
+        .add_systems(Startup, setup)
+        .add_systems(
+            Update,
+            (
+                toggle_black_light.run_if(on_message::<KeyboardInput>),
+                swim_fish,
+            ),
+        )
+        .run();
 }
 
 // Systems
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Camera3d {
             screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
             screen_space_specular_transmission_steps: 1,
@@ -82,13 +66,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 // Will run against every named child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, Name>,
+    trigger: On<Add, Name>,
     model_query: Query<&Name>,
     mut commands: Commands,
     assets: Res<AssetServer>,
 ) {
-    let mut entity_commands = commands.entity(trigger.target());
-    let name = model_query.get(trigger.target()).unwrap().as_str();
+    let mut entity_commands = commands.entity(trigger.entity);
+    let name = model_query.get(trigger.entity).unwrap().as_str();
     match name {
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {

@@ -1,6 +1,6 @@
 use bevy::{
-    ecs::{hierarchy::Children, name::Name},
-    prelude::{Commands, Component, Entity, Event, Query, Trigger},
+    ecs::{event::EntityEvent, hierarchy::Children, name::Name},
+    prelude::{Commands, Component, Entity, On, Query},
     scene::SceneInstanceReady,
 };
 
@@ -56,8 +56,11 @@ use crate::{VoxelLayer, VoxelModelInstance};
 ///     });
 /// }
 /// ```
-#[derive(Component, Event)]
+#[derive(Component, EntityEvent)]
 pub struct VoxelInstanceReady {
+    /// The entity on which the [`bevy::scene::SceneRoot`] was spawned
+    #[event_target]
+    pub scene_root: Entity,
     /// The entity on which the VoxelModelInstance spawned
     pub instance: Entity,
     /// The name of the model that spawned (if it has been named in the MagicaVoxel editor)
@@ -67,43 +70,22 @@ pub struct VoxelInstanceReady {
 }
 
 pub(crate) fn on_voxel_scene_ready(
-    trigger: Trigger<SceneInstanceReady>,
-    query: Query<(
-        Option<&VoxelModelInstance>,
-        Option<&Name>,
-        Option<&VoxelLayer>,
-        Option<&Children>,
-    )>,
-    commands: Commands,
-) {
-    seek_model_instance_recursive(trigger.target(), trigger.target(), query, commands);
-}
-
-fn seek_model_instance_recursive(
-    root: Entity,
-    entity: Entity,
-    query: Query<(
-        Option<&VoxelModelInstance>,
-        Option<&Name>,
-        Option<&VoxelLayer>,
-        Option<&Children>,
-    )>,
+    vox_scene: On<SceneInstanceReady>,
+    children: Query<&Children>,
+    instance: Query<&VoxelModelInstance>,
+    name_layer: Query<(Option<&Name>, Option<&VoxelLayer>)>,
     mut commands: Commands,
 ) {
-    let Ok((maybe_model, maybe_name, maybe_layer, maybe_children)) = query.get(entity) else {
-        return;
-    };
-    if maybe_model.is_some() {
-        let event = VoxelInstanceReady {
-            instance: entity,
-            model_name: maybe_name.map(|name| name.to_string()),
-            layer_name: maybe_layer.map(|layer| layer.name.clone()).flatten(),
-        };
-        commands.trigger_targets(event, root);
-    }
-    if let Some(children) = maybe_children {
-        for child in children {
-            seek_model_instance_recursive(root, *child, query, commands.reborrow());
+    for child in children.iter_descendants(vox_scene.entity) {
+        if instance.contains(child) {
+            let (maybe_name, maybe_layer) = name_layer.get(child).unwrap_or((None, None));
+            let event = VoxelInstanceReady {
+                scene_root: vox_scene.entity,
+                instance: child,
+                model_name: maybe_name.map(|name| name.to_string()),
+                layer_name: maybe_layer.map(|layer| layer.name.clone()).flatten(),
+            };
+            commands.trigger(event);
         }
     }
 }

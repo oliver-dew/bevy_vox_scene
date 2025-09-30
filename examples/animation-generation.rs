@@ -1,15 +1,11 @@
 use bevy::{
-    core_pipeline::{
-        bloom::Bloom,
-        core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
-        tonemapping::Tonemapping,
-    },
-    prelude::*,
+    anti_alias::taa::TemporalAntiAliasing, camera::ScreenSpaceTransmissionQuality,
+    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
     scene::SceneInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, create_voxel_animation,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, VoxelModelInstance,
+    create_voxel_animation,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -17,7 +13,6 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            TemporalAntiAliasPlugin,
             PanOrbitCameraPlugin,
             VoxScenePlugin::default(),
         ))
@@ -27,10 +22,6 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Camera3d {
             screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
             screen_space_specular_transmission_steps: 1,
@@ -56,22 +47,23 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands
         .spawn(SceneRoot(assets.load("study.vox#tank")))
         .observe(
-            |_trigger: Trigger<SceneInstanceReady>, mut commands: Commands| {
-                // we need to wait until `SceneInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
-                commands.run_system_cached(generate_ripples);
+            |trigger: On<SceneInstanceReady>,
+             children: Query<&Children>,
+             vox_instance: Query<&VoxelModelInstance>,
+             mut commands: Commands| {
+                for child in children.iter_descendants(trigger.entity) {
+                    if let Ok(instance) = vox_instance.get(child) {
+                        // we need to wait until `SceneInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
+                        commands.run_system_cached_with(generate_ripples, instance.context.clone());
+                        break;
+                    }
+                }
             },
         );
 }
 
 /// Spawn a 10 frame animation of concentric circles moving outwards
-fn generate_ripples(world: &mut World) {
-    let (id, _) = world
-        .get_resource::<Assets<VoxelContext>>()
-        .expect("Voxel context has been loaded")
-        .iter()
-        .next()
-        .expect("Only one context present");
-    let context = Handle::Weak(id);
+fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
     let frequency = 10.0;
     let frame_count = frequency as usize;
     let blacklight_radius = 3.0;
@@ -99,7 +91,7 @@ fn generate_ripples(world: &mut World) {
     let scene_root = world
         .run_system_cached_with(
             create_voxel_animation,
-            (models, "ripples".to_string(), context.clone_weak()),
+            (models, "ripples".to_string(), context),
         )
         .expect("animation created");
     world.spawn((

@@ -1,12 +1,16 @@
 use std::time::Duration;
 
 use bevy::{
-    core_pipeline::{
+    core_pipeline::tonemapping::Tonemapping,
+    pbr::Atmosphere,
+    post_process::{
         bloom::Bloom,
         dof::{DepthOfField, DepthOfFieldMode},
-        post_process::ChromaticAberration,
-        tonemapping::Tonemapping,
-    }, pbr::Atmosphere, prelude::*, scene::SceneInstanceReady, time::common_conditions::on_timer
+        effect_stack::ChromaticAberration,
+    },
+    prelude::*,
+    scene::SceneInstanceReady,
+    time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
@@ -34,10 +38,10 @@ fn main() {
             DefaultPlugins,
             PanOrbitCameraPlugin,
             VoxScenePlugin {
-                global_settings: Some(VoxLoaderSettings { 
+                global_settings: Some(VoxLoaderSettings {
                     supports_remeshing: true,
                     ..default()
-                 })
+                }),
             },
         ))
         .add_systems(Startup, setup)
@@ -63,10 +67,6 @@ struct Scenes {
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
         Atmosphere::EARTH,
@@ -107,11 +107,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands
         .spawn(
             // Load a slice of the scene
-            SceneRoot(assets.load("study.vox#workstation"))
+            SceneRoot(assets.load("study.vox#workstation")),
         )
         .observe(identify_scenery)
         .observe(
-            |_trigger: Trigger<SceneInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
+            |_trigger: On<SceneInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
                 app_state.set(AppState::Ready);
             },
         );
@@ -131,8 +131,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 /// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
 /// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
 /// observer was added to).
-fn identify_scenery(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands) {
-    let Some(name) = &trigger.event().model_name else {
+fn identify_scenery(trigger: On<VoxelInstanceReady>, mut commands: Commands) {
+    let Some(name) = &trigger.model_name else {
         return;
     };
     match name.as_str() {
@@ -142,12 +142,12 @@ fn identify_scenery(trigger: Trigger<VoxelInstanceReady>, mut commands: Commands
         "workstation/computer" => {
             // Focus on the computer screen by suppling the local voxel coordinates of the center of the screen
             commands
-                .entity(trigger.event().instance)
+                .entity(trigger.instance)
                 .insert(FocalPoint(Vec3::new(0., 0., 9.)));
         }
         _ => {}
     }
-    commands.entity(trigger.event().instance).insert(Scenery);
+    commands.entity(trigger.instance).insert(Scenery);
 }
 
 /// A snowflake with an angular velocity represented by a [`Quat`]
@@ -161,6 +161,17 @@ struct Scenery;
 /// Focal point for the camera to focus on
 #[derive(Component)]
 struct FocalPoint(Vec3);
+
+#[derive(EntityEvent)]
+struct SnowflakeCollision {
+    /// The snowflake that has collided with the scenery
+    #[event_target]
+    snowflake: Entity,
+    /// The scenery that the snowflake has collided with
+    colidee: Entity,
+    /// The voxel coordinates of the point of collision, in the local voxel space of the colidee
+    point: IVec3,
+}
 
 fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     let mut rng = rand::rng();
@@ -178,20 +189,22 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
     )
     .normalize();
     let angular_velocity = Quat::from_axis_angle(rotation_axis, 0.01);
-    commands.spawn((
-        Name::new("snowflake"),
-        Snowflake(angular_velocity),
-        Mesh3d(scenes.snowflake.clone()),
-        MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
-        Transform::from_translation(position),
-    ));
+    commands
+        .spawn((
+            Name::new("snowflake"),
+            Snowflake(angular_velocity),
+            Mesh3d(scenes.snowflake.clone()),
+            MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
+            Transform::from_translation(position),
+        ))
+        .observe(on_flake_collision.pipe(modify_voxel_model));
 }
 
 fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<
-        (&GlobalTransform, &VoxelModelInstance, &Mesh3d),
+        (Entity, &GlobalTransform, &VoxelModelInstance),
         (With<Scenery>, Without<Snowflake>),
     >,
     models: Res<Assets<VoxelModel>>,
@@ -204,7 +217,7 @@ fn update_snow(
         if old_ypos.trunc() == snowflake_xform.translation.y.trunc() {
             continue;
         }
-        for (item_xform, item_instance, mesh) in scenery.iter() {
+        for (item, item_xform, item_instance) in scenery.iter() {
             let Some(model) = models.get(&item_instance.model) else {
                 continue;
             };
@@ -218,34 +231,51 @@ fn update_snow(
             if voxel == Voxel::EMPTY {
                 continue;
             };
-            let flake_radius = 2;
-            let radius_squared = flake_radius * flake_radius;
-            let flake_region = VoxelRegion {
-                origin: vox_pos - IVec3::splat(flake_radius),
-                size: IVec3::splat(1 + (flake_radius * 2)),
-            };
-            let modifier = VoxelModifier::new(
-                item_instance.clone(),
-                mesh.0.clone(),
-                VoxelRegionMode::Box(flake_region),
-                move |pos, voxel, model| {
-                    // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
-                    if *voxel == Voxel::EMPTY && pos.distance_squared(vox_pos) <= radius_squared {
-                        if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
-                            if voxel_below != Voxel::EMPTY {
-                                // draw our snow material
-                                return Voxel(234);
-                            }
-                        }
-                    }
-                    // else we return the underlying voxel, unmodified
-                    voxel.clone()
-                },
-            );
-            commands.run_system_cached_with(modify_voxel_model, Some(modifier));
-            commands.entity(snowflake).despawn();
+            // landed on something solid - trigger a collision event
+            commands.trigger(SnowflakeCollision {
+                snowflake,
+                colidee: item,
+                point: vox_pos,
+            });
         }
     }
+}
+
+fn on_flake_collision(
+    collision: On<SnowflakeCollision>,
+    query: Query<(&VoxelModelInstance, &Mesh3d)>,
+    mut commands: Commands,
+) -> Option<VoxelModifier> {
+    let Ok((instance, Mesh3d(mesh))) = query.get(collision.colidee) else {
+        return None;
+    };
+    commands.entity(collision.snowflake).despawn();
+    let point = collision.point;
+    let flake_radius = 2;
+    let radius_squared = flake_radius * flake_radius;
+    let flake_region = VoxelRegion {
+        origin: point - IVec3::splat(flake_radius),
+        size: IVec3::splat(1 + (flake_radius * 2)),
+    };
+    let modifier = VoxelModifier::new(
+        instance.clone(),
+        mesh.clone(),
+        VoxelRegionMode::Box(flake_region),
+        move |pos, voxel, model| {
+            // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
+            if *voxel == Voxel::EMPTY && pos.distance_squared(point) <= radius_squared {
+                if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
+                    if voxel_below != Voxel::EMPTY {
+                        // draw our snow material
+                        return Voxel(234);
+                    }
+                }
+            }
+            // else we return the underlying voxel, unmodified
+            voxel.clone()
+        },
+    );
+    Some(modifier)
 }
 
 // Focus the camera on the focal point when the camera is first added and when it moves

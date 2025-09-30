@@ -40,8 +40,8 @@ fn on_spawn_camera(mut query: Query<(&Transform, &mut PanOrbitCamera), Added<Pan
 /// Pan the camera with right mouse click, zoom with scroll wheel, orbit with left mouse click.
 fn pan_orbit_camera(
     window_query: Query<&Window, With<PrimaryWindow>>,
-    mut ev_motion: EventReader<MouseMotion>,
-    mut ev_scroll: EventReader<MouseWheel>,
+    mut ev_motion: MessageReader<MouseMotion>,
+    mut ev_scroll: MessageReader<MouseWheel>,
     input_mouse: Res<ButtonInput<MouseButton>>,
     mut query: Query<(&mut PanOrbitCamera, &mut Transform, &Projection)>,
 ) {

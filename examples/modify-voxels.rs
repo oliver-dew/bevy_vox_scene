@@ -1,6 +1,5 @@
 use bevy::{
-    core_pipeline::{bloom::Bloom, tonemapping::Tonemapping},
-    prelude::*,
+    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
@@ -11,7 +10,6 @@ use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
-//TODO fix
 fn main() {
     App::new()
         .add_plugins((
@@ -36,10 +34,6 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.add_observer(on_spawn_voxel_instance);
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
@@ -77,15 +71,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn on_spawn_voxel_instance(
-    trigger: Trigger<OnAdd, Name>,
+    trigger: On<Add, Name>,
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {
-    let Ok(name) = model_query.get(trigger.target()).map(|n| n.as_str()) else {
+    let Ok(name) = model_query.get(trigger.entity).map(|n| n.as_str()) else {
         return;
     };
     if name == "floor" {
-        commands.entity(trigger.target()).insert(Floor);
+        commands.entity(trigger.entity).insert(Floor);
     }
 }
 

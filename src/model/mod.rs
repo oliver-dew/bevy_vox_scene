@@ -1,18 +1,19 @@
 use crate::VoxelModelInstance;
+#[cfg(feature = "generate_voxels")]
+use bevy::mesh::Mesh;
 use bevy::{
     asset::{Asset, Assets, Handle},
+    camera::visibility::Visibility,
     ecs::{
         system::{In, ResMut},
         world::World,
     },
     image::Image,
-    pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
+    light::FogVolume,
+    mesh::Mesh3d,
+    pbr::{MeshMaterial3d, StandardMaterial},
     prelude::Res,
     reflect::TypePath,
-    render::{
-        mesh::{Mesh, Mesh3d},
-        view::Visibility,
-    },
     scene::Scene,
     transform::components::Transform,
 };

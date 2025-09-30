@@ -1,10 +1,7 @@
+#[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    core_pipeline::{
-        bloom::Bloom,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
-    },
-    input::keyboard::KeyboardInput,
-    pbr::ScreenSpaceAmbientOcclusion,
+    input::keyboard::KeyboardInput, pbr::ScreenSpaceAmbientOcclusion, post_process::bloom::Bloom,
     prelude::*,
 };
 use bevy_vox_scene::VoxScenePlugin;
@@ -12,28 +9,20 @@ use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press any key to toggle Screen Space Ambient Occlusion
 fn main() {
-    let mut app = App::new();
-
-    app.add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin::default(),
-    ))
-    .insert_resource(AmbientLight {
-        color: Color::srgb_u8(128, 126, 124),
-        brightness: 0.5,
-        ..default()
-    })
-    .add_systems(Startup, setup)
-    .add_systems(Update, toggle_ssao.run_if(on_event::<KeyboardInput>));
-
-    // *Note:* TAA is not _required_ for SSAO, but
-    // it enhances the look of the resulting blur effects.
-    // Sadly, it's not available under WebGL.
-    #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.add_plugins(TemporalAntiAliasPlugin);
-
-    app.run();
+    App::new()
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin::default(),
+        ))
+        .insert_resource(AmbientLight {
+            color: Color::srgb_u8(128, 126, 124),
+            brightness: 0.5,
+            ..default()
+        })
+        .add_systems(Startup, setup)
+        .add_systems(Update, toggle_ssao.run_if(on_message::<KeyboardInput>))
+        .run();
 }
 
 #[derive(Component)]
@@ -43,10 +32,6 @@ struct SSAOVisible(bool);
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Transform::from_xyz(20.0, 10.0, 40.0).looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera::default(),
         Bloom {

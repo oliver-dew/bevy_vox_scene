@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::Bloom, prelude::*};
+use bevy::{post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::VoxScenePlugin;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -17,10 +17,6 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     // An hdr and bloom-enabled camera is needed to create the emissive glowing effect
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Transform::from_xyz(-20.0, 10.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera::default(),
         Bloom {

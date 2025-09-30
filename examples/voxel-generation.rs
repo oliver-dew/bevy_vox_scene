@@ -1,4 +1,4 @@
-use bevy::{core_pipeline::bloom::Bloom, prelude::*};
+use bevy::{post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelPalette, create_voxel_context,
     create_voxel_scene,
@@ -19,10 +19,6 @@ fn main() {
 fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..Default::default()
-        },
         Transform::from_xyz(-20.0, 10.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
         PanOrbitCamera::default(),
         Bloom {

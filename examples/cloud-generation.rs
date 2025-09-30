@@ -1,6 +1,6 @@
 use bevy::{
-    core_pipeline::bloom::Bloom,
-    pbr::{FogVolume, VolumetricFog, VolumetricLight},
+    light::{FogVolume, VolumetricFog, VolumetricLight},
+    post_process::bloom::Bloom,
     prelude::*,
 };
 use bevy_vox_scene::{
@@ -27,10 +27,6 @@ fn main() {
 fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..Default::default()
-        },
         Transform::from_xyz(-10.0, -4.0, 31.0)
             .looking_to(Vec3::new(0.3, 0.1, -0.9).normalize(), Vec3::Y),
         PanOrbitCamera::default(),

@@ -1,7 +1,7 @@
 use bevy::{
     image::Image,
     math::{IVec3, UVec3},
-    render::mesh::Mesh,
+    mesh::Mesh,
 };
 use block_mesh::VoxelVisibility;
 use ndshape::{RuntimeShape, Shape};

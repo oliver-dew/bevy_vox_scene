@@ -10,15 +10,18 @@ use bevy::{
     MinimalPlugins,
     app::App,
     asset::{AssetApp, AssetPlugin, AssetServer, Assets, Handle, LoadState},
+    camera::visibility::VisibilityClass,
     ecs::{hierarchy::Children, name::Name},
+    image::ImagePlugin,
+    light::FogVolume,
     math::{IVec3, Quat, UVec3, Vec3, Vec3A},
-    pbr::{FogVolume, MeshMaterial3d, StandardMaterial},
+    mesh::Mesh,
+    pbr::{MeshMaterial3d, StandardMaterial},
     platform::collections::HashSet,
     prelude::{
-        Commands, GlobalTransform, InheritedVisibility, Mesh3d, OnAdd, Query, Transform, Trigger,
+        Add, Commands, GlobalTransform, InheritedVisibility, Mesh3d, On, Query, Transform,
         ViewVisibility, Visibility,
     },
-    render::{mesh::Mesh, texture::ImagePlugin, view::VisibilityClass},
     scene::{Scene, ScenePlugin, SceneRoot},
     transform::components::TransformTreeChanged,
     utils::default,
@@ -112,9 +115,9 @@ async fn test_spawn_play_animation() {
     // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
     // so we can advance a frame on each call to `app.update`
     app.add_observer(
-        move |trigger: Trigger<OnAdd, VoxelAnimationPlayer>, mut commands: Commands| {
+        move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
             commands
-                .entity(trigger.target())
+                .entity(trigger.entity)
                 .insert(VoxelAnimationPlayer {
                     frames: (0..frame_count).collect(),
                     frame_rate: Duration::from_millis(1),
@@ -250,8 +253,8 @@ async fn test_spawn_system() {
             .load_state(handle.id()),
         LoadState::Loaded
     ));
-    app.add_observer(|trigger: Trigger<OnAdd, Name>, query: Query<&Name>| {
-        let name = query.get(trigger.target()).unwrap().as_str();
+    app.add_observer(|trigger: On<Add, Name>, query: Query<&Name>| {
+        let name = query.get(trigger.entity).unwrap().as_str();
         let expected_names: [&'static str; 4] = [
             "outer-group/inner-group",
             "outer-group/inner-group/dice",
@@ -379,7 +382,7 @@ async fn test_modify_voxels() {
 #[cfg(feature = "generate_voxels")]
 #[test]
 fn test_generate_voxels() {
-    use bevy::render::mesh::MeshAabb;
+    use bevy::camera::primitives::MeshAabb;
 
     let mut app = App::new();
     setup_app(&mut app);

@@ -1,7 +1,4 @@
-use bevy::{
-    core_pipeline::{bloom::Bloom, tonemapping::Tonemapping},
-    prelude::*,
-};
+use bevy::{core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{UnitOffset, VoxLoaderSettings, VoxScenePlugin};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -33,10 +30,6 @@ fn setup(
 ) {
     commands.spawn((
         Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..Default::default()
-        },
         Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),

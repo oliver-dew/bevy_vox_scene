@@ -1,46 +1,34 @@
+#[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
+use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    core_pipeline::{
-        bloom::Bloom,
-        core_3d::ScreenSpaceTransmissionQuality,
-        experimental::taa::{TemporalAntiAliasPlugin, TemporalAntiAliasing},
-        tonemapping::Tonemapping,
-    },
-    pbr::{FogVolume, ScreenSpaceAmbientOcclusion, VolumetricFog, VolumetricLight},
+    camera::ScreenSpaceTransmissionQuality,
+    core_pipeline::tonemapping::Tonemapping,
+    light::{FogVolume, VolumetricFog, VolumetricLight},
+    pbr::ScreenSpaceAmbientOcclusion,
+    post_process::bloom::Bloom,
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
-    let mut app = App::new();
-
-    app.add_plugins((
-        DefaultPlugins,
-        PanOrbitCameraPlugin,
-        VoxScenePlugin {
-            global_settings: Some(VoxLoaderSettings {
-                voxel_size: 0.05,
-                ..default()
-            }),
-        },
-    ))
-    .add_systems(Startup, setup);
-
-    // *Note:* TAA is not _required_ for specular transmission, but
-    // it _greatly enhances_ the look of the resulting blur effects.
-    // Sadly, it's not available under WebGL.
-    #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
-    app.add_plugins(TemporalAntiAliasPlugin);
-
-    app.run();
+    App::new()
+        .add_plugins((
+            DefaultPlugins,
+            PanOrbitCameraPlugin,
+            VoxScenePlugin {
+                global_settings: Some(VoxLoaderSettings {
+                    voxel_size: 0.05,
+                    ..default()
+                }),
+            },
+        ))
+        .add_systems(Startup, setup)
+        .run();
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera {
-            hdr: true,
-            ..default()
-        },
         Camera3d {
             screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
             screen_space_specular_transmission_steps: 1,
