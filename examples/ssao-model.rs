@@ -15,11 +15,6 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin::default(),
         ))
-        .insert_resource(AmbientLight {
-            color: Color::srgb_u8(128, 126, 124),
-            brightness: 0.5,
-            ..default()
-        })
         .add_systems(Startup, setup)
         .add_systems(Update, toggle_ssao.run_if(on_message::<KeyboardInput>))
         .run();

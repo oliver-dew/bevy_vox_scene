@@ -31,7 +31,7 @@
 //!}
 //! # fn assert_scene_loaded(
 //! #     query: Query<&Name>,
-//! #     mut exit: EventWriter<AppExit>,
+//! #     mut exit: MessageWriter<AppExit>,
 //! # ) {
 //! #     let all_names: HashSet<&str> = query.iter().map(|n| { n.as_str()} ).collect();
 //! #     if all_names.is_empty() { return };
