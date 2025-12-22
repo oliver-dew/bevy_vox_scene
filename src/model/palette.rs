@@ -293,24 +293,39 @@ impl VoxelPalette {
         };
 
         let metallic_roughness_texture: Option<Handle<Image>> = if has_roughness_metalness {
-            let raw: Vec<u8> = roughness_data
-                .iter()
-                .zip(metalness_data.iter())
-                .flat_map(|(rough, metal)| {
-                    let output: Vec<u8> = [0.0, *rough, *metal, 0.0]
-                        .iter()
-                        .flat_map(|b| ((b * u16::MAX as f32) as u16).to_le_bytes())
-                        .collect();
-                    output
-                })
-                .collect();
+            #[cfg(feature = "webgpu")]
+            let (raw, format) = {
+                let raw: Vec<u8> = roughness_data
+                    .iter()
+                    .zip(metalness_data.iter())
+                    .flat_map(|(rough, metal)| {
+                        [0u8, (rough * u8::MAX as f32) as u8, (metal * u8::MAX as f32) as u8, 0u8]
+                    })
+                    .collect();
+                (raw, TextureFormat::Rgba8Unorm)
+            };
+            #[cfg(not(feature = "webgpu"))]
+            let (raw, format) = {
+                let raw: Vec<u8> = roughness_data
+                    .iter()
+                    .zip(metalness_data.iter())
+                    .flat_map(|(rough, metal)| {
+                        let output: Vec<u8> = [0.0, *rough, *metal, 0.0]
+                            .iter()
+                            .flat_map(|b| ((b * u16::MAX as f32) as u16).to_le_bytes())
+                            .collect();
+                        output
+                    })
+                    .collect();
+                (raw, TextureFormat::Rgba16Unorm)
+            };
             let handle = get_handle(
                 "material_metallic_roughness",
                 Image::new(
                     image_size,
                     TextureDimension::D2,
                     raw,
-                    TextureFormat::Rgba16Unorm,
+                    format,
                     RenderAssetUsages::RENDER_WORLD,
                 ),
             );
@@ -321,17 +336,29 @@ impl VoxelPalette {
 
         #[cfg(feature = "pbr_transmission_textures")]
         let specular_transmission_texture: Option<Handle<Image>> = if has_translucency {
-            let raw: Vec<u8> = translucency_data
-                .iter()
-                .flat_map(|t| ((t * u16::MAX as f32) as u16).to_le_bytes())
-                .collect();
+            #[cfg(feature = "webgpu")]
+            let (raw, format) = {
+                let raw: Vec<u8> = translucency_data
+                    .iter()
+                    .map(|t| (t * u8::MAX as f32) as u8)
+                    .collect();
+                (raw, TextureFormat::R8Unorm)
+            };
+            #[cfg(not(feature = "webgpu"))]
+            let (raw, format) = {
+                let raw: Vec<u8> = translucency_data
+                    .iter()
+                    .flat_map(|t| ((t * u16::MAX as f32) as u16).to_le_bytes())
+                    .collect();
+                (raw, TextureFormat::R16Unorm)
+            };
             let handle = get_handle(
                 "material_specular_transmission",
                 Image::new(
                     image_size,
                     TextureDimension::D2,
                     raw,
-                    TextureFormat::R16Unorm,
+                    format,
                     RenderAssetUsages::RENDER_WORLD,
                 ),
             );
