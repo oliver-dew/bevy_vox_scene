@@ -20,6 +20,7 @@ modify_voxels = []
 generate_voxels = []
 pbr_transmission_textures = ["bevy/pbr_transmission_textures"]
 webgl2 = ["bevy/webgl2"]
+webgpu = []
 
 [[example]]
 name = "modify-voxels"
