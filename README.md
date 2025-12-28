@@ -5,7 +5,7 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.20.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.20.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.20.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.20.1)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
@@ -34,7 +34,7 @@ Almost all Magica Voxel material types are supported. Bevy's screen space transm
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.20.0"
+bevy_vox_scene = "0.20.1"
 ```
 
    Then in code:
