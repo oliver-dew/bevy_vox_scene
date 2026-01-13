@@ -1,4 +1,7 @@
-use bevy::{pbr::Atmosphere, prelude::*};
+use bevy::{
+    pbr::{Atmosphere, ScatteringMedium},
+    prelude::*,
+};
 use bevy_vox_scene::VoxScenePlugin;
 
 fn main() {
@@ -8,11 +11,15 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    mut scattering_mediums: ResMut<Assets<ScatteringMedium>>,
+) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(30.0, 30.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
-        Atmosphere::EARTH,
+        Atmosphere::earthlike(scattering_mediums.add(ScatteringMedium::default())),
     ));
 
     commands.spawn(

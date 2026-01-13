@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21
+
+- Update to Bevy 0.18
+- Use the new "3d" feature set in the examples for quicker builds
+
 ## 0.20.1
 
 - Add "webgpu" feature for WebGPU compatible textures. When the webgpu feature is enabled, textures use R8Unorm and Rgba8Unorm instead of the R16 variants.

@@ -299,7 +299,12 @@ impl VoxelPalette {
                     .iter()
                     .zip(metalness_data.iter())
                     .flat_map(|(rough, metal)| {
-                        [0u8, (rough * u8::MAX as f32) as u8, (metal * u8::MAX as f32) as u8, 0u8]
+                        [
+                            0u8,
+                            (rough * u8::MAX as f32) as u8,
+                            (metal * u8::MAX as f32) as u8,
+                            0u8,
+                        ]
                     })
                     .collect();
                 (raw, TextureFormat::Rgba8Unorm)

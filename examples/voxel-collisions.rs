@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
-    pbr::Atmosphere,
+    pbr::{Atmosphere, ScatteringMedium},
     post_process::{
         bloom::Bloom,
         dof::{DepthOfField, DepthOfFieldMode},
@@ -64,12 +64,16 @@ struct Scenes {
     voxel_material: Handle<StandardMaterial>,
 }
 
-fn setup(mut commands: Commands, assets: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    assets: Res<AssetServer>,
+    mut scattering_mediums: ResMut<Assets<ScatteringMedium>>,
+) {
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
-        Atmosphere::EARTH,
+        Atmosphere::earthlike(scattering_mediums.add(ScatteringMedium::default())),
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,

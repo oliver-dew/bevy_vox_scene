@@ -39,15 +39,15 @@ use crate::{VoxelLayer, VoxelModelInstance};
 ///     // observer is scoped just to this branch
 ///     commands.spawn(SceneRoot(assets.load("study.vox#workstation")))
 ///         .observe(|
-///             mut trigger: Trigger<VoxelInstanceReady>,
+///             mut vox_instance: On<VoxelInstanceReady>,
 ///             mut commands: Commands,
-/// #           mut exit: EventWriter<AppExit>,
+/// #           mut exit: MessageWriter<AppExit>,
 ///         | {
-///             let Some(name) = &trigger.event().model_name else { return };
+///             let Some(name) = &vox_instance.event().model_name else { return };
 ///             match name.as_str() {
 ///                 "workstation/computer" => {
 ///                     commands
-///                         .entity(trigger.event().instance)
+///                         .entity(vox_instance.event().instance)
 ///                         .insert(Computer);
 /// #                   exit.write(AppExit::Success);
 ///                 }
