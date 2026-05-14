@@ -1,10 +1,9 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    camera::ScreenSpaceTransmissionQuality,
     core_pipeline::tonemapping::Tonemapping,
     light::{FogVolume, VolumetricFog, VolumetricLight},
-    pbr::ScreenSpaceAmbientOcclusion,
+    pbr::{ScreenSpaceAmbientOcclusion, ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
     post_process::bloom::Bloom,
     prelude::*,
 };
@@ -29,10 +28,10 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3d {
-            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-            screen_space_specular_transmission_steps: 1,
-            ..default()
+        Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
         },
         Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
@@ -61,7 +60,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         DirectionalLight {
             illuminance: 5000.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..Default::default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
@@ -73,5 +72,5 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         Transform::from_scale(Vec3::splat(30.0)),
     ));
 
-    commands.spawn(SceneRoot(assets.load("study.vox")));
+    commands.spawn(WorldAssetRoot(assets.load("study.vox")));
 }

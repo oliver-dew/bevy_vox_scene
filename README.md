@@ -5,7 +5,7 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.21.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.21.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.22.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.22.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
@@ -34,7 +34,7 @@ Almost all Magica Voxel material types are supported. Bevy's screen space transm
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.21.0"
+bevy_vox_scene = "0.22.0"
 ```
 
    Then in code:
@@ -54,13 +54,13 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    commands.spawn(SceneRoot(assets.load("study.vox#workstation/desk"))); //4
+    commands.spawn(WorldAssetRoot(assets.load("study.vox#workstation/desk"))); //4
 }
 ```
 
 2. Import the library.
 3. Add the plugin to the app.
-4. Spawn a scene graph using `SceneRoot`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
+4. Spawn a scene graph using `WorldAssetRoot`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore
@@ -86,6 +86,7 @@ cargo run --example <example name>
 | 0.16         |                                | 0.19                     |
 | 0.17         |                                | 0.20                     |
 | 0.18         |                                | 0.21                     |
+| 0.19         |                                | 0.22                     |
 
 ## Limitations and workarounds
 

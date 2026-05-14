@@ -9,7 +9,7 @@ use bevy::{
     pbr::{MeshMaterial3d, StandardMaterial},
     platform::collections::HashSet,
     prelude::{EntityWorldMut, Transform, Visibility, World},
-    scene::Scene,
+    world_serialization::WorldAsset,
 };
 use dot_vox::{Frame, SceneNode};
 
@@ -89,7 +89,7 @@ pub(super) fn parse_scene_graph(
     subassets: &mut HashSet<String>,
     layers: &Vec<LayerInfo>,
     scene_scale: f32,
-) -> Scene {
+) -> WorldAsset {
     let mut world = World::default();
     match scene_node {
         SceneNode::Transform {
@@ -135,7 +135,7 @@ pub(super) fn parse_scene_graph(
         }
         _ => {}
     }
-    Scene::new(world)
+    WorldAsset::new(world)
 }
 
 fn load_xform_node(
@@ -211,7 +211,7 @@ fn load_xform_node(
                             layers,
                             scene_scale,
                         );
-                        Ok::<Scene, BevyError>(scene)
+                        Ok::<WorldAsset, BevyError>(scene)
                     });
                 }
             }

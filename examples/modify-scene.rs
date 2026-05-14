@@ -1,8 +1,11 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    camera::ScreenSpaceTransmissionQuality, core_pipeline::tonemapping::Tonemapping,
-    input::keyboard::KeyboardInput, post_process::bloom::Bloom, prelude::*,
+    core_pipeline::tonemapping::Tonemapping,
+    input::keyboard::KeyboardInput,
+    pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
+    post_process::bloom::Bloom,
+    prelude::*,
 };
 use bevy_vox_scene::VoxScenePlugin;
 use rand::Rng;
@@ -33,10 +36,10 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3d {
-            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-            screen_space_specular_transmission_steps: 1,
-            ..default()
+        Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
         },
         Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
@@ -58,7 +61,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
     commands.spawn((
         // "tank" is the name of the group containing the glass walls, the body of water, the scenery in the tank and the fish
-        SceneRoot(assets.load("study.vox#tank")),
+        WorldAssetRoot(assets.load("study.vox#tank")),
         Transform::from_scale(Vec3::splat(0.05)),
     ));
     commands.add_observer(on_spawn_voxel_instance);

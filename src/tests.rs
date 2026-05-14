@@ -22,9 +22,9 @@ use bevy::{
         Add, Commands, GlobalTransform, InheritedVisibility, Mesh3d, On, Query, Transform,
         ViewVisibility, Visibility,
     },
-    scene::{Scene, ScenePlugin, SceneRoot},
     transform::components::TransformTreeChanged,
     utils::default,
+    world_serialization::{WorldAsset, WorldAssetRoot, WorldSerializationPlugin},
 };
 
 #[test]
@@ -51,7 +51,7 @@ async fn test_load_scene() {
     app.update();
     let _scene = app
         .world()
-        .resource::<Assets<Scene>>()
+        .resource::<Assets<WorldAsset>>()
         .get(handle.id())
         .expect("retrieve test.vox from Res<Assets>");
     let models = app.world().resource::<Assets<VoxelModel>>();
@@ -68,7 +68,7 @@ async fn test_load_spawn_cloud() {
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
     app.update();
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -125,7 +125,7 @@ async fn test_spawn_play_animation() {
                 });
         },
     );
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     app.update(); // trigger second frame
     let top_entity = app
@@ -167,7 +167,7 @@ async fn test_transmissive_mat() {
     let mut app = App::new();
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -213,7 +213,7 @@ async fn test_opaque_mat() {
     let mut app = App::new();
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -263,7 +263,7 @@ async fn test_spawn_system() {
         ];
         assert!(expected_names.contains(&name));
     });
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     assert_eq!(
         app.world_mut()
@@ -325,7 +325,7 @@ async fn test_modify_voxels() {
     let handle =
         setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
     app.update();
-    let scene_root = app.world_mut().spawn(SceneRoot(handle)).id();
+    let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
     app.update();
     let entity = app
         .world()
@@ -402,7 +402,7 @@ fn test_generate_voxels() {
             (tall_box, "tall box".to_string(), context),
         )
         .expect("Add box model");
-    let scene_root = world.spawn(SceneRoot(scene_handle)).id();
+    let scene_root = world.spawn(WorldAssetRoot(scene_handle)).id();
     app.update();
     let entity = app
         .world()
@@ -485,14 +485,15 @@ fn test_voxel_queryable() {
     );
 }
 
-async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<Scene> {
+async fn setup_and_load_voxel_scene(app: &mut App, filename: &'static str) -> Handle<WorldAsset> {
     setup_app(app);
     let assets = app.world().resource::<AssetServer>();
     assets
+        .load_builder()
         .load_untyped_async(filename)
         .await
         .expect(format!("Loaded {filename}").as_str())
-        .typed::<Scene>()
+        .typed::<WorldAsset>()
 }
 
 fn setup_app(app: &mut App) {
@@ -500,12 +501,12 @@ fn setup_app(app: &mut App) {
         MinimalPlugins,
         AssetPlugin::default(),
         ImagePlugin::default(),
-        ScenePlugin,
+        WorldSerializationPlugin::default(),
         VoxScenePlugin::default(),
     ))
     .init_asset::<StandardMaterial>()
     .init_asset::<Mesh>()
-    .init_asset::<Scene>()
+    .init_asset::<WorldAsset>()
     .register_type::<Visibility>()
     .register_type::<ViewVisibility>()
     .register_type::<InheritedVisibility>()

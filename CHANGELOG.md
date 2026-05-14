@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22
+
+- Update to Bevy 0.19
+- To create a minimal update path, `bevy_vox_scene` 0.22 continues to load `WorldAsset`, the new name for the older `Scene` format. A future version will change the loaded format to bsn.
+
 ## 0.21
 
 - Update to Bevy 0.18

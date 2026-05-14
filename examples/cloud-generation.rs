@@ -50,7 +50,7 @@ fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         DirectionalLight {
             illuminance: 8000.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..Default::default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(-2.5, -1., 0.85), Vec3::Y),
@@ -121,7 +121,7 @@ fn spawn_cloud(world: &mut World) {
         )
         .expect("Model has been generated");
 
-    world.spawn(SceneRoot(scene_handle));
+    world.spawn(WorldAssetRoot(scene_handle));
 }
 
 /// Moves fog density texture offset every frame.

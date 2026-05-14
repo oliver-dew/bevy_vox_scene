@@ -2,15 +2,15 @@ use std::time::Duration;
 
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
-    pbr::{Atmosphere, ScatteringMedium},
+    light::{Atmosphere, atmosphere::ScatteringMedium},
     post_process::{
         bloom::Bloom,
         dof::{DepthOfField, DepthOfFieldMode},
         effect_stack::ChromaticAberration,
     },
     prelude::*,
-    scene::SceneInstanceReady,
     time::common_conditions::on_timer,
+    world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
@@ -73,7 +73,7 @@ fn setup(
         Camera3d::default(),
         Transform::from_xyz(15.0, 40.0, 90.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::BlenderFilmic,
-        Atmosphere::earthlike(scattering_mediums.add(ScatteringMedium::default())),
+        Atmosphere::earth(scattering_mediums.add(ScatteringMedium::default())),
         PanOrbitCamera::default(),
         Bloom {
             intensity: 0.3,
@@ -101,21 +101,21 @@ fn setup(
     commands.spawn((
         DirectionalLight {
             illuminance: light_consts::lux::CLEAR_SUNRISE,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(0., -1., 0.85), Vec3::Y),
     ));
-    // Scope the observer to this SceneRoot so that it doesn't run
+    // Scope the observer to this WorldAssetRoot so that it doesn't run
     // againt the snowflakes when they spawn
     commands
         .spawn(
             // Load a slice of the scene
-            SceneRoot(assets.load("study.vox#workstation")),
+            WorldAssetRoot(assets.load("study.vox#workstation")),
         )
         .observe(identify_scenery)
         .observe(
-            |_trigger: On<SceneInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
+            |_trigger: On<WorldInstanceReady>, mut app_state: ResMut<NextState<AppState>>| {
                 app_state.set(AppState::Ready);
             },
         );
@@ -130,10 +130,10 @@ fn setup(
 ///
 /// The advantage of using [`VoxelInstanceSpawned`] as the trigger, rather than an [`OnAdd`] trigger
 /// is that because [`VoxelInstanceSpawned`] "bubbles up" through the hierarchy, you can add it as
-/// an observer on a [`SceneRoot`] and scope the observer system to just that branch, rather than
+/// an observer on a [`WorldAssetRoot`] and scope the observer system to just that branch, rather than
 /// having to use a global observer on [`OnAdd`] that might require defensive code for other branches
 /// of the scene. Remember that the entity you probably want to act on is `trigger.event().entity`
-/// (which will be the originator of the event), not `trigger.entity()` (the [`SceneRoot`] that the
+/// (which will be the originator of the event), not `trigger.entity()` (the [`WorldAssetRoot`] that the
 /// observer was added to).
 fn identify_scenery(trigger: On<VoxelInstanceReady>, mut commands: Commands) {
     let Some(name) = &trigger.model_name else {

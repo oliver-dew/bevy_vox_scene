@@ -1,7 +1,10 @@
 use bevy::{
-    anti_alias::taa::TemporalAntiAliasing, camera::ScreenSpaceTransmissionQuality,
-    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
-    scene::SceneInstanceReady,
+    anti_alias::taa::TemporalAntiAliasing,
+    core_pipeline::tonemapping::Tonemapping,
+    pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
+    post_process::bloom::Bloom,
+    prelude::*,
+    world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, VoxelModelInstance,
@@ -22,10 +25,10 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3d {
-            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-            screen_space_specular_transmission_steps: 1,
-            ..default()
+        Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
         },
         Bloom {
             intensity: 0.3,
@@ -45,15 +48,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands
-        .spawn(SceneRoot(assets.load("study.vox#tank")))
+        .spawn(WorldAssetRoot(assets.load("study.vox#tank")))
         .observe(
-            |trigger: On<SceneInstanceReady>,
+            |trigger: On<WorldInstanceReady>,
              children: Query<&Children>,
              vox_instance: Query<&VoxelModelInstance>,
              mut commands: Commands| {
                 for child in children.iter_descendants(trigger.entity) {
                     if let Ok(instance) = vox_instance.get(child) {
-                        // we need to wait until `SceneInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
+                        // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
                         commands.run_system_cached_with(generate_ripples, instance.context.clone());
                         break;
                     }
@@ -95,7 +98,7 @@ fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
         )
         .expect("animation created");
     world.spawn((
-        SceneRoot(scene_root),
+        WorldAssetRoot(scene_root),
         Transform::from_xyz(0., 7., 0.), // position the ripples on the surface of the water
     ));
 }

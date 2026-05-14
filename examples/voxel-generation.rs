@@ -65,5 +65,5 @@ fn setup(world: &mut World) {
             (data, model_name.to_string(), context.clone()),
         )
         .expect("Voxel scene created");
-    world.spawn(SceneRoot(scene_root));
+    world.spawn(WorldAssetRoot(scene_root));
 }

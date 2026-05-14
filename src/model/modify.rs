@@ -97,7 +97,7 @@ pub fn modify_voxel_model(
     let Some(context) = contexts.get(modifier.instance.context.id()) else {
         return;
     };
-    let Some(model) = models.get_mut(modifier.instance.model.id()) else {
+    let Some(mut model) = models.get_mut(modifier.instance.model.id()) else {
         return;
     };
     let refraction_indices = &context.palette.indices_of_refraction;
@@ -116,7 +116,7 @@ pub fn modify_voxel_model(
                 updated[index] = RawVoxel::from((modifier.modify)(
                     IVec3::new(x, y, z) - leading_padding,
                     &source,
-                    model,
+                    &*model,
                 ));
             }
         }

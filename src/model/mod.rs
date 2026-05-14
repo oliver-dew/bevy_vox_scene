@@ -14,8 +14,8 @@ use bevy::{
     pbr::{MeshMaterial3d, StandardMaterial},
     prelude::Res,
     reflect::TypePath,
-    scene::Scene,
     transform::components::Transform,
+    world_serialization::WorldAsset,
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
@@ -58,9 +58,9 @@ pub fn create_voxel_scene(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut models: ResMut<Assets<VoxelModel>>,
-    mut scenes: ResMut<Assets<Scene>>,
+    mut scenes: ResMut<Assets<WorldAsset>>,
     contexts: Res<Assets<VoxelContext>>,
-) -> Handle<Scene> {
+) -> Handle<WorldAsset> {
     let context = contexts.get(&context_handle).expect("Voxel Context exists");
     let (maybe_mesh, average_ior, maybe_cloud) = data.remesh(
         &context.palette.indices_of_refraction,
@@ -112,7 +112,7 @@ pub fn create_voxel_scene(
             Transform::from_scale(model.model_size()),
         ));
     }
-    let scene = Scene::new(world);
+    let scene = WorldAsset::new(world);
     scenes.add(scene)
 }
 
@@ -124,9 +124,9 @@ pub fn create_voxel_animation(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut models: ResMut<Assets<VoxelModel>>,
-    mut scenes: ResMut<Assets<Scene>>,
+    mut scenes: ResMut<Assets<WorldAsset>>,
     contexts: Res<Assets<VoxelContext>>,
-) -> Handle<Scene> {
+) -> Handle<WorldAsset> {
     let context = contexts.get(&context_handle).expect("Voxel Context exists");
     let mut world = World::new();
     let mut root = world.spawn((Transform::IDENTITY, Visibility::Visible));
@@ -190,7 +190,7 @@ pub fn create_voxel_animation(
         frames: (0..frames.len()).collect(),
         ..Default::default()
     },));
-    let scene = Scene::new(world);
+    let scene = WorldAsset::new(world);
     scenes.add(scene)
 }
 

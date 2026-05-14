@@ -1,16 +1,16 @@
 use bevy::{
     ecs::{event::EntityEvent, hierarchy::Children, name::Name},
     prelude::{Commands, Component, Entity, On, Query},
-    scene::SceneInstanceReady,
+    world_serialization::WorldInstanceReady,
 };
 
 use crate::{VoxelLayer, VoxelModelInstance};
 
 /// An Event triggered once for each [`VoxelModelInstance`] in a scene, triggered after the scene is spawned and ready,
-/// targeted at the entity containing the [`bevy::prelude::SceneRoot`].
+/// targeted at the entity containing the [`bevy::prelude::WorldAssetRoot`].
 ///
 /// The advantage of observing [`VoxelInstanceReady`] over using `Trigger<OnAdd, VoxelModelInstance>`,
-/// is that [`VoxelInstanceReady`] is targeted at the [`bevy::prelude::SceneRoot`],
+/// is that [`VoxelInstanceReady`] is targeted at the [`bevy::prelude::WorldAssetRoot`],
 /// so you can scope your observer just to that spawn event:
 ///
 /// ### Example
@@ -37,7 +37,7 @@ use crate::{VoxelLayer, VoxelModelInstance};
 ///     assets: Res<AssetServer>,
 /// ) {
 ///     // observer is scoped just to this branch
-///     commands.spawn(SceneRoot(assets.load("study.vox#workstation")))
+///     commands.spawn(WorldAssetRoot(assets.load("study.vox#workstation")))
 ///         .observe(|
 ///             mut vox_instance: On<VoxelInstanceReady>,
 ///             mut commands: Commands,
@@ -58,7 +58,7 @@ use crate::{VoxelLayer, VoxelModelInstance};
 /// ```
 #[derive(Component, EntityEvent)]
 pub struct VoxelInstanceReady {
-    /// The entity on which the [`bevy::scene::SceneRoot`] was spawned
+    /// The entity on which the [`bevy::scene::WorldAssetRoot`] was spawned
     #[event_target]
     pub scene_root: Entity,
     /// The entity on which the VoxelModelInstance spawned
@@ -70,7 +70,7 @@ pub struct VoxelInstanceReady {
 }
 
 pub(crate) fn on_voxel_scene_ready(
-    vox_scene: On<SceneInstanceReady>,
+    vox_scene: On<WorldInstanceReady>,
     children: Query<&Children>,
     instance: Query<&VoxelModelInstance>,
     name_layer: Query<(Option<&Name>, Option<&VoxelLayer>)>,

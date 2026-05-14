@@ -53,7 +53,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         DirectionalLight {
             illuminance: 5000.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..Default::default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(1.0, -2.5, 0.85), Vec3::Y),
@@ -61,10 +61,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands.spawn((
-        SceneRoot(
-            assets.load_with_settings("study.vox", |settings: &mut VoxLoaderSettings| {
-                settings.supports_remeshing = true
-            }),
+        WorldAssetRoot(
+            assets
+                .load_builder()
+                .with_settings(|settings: &mut VoxLoaderSettings| {
+                    settings.supports_remeshing = true
+                })
+                .load("study.vox"),
         ),
         Transform::from_scale(Vec3::splat(0.05)),
     ));

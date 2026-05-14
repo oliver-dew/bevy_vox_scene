@@ -34,6 +34,6 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
     commands.spawn(
         // Load a single model using the name assigned to it in MagicaVoxel
-        SceneRoot(assets.load("study.vox#workstation/computer")),
+        WorldAssetRoot(assets.load("study.vox#workstation/computer")),
     );
 }
