@@ -1,8 +1,9 @@
-use bevy::{post_process::bloom::Bloom, prelude::*};
+use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelPalette, create_voxel_context,
-    create_voxel_scene,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
+    create_voxel_context, create_voxel_scene,
 };
+use rand::{Rng, random, rng};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -35,24 +36,55 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn setup(world: &mut World) {
-    let palette = VoxelPalette::from_colors(
-        vec![
-            bevy::color::palettes::css::BLUE.into(),
-            bevy::color::palettes::css::ALICE_BLUE.into(),
-            bevy::color::palettes::css::BISQUE.into(),
+    let stop_0 = VoxelElement {
+        color: tailwind::SKY_600.into(),
+        roughness: 0.1,
+        metalness: 0.2,
+        translucency: 0.7,
+        ..default()
+    };
+    let stop_1 = VoxelElement {
+        color: tailwind::ROSE_600.into(),
+        roughness: 0.7,
+        metalness: 0.1,
+        ..default()
+    };
+    let stop_2 = VoxelElement {
+        color: tailwind::ORANGE_600.into(),
+        roughness: 0.1,
+        metalness: 0.9,
+        ..default()
+    };
+    let stop_3 = VoxelElement {
+        color: tailwind::LIME_600.into(),
+        roughness: 0.1,
+        metalness: 0.1,
+        emission: 1.0,
+        ..default()
+    };
+    let size = 64;
+    let palette = VoxelPalette::from_gradient(
+        &[
+            (0, stop_0),
+            (85, stop_1),
+            (170, stop_2),
+            (255, stop_3),
         ],
         true,
     );
-    let data = SDF::cuboid(Vec3::splat(13.0))
-        .subtract(SDF::sphere(16.0))
+    let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))
+        .subtract(SDF::sphere(size as f32 * 0.5))
         .map_to_voxels(
-            UVec3::splat(32),
+            UVec3::splat(size as u32),
             VoxLoaderSettings::default(),
-            |d, _| match d {
-                x if x < -1.0 => Voxel(2),
-                x if x < 0.0 => Voxel(1),
-                x if x >= 0.0 => Voxel::EMPTY,
-                _ => Voxel::EMPTY,
+            |distance, pos| {
+                if distance >= 0.0 {
+                    return Voxel::EMPTY;
+                };
+                // map y coord to 0..256 palette range, and add a bit of random noise to dither the gradient
+                let dither = random::<f32>() * 4.;
+                let y_normalized = (pos.y.round() / size as f32) + 0.5;
+                Voxel((y_normalized * 256. + dither) as u8)
             },
         );
     let context = world

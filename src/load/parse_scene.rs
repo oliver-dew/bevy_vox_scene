@@ -239,7 +239,10 @@ fn load_xform_node(
             );
 
             if let Some(frame) = frames.first() {
-                entity.insert(Transform::from_matrix(transform_from_frame(frame, scene_scale)));
+                entity.insert(Transform::from_matrix(transform_from_frame(
+                    frame,
+                    scene_scale,
+                )));
             } else {
                 warn!("Transform node has no frame data; using identity transform");
                 entity.insert(Transform::IDENTITY);
