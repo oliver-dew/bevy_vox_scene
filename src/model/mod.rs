@@ -226,3 +226,70 @@ pub fn create_voxel_context(
     };
     contexts.add(context)
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::{
+        app::App,
+        asset::Assets,
+        camera::primitives::MeshAabb,
+        ecs::hierarchy::Children,
+        math::{UVec3, Vec3, Vec3A},
+        mesh::Mesh,
+        prelude::Mesh3d,
+        world_serialization::WorldAssetRoot,
+    };
+
+    use crate::{
+        SDF, VoxLoaderSettings, Voxel, VoxelPalette, create_voxel_context, create_voxel_scene,
+        test_support::setup_app,
+    };
+
+    #[cfg(feature = "generate_voxels")]
+    #[test]
+    fn test_generate_voxels() {
+        let mut app = App::new();
+        setup_app(&mut app);
+        let palette =
+            VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()], true);
+        let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
+            UVec3::splat(6),
+            VoxLoaderSettings::default(),
+            Voxel(1),
+        );
+        let world = app.world_mut();
+        let context = world
+            .run_system_cached_with(create_voxel_context, palette)
+            .expect("Context has been created");
+        let scene_handle = world
+            .run_system_cached_with(
+                create_voxel_scene,
+                (tall_box, "tall box".to_string(), context),
+            )
+            .expect("Add box model");
+        let scene_root = world.spawn(WorldAssetRoot(scene_handle)).id();
+        app.update();
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("model entity");
+
+        let mesh_handle = &app.world().get::<Mesh3d>(*entity).expect("voxel mesh").0;
+        let mesh = app
+            .world()
+            .resource::<Assets<Mesh>>()
+            .get(mesh_handle)
+            .expect("mesh generated");
+        assert_eq!(
+            mesh.compute_aabb().expect("aabb").half_extents,
+            Vec3A::new(0.5, 2.5, 0.5)
+        );
+        assert_eq!(
+            mesh.count_vertices(),
+            6 * 4,
+            "resulting mesh should have 6 quads"
+        );
+    }
+}

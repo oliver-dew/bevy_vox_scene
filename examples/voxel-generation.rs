@@ -3,7 +3,7 @@ use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
     create_voxel_context, create_voxel_scene,
 };
-use rand::{Rng, random, rng};
+use rand::random;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -64,12 +64,7 @@ fn setup(world: &mut World) {
     };
     let size = 64;
     let palette = VoxelPalette::from_gradient(
-        &[
-            (0, stop_0),
-            (85, stop_1),
-            (170, stop_2),
-            (255, stop_3),
-        ],
+        &[(0, stop_0), (85, stop_1), (170, stop_2), (255, stop_3)],
         true,
     );
     let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))

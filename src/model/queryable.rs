@@ -152,3 +152,26 @@ impl BitwiseComparable for IVec3 {
         !self.less_than(other)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::math::{IVec3, UVec3, Vec3};
+
+    use crate::{SDF, VoxLoaderSettings, Voxel, VoxelQueryable};
+
+    #[cfg(feature = "generate_voxels")]
+    #[test]
+    fn test_voxel_queryable() {
+        let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(
+            UVec3::splat(4),
+            VoxLoaderSettings::default(),
+            Voxel(1),
+        );
+        assert!(data.point_in_model(IVec3::new(3, 0, 0)).is_ok());
+        assert!(data.point_in_model(IVec3::new(4, 0, 0)).is_err());
+        assert_eq!(
+            data.local_point_to_voxel_space(Vec3::ZERO),
+            IVec3::new(2, 2, 2)
+        );
+    }
+}

@@ -182,3 +182,77 @@ impl VoxelRegion {
         origin + (size * 0.5)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::{
+        app::App, asset::Assets, ecs::hierarchy::Children, math::IVec3, prelude::Mesh3d,
+        world_serialization::WorldAssetRoot,
+    };
+
+    use crate::{
+        Voxel, VoxelModel, VoxelModelInstance, VoxelModifier, VoxelQueryable, VoxelRegion,
+        VoxelRegionMode, model::queryable::OutOfBoundsError, modify_voxel_model,
+        test_support::setup_and_load_voxel_scene,
+    };
+
+    #[async_std::test]
+    async fn test_modify_voxels() {
+        let mut app = App::new();
+        let handle =
+            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        app.update();
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("scene root");
+        let model_instance = app
+            .world()
+            .get::<VoxelModelInstance>(*entity)
+            .expect("voxel model instance")
+            .clone();
+        let mesh = app
+            .world()
+            .get::<Mesh3d>(*entity)
+            .expect("voxel mesh")
+            .clone();
+        let region = VoxelRegion {
+            origin: IVec3::splat(2),
+            size: IVec3::ONE,
+        };
+        let modifier = VoxelModifier::new(
+            model_instance.clone(),
+            mesh.0.clone(),
+            VoxelRegionMode::Box(region),
+            |_pos, _voxel, _model| Voxel(7),
+        );
+        app.world_mut()
+            .run_system_cached_with(modify_voxel_model, Some(modifier))
+            .expect("model modified");
+        app.update();
+        let model = app
+            .world()
+            .resource::<Assets<VoxelModel>>()
+            .get(model_instance.model.id())
+            .expect("retrieve model from Res<Assets>");
+
+        assert_eq!(
+            model.get_voxel_at_point(IVec3::splat(4)),
+            Err(OutOfBoundsError),
+            "Max coordinate should be 3,3,3"
+        );
+        assert_eq!(
+            model.get_voxel_at_point(IVec3::splat(-1)),
+            Err(OutOfBoundsError),
+            "Min coordinate should be 0,0,0"
+        );
+        let voxel = model
+            .get_voxel_at_point(IVec3::splat(2))
+            .expect("Retrieve voxel");
+        assert_eq!(voxel.0, 7, "Voxel material should've been changed to 7");
+    }
+}

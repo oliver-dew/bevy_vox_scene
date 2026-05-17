@@ -264,3 +264,242 @@ impl VoxSceneLoader {
         Ok(scene)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use bevy::{
+        app::App,
+        asset::{AssetServer, Assets, LoadState},
+        ecs::{hierarchy::Children, name::Name},
+        light::FogVolume,
+        pbr::{MeshMaterial3d, StandardMaterial},
+        platform::collections::HashSet,
+        prelude::{Add, On, Query},
+        world_serialization::{WorldAsset, WorldAssetRoot},
+    };
+
+    use crate::{
+        VoxelLayer, VoxelModel, VoxelModelInstance, test_support::setup_and_load_voxel_scene,
+    };
+
+    #[async_std::test]
+    async fn test_load_scene() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
+        app.update();
+        let _scene = app
+            .world()
+            .resource::<Assets<WorldAsset>>()
+            .get(handle.id())
+            .expect("retrieve test.vox from Res<Assets>");
+        let models = app.world().resource::<Assets<VoxelModel>>();
+        assert_eq!(
+            models.len(),
+            4,
+            "Same 4 models are instanced through the scene"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_load_spawn_cloud() {
+        let mut app = App::new();
+        let handle =
+            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
+        app.update();
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("scene root");
+        let model_instance = app
+            .world()
+            .get::<VoxelModelInstance>(*entity)
+            .expect("voxel model instance")
+            .clone();
+        let model = app
+            .world()
+            .resource::<Assets<VoxelModel>>()
+            .get(model_instance.model.id())
+            .expect("retrieve model from Res<Assets>");
+        let fog_entity = app
+            .world()
+            .get::<Children>(*entity)
+            .expect("children")
+            .first()
+            .expect("fog entity");
+        app.world()
+            .get::<FogVolume>(*fog_entity)
+            .expect("fog volume");
+
+        assert!(
+            model.has_cloud,
+            "Model with cloud voxels should have a cloud image"
+        );
+        assert!(
+            !model.has_mesh,
+            "Model consisting solely of cloud voxels shouldn't have a mesh"
+        );
+    }
+
+    #[async_std::test]
+    async fn test_transmissive_mat() {
+        let mut app = App::new();
+        let handle =
+            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("scene root");
+
+        let model_id = &app
+            .world()
+            .get::<VoxelModelInstance>(*entity)
+            .expect("Voxel model instance")
+            .model;
+
+        let model = app
+            .world()
+            .resource::<Assets<VoxelModel>>()
+            .get(model_id)
+            .expect("Walls has a model");
+        assert!(
+            !model.has_cloud,
+            "Model with no cloud voxels should not have a cloud image"
+        );
+        let mat_handle = &app
+            .world()
+            .get::<MeshMaterial3d<StandardMaterial>>(*entity)
+            .expect("Walls has a material")
+            .0;
+        let material = app
+            .world()
+            .resource::<Assets<StandardMaterial>>()
+            .get(mat_handle)
+            .expect("material");
+        #[cfg(feature = "pbr_transmission_textures")]
+        assert!(material.specular_transmission_texture.is_some());
+        assert_eq!(material.specular_transmission, 1.0);
+        assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
+        assert!(material.metallic_roughness_texture.is_some());
+    }
+
+    #[async_std::test]
+    async fn test_opaque_mat() {
+        let mut app = App::new();
+        let handle =
+            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("scene root");
+
+        app.world()
+            .get::<VoxelModelInstance>(*entity)
+            .expect("Voxel model instance");
+        let mat_handle = &app
+            .world()
+            .get::<MeshMaterial3d<StandardMaterial>>(*entity)
+            .expect("Walls has a material")
+            .0;
+        let material = app
+            .world()
+            .resource::<Assets<StandardMaterial>>()
+            .get(mat_handle)
+            .expect("material");
+        #[cfg(feature = "pbr_transmission_textures")]
+        assert!(material.specular_transmission_texture.is_none());
+        assert_eq!(material.specular_transmission, 0.0);
+        assert!(material.metallic_roughness_texture.is_some());
+    }
+
+    #[async_std::test]
+    async fn test_spawn_system() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
+        app.update();
+
+        assert!(matches!(
+            app.world()
+                .resource::<AssetServer>()
+                .load_state(handle.id()),
+            LoadState::Loaded
+        ));
+        app.add_observer(|trigger: On<Add, Name>, query: Query<&Name>| {
+            let name = query
+                .get(trigger.entity)
+                .expect("name on added entity")
+                .as_str();
+            let expected_names: [&'static str; 4] = [
+                "outer-group/inner-group",
+                "outer-group/inner-group/dice",
+                "outer-group/inner-group/walls",
+                "outer-group/inner-group/cloud",
+            ];
+            assert!(expected_names.contains(&name));
+        });
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        assert_eq!(
+            app.world_mut()
+                .query::<&VoxelLayer>()
+                .iter(&app.world())
+                .len(),
+            6,
+            "6 voxel nodes spawned in this scene slice"
+        );
+        assert_eq!(
+            app.world_mut().query::<&Name>().iter(&app.world()).len(),
+            4,
+            "But only 4 of the voxel nodes are named"
+        );
+        let mut instance_query = app.world_mut().query::<&VoxelModelInstance>();
+        assert_eq!(
+            instance_query.iter(&app.world()).len(),
+            5,
+            "5 model instances spawned in this scene slice"
+        );
+        let models: HashSet<String> = instance_query
+            .iter(&app.world())
+            .map(|c| c.model.id().to_string().clone())
+            .collect();
+        assert_eq!(models.len(), 3, "Instances point to 3 unique models");
+        let entity = app
+            .world()
+            .get::<Children>(scene_root)
+            .expect("children")
+            .first()
+            .expect("scene root");
+        assert_eq!(
+            app.world()
+                .get::<Name>(*entity)
+                .expect("Name component")
+                .as_str(),
+            "outer-group/inner-group"
+        );
+        let children = app
+            .world()
+            .get::<Children>(*entity)
+            .expect("children of inner-group")
+            .as_ref();
+        assert_eq!(children.len(), 5, "inner-group has 5 children");
+        assert_eq!(
+            app.world()
+                .get::<Name>(*children.last().expect("last child"))
+                .expect("Name component")
+                .as_str(),
+            "outer-group/inner-group/cloud"
+        );
+        app.update();
+    }
+}
