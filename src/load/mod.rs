@@ -168,11 +168,16 @@ impl VoxSceneLoader {
                 is_hidden: layer.hidden(),
             })
             .collect();
+        let Some(root_scene) = file.scenes.first() else {
+            return Err(VoxLoaderError::InvalidAsset(anyhow!(
+                "VOX file contains no scene graph root"
+            )));
+        };
 
         let model_count = file.models.len();
         let mut subassets: HashSet<String> = HashSet::default();
         let mut model_names: Vec<Option<String>> = vec![None; model_count];
-        find_model_names(&mut model_names, &file.scenes, &file.scenes[0], None);
+        find_model_names(&mut model_names, &file.scenes, root_scene, None);
 
         // Models
 
@@ -237,14 +242,18 @@ impl VoxSceneLoader {
             "voxel-context".to_string(),
             VoxelContext {
                 palette,
-                opaque_material: opaque_material.unwrap(),
+                opaque_material: opaque_material.map_err(|error| {
+                    VoxLoaderError::InvalidAsset(anyhow!(
+                        "Failed to create opaque material labeled asset: {error}"
+                    ))
+                })?,
                 transmissive_material,
             },
         );
         let scene = parse_scene_graph(
             load_context,
             &file.scenes,
-            &file.scenes[0],
+            root_scene,
             None,
             &models,
             &mut subassets,

@@ -35,16 +35,32 @@ pub(super) fn find_model_names(
         } => {
             let (accumulated, node_name) =
                 get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            match &graph[*child as usize] {
+            let Some(child_node) = graph.get(*child as usize) else {
+                warn!(
+                    "Transform child index {} out of bounds while finding model names (graph len {})",
+                    child,
+                    graph.len()
+                );
+                return;
+            };
+            match child_node {
                 SceneNode::Group {
                     attributes: _,
                     children,
                 } => {
                     for grandchild in children {
+                        let Some(grandchild_node) = graph.get(*grandchild as usize) else {
+                            warn!(
+                                "Group child index {} out of bounds while finding model names (graph len {})",
+                                grandchild,
+                                graph.len()
+                            );
+                            continue;
+                        };
                         find_model_names(
                             name_for_model,
                             graph,
-                            &graph[*grandchild as usize],
+                            grandchild_node,
                             accumulated.as_ref(),
                         );
                     }
@@ -53,8 +69,20 @@ pub(super) fn find_model_names(
                     attributes: _,
                     models,
                 } => {
-                    let model_id = models[0].model_id as usize;
-                    match (&name_for_model[model_id], node_name) {
+                    let Some(first_model) = models.first() else {
+                        warn!("Shape node has no models while finding model names");
+                        return;
+                    };
+                    let model_id = first_model.model_id as usize;
+                    let Some(existing_name) = name_for_model.get(model_id) else {
+                        warn!(
+                            "Shape model_id {} out of bounds while finding model names (model name slots {})",
+                            model_id,
+                            name_for_model.len()
+                        );
+                        return;
+                    };
+                    match (existing_name, node_name) {
                         (None, Some(name)) | (Some(_), Some(name)) => {
                             let mut node_name = name.clone();
                             // disambiguate model name if we have a scene where different models have the same name
@@ -67,7 +95,9 @@ pub(super) fn find_model_names(
                                     format_args!("{}_{}", name_root, disambiguator).to_string();
                                 disambiguator += 1;
                             }
-                            name_for_model[model_id] = Some(node_name)
+                            if let Some(name_slot) = name_for_model.get_mut(model_id) {
+                                *name_slot = Some(node_name);
+                            }
                         }
                         (None, None) | (Some(_), None) => (),
                     };
@@ -110,10 +140,18 @@ pub(super) fn parse_scene_graph(
                 Visibility::Inherited
             };
             entity.insert(visibility);
+            let Some(child_node) = graph.get(*child as usize) else {
+                warn!(
+                    "Transform child index {} out of bounds while parsing scene (graph len {})",
+                    child,
+                    graph.len()
+                );
+                return WorldAsset::new(world);
+            };
             load_xform_child(
                 context,
                 graph,
-                &graph[*child as usize],
+                child_node,
                 &mut entity,
                 accumulated.as_ref(),
                 vox_models,
@@ -179,11 +217,19 @@ fn load_xform_node(
                 Visibility::Inherited
             };
             entity.insert(visibility);
+            let Some(child_node) = graph.get(*child as usize) else {
+                warn!(
+                    "Transform child index {} out of bounds while loading transform node (graph len {})",
+                    child,
+                    graph.len()
+                );
+                return;
+            };
 
             load_xform_child(
                 context,
                 graph,
-                &graph[*child as usize],
+                child_node,
                 &mut entity,
                 accumulated.as_ref(),
                 vox_models,
@@ -192,10 +238,12 @@ fn load_xform_node(
                 scene_scale,
             );
 
-            entity.insert(Transform::from_matrix(transform_from_frame(
-                &frames[0],
-                scene_scale,
-            )));
+            if let Some(frame) = frames.first() {
+                entity.insert(Transform::from_matrix(transform_from_frame(frame, scene_scale)));
+            } else {
+                warn!("Transform node has no frame data; using identity transform");
+                entity.insert(Transform::IDENTITY);
+            }
 
             if let Some(node_name) = node_name {
                 // create sub-asset
@@ -271,11 +319,19 @@ fn load_xform_child(
             entity.insert(Transform::IDENTITY);
             entity.with_children(|builder| {
                 for child in children {
+                    let Some(child_node) = graph.get(*child as usize) else {
+                        warn!(
+                            "Group child index {} out of bounds while parsing scene (graph len {})",
+                            child,
+                            graph.len()
+                        );
+                        continue;
+                    };
                     load_xform_node(
                         context,
                         builder,
                         graph,
-                        &graph[*child as usize],
+                        child_node,
                         parent_name,
                         vox_models,
                         subassets,
@@ -291,7 +347,18 @@ fn load_xform_child(
         } => {
             let model_count = models.len();
             if model_count == 1 {
-                let model = &vox_models[models[0].model_id as usize];
+                let Some(first_model) = models.first() else {
+                    warn!("Shape node has no models while parsing scene");
+                    return;
+                };
+                let Some(model) = vox_models.get(first_model.model_id as usize) else {
+                    warn!(
+                        "Shape model_id {} out of bounds while parsing scene (model count {})",
+                        first_model.model_id,
+                        vox_models.len()
+                    );
+                    return;
+                };
                 entity.insert(VoxelModelInstance {
                     model: context.get_label_handle(format!("{}@model", model.name)),
                     context: context.get_label_handle("voxel-context"),
@@ -325,7 +392,22 @@ fn load_xform_child(
                 ));
                 entity.with_children(|spawner| {
                     for index in 0..model_count {
-                        let model = &vox_models[models[index].model_id as usize];
+                        let Some(shape_model) = models.get(index) else {
+                            warn!(
+                                "Animation model index {} out of bounds while parsing scene (shape model count {})",
+                                index,
+                                models.len()
+                            );
+                            continue;
+                        };
+                        let Some(model) = vox_models.get(shape_model.model_id as usize) else {
+                            warn!(
+                                "Animation model_id {} out of bounds while parsing scene (model count {})",
+                                shape_model.model_id,
+                                vox_models.len()
+                            );
+                            continue;
+                        };
                         let mut frame = spawner.spawn((
                             VoxelModelInstance {
                                 model: context.get_label_handle(format!("{}@model", model.name)),

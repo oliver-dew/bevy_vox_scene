@@ -98,7 +98,7 @@ pub enum AnimationUpdate {
 
 impl VoxelAnimationPlayer {
     pub(crate) fn did_advance_frame(&mut self, delta: Duration) -> AnimationUpdate {
-        if self.is_paused {
+        if self.is_paused || self.frames.is_empty() {
             return AnimationUpdate::SameFrame;
         }
         self.timer.stopwatch.tick(delta);
