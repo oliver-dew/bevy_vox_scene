@@ -17,6 +17,8 @@ use components::LayerInfo;
 pub use components::{
     AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
+#[cfg(test)]
+pub(crate) use components::AnimationRepeatMode;
 use parse_scene::{find_model_names, parse_scene_graph};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

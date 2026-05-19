@@ -46,12 +46,19 @@ mod tests {
     use bevy::{
         app::App,
         ecs::hierarchy::Children,
-        prelude::{Add, Commands, On, Visibility},
+        prelude::{Add, Commands, Component, On, Visibility},
         utils::default,
         world_serialization::WorldAssetRoot,
     };
 
-    use crate::{VoxelAnimationPlayer, test_support::setup_and_load_voxel_scene};
+    use crate::{
+        VoxelAnimationPlayer,
+        load::AnimationRepeatMode,
+        test_support::setup_and_load_voxel_scene,
+    };
+
+    #[derive(Component)]
+    struct TaggedAnimationRoot;
 
     #[async_std::test]
     async fn test_spawn_play_animation() {
@@ -107,5 +114,63 @@ mod tests {
             Visibility::Inherited,
             "Frame 1 is showing"
         );
+    }
+
+    #[async_std::test]
+    async fn test_animation_despawns_on_finish_when_enabled() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        app.update();
+        app.add_observer(
+            move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
+                commands.entity(trigger.entity).insert((
+                    TaggedAnimationRoot,
+                    VoxelAnimationPlayer {
+                        frames: vec![0],
+                        frame_rate: Duration::from_millis(1),
+                        repeat_mode: AnimationRepeatMode::Count(1),
+                        despawn_on_finish: true,
+                        ..default()
+                    },
+                ));
+            },
+        );
+        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.update();
+        assert!(
+            app.world().get::<Children>(scene_root).is_some(),
+            "scene root spawned"
+        );
+        app.update();
+        app.update();
+        let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
+        assert_eq!(query.iter(app.world()).count(), 0, "animation root despawned");
+    }
+
+    #[async_std::test]
+    async fn test_animation_kept_on_finish_when_despawn_disabled() {
+        let mut app = App::new();
+        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        app.update();
+        app.add_observer(
+            move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
+                commands.entity(trigger.entity).insert((
+                    TaggedAnimationRoot,
+                    VoxelAnimationPlayer {
+                        frames: vec![0],
+                        frame_rate: Duration::from_millis(1),
+                        repeat_mode: AnimationRepeatMode::Count(1),
+                        despawn_on_finish: false,
+                        ..default()
+                    },
+                ));
+            },
+        );
+        app.world_mut().spawn(WorldAssetRoot(handle));
+        app.update();
+        app.update();
+        app.update();
+        let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
+        assert_eq!(query.iter(app.world()).count(), 1, "animation root retained");
     }
 }
