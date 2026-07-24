@@ -35,7 +35,7 @@ name = "voxel-generation"
 required-features = ["generate_voxels"]
 
 [dependencies]
-bevy = { version = "0.19", default-features = false, features = ["bevy_render", "bevy_scene", "bevy_asset", "bevy_pbr", "bevy_log", "png"] }
+bevy = { version = "0.19", default-features = false, features = ["bevy_render", "bevy_world_serialization", "bevy_asset", "bevy_pbr", "bevy_log", "png"] }
 dot_vox = "5.1.1"
 ndshape = "0.3.0"
 block-mesh = "0.2.0"
