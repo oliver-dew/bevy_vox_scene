@@ -55,7 +55,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
         DirectionalLight {
             illuminance: 3000.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..Default::default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(-2.5, -1., 0.85), Vec3::Y),
@@ -63,7 +63,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands
-        .spawn(SceneRoot(assets.load("cloud.vox")))
+        .spawn(WorldAssetRoot(assets.load("cloud.vox")))
         .observe(add_point_lights);
 }
 
@@ -83,7 +83,7 @@ fn add_point_lights(trigger: On<VoxelInstanceReady>, mut commands: Commands) {
                     intensity: 10000.,
                     radius: 0.5,
                     range: 150.,
-                    shadows_enabled: true,
+                    shadow_maps_enabled: true,
                     ..default()
                 },
                 VolumetricLight,

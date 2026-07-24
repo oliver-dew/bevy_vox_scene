@@ -6,7 +6,7 @@
 //!use bevy::prelude::*;
 //!use bevy_vox_scene::VoxScenePlugin;
 //!use std::collections::HashSet;
-//! # use bevy::{app::AppExit};
+//! # use bevy::{app::AppExit, world_serialization::WorldInstanceReady};
 //!
 //!fn main() {
 //!    App::new()
@@ -15,7 +15,6 @@
 //!        VoxScenePlugin::default(),
 //!    ))
 //!    .add_systems(Startup, setup)
-//! #   .add_systems(Update, assert_scene_loaded)
 //!    .run();
 //!}
 //!
@@ -24,19 +23,27 @@
 //!    assets: Res<AssetServer>,
 //!) {
 //!    // Load an entire scene graph
-//!    commands.spawn(SceneRoot(assets.load("study.vox")));
+//!    commands.spawn(WorldAssetRoot(assets.load("study.vox")));
 //!
+//! #  commands.spawn(WorldAssetRoot(assets.load("study.vox"))).observe(assert_scene_loaded);
 //!    // Load a single model using the name assigned to it in MagicaVoxel
-//!    commands.spawn(SceneRoot(assets.load("study.vox#workstation/desk")));
+//!    commands.spawn(WorldAssetRoot(assets.load("study.vox#workstation/desk")));
 //!}
 //! # fn assert_scene_loaded(
+//! #     ready: On<WorldInstanceReady>,
+//! #     children: Query<&Children>,
 //! #     query: Query<&Name>,
 //! #     mut exit: MessageWriter<AppExit>,
 //! # ) {
-//! #     let all_names: HashSet<&str> = query.iter().map(|n| { n.as_str()} ).collect();
+//! #     let all_names: HashSet<&str> = children
+//! #         .iter_descendants(ready.entity)
+//! #         .filter_map(|child| query.get(child).map(|n| { n.as_str() } ).ok())
+//! #         .collect();
 //! #     if all_names.is_empty() { return };
 //! #     let expected_names: HashSet<&str> = ["snowflake", "wall-tile", "brick-tile", "floor", "workstation", "workstation/keyboard" , "workstation/desk", "workstation/computer", "stairs", "glass", "tank", "tank/tetra", "tank/black-light", "tank/goldfish", "tank/wall", "tank/water", "tank/scenery"].into();
-//! #     assert_eq!(all_names, expected_names);
+//! #     assert_eq!(all_names, expected_names, "only in actual: {:?}\nonly in expected: {:?}",
+//! #     all_names.difference(&expected_names).collect::<Vec<_>>(),
+//! #     expected_names.difference(&all_names).collect::<Vec<_>>());
 //! #     exit.write(AppExit::Success);
 //! # }
 //!```
@@ -52,7 +59,7 @@ mod observers;
 mod systems;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod test_support;
 
 #[doc(inline)]
 use load::VoxSceneLoader;

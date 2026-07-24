@@ -1,8 +1,10 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    camera::ScreenSpaceTransmissionQuality, core_pipeline::tonemapping::Tonemapping,
-    post_process::bloom::Bloom, prelude::*,
+    core_pipeline::tonemapping::Tonemapping,
+    pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
+    post_process::bloom::Bloom,
+    prelude::*,
 };
 use bevy_vox_scene::VoxScenePlugin;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -22,10 +24,10 @@ fn main() {
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((
-        Camera3d {
-            screen_space_specular_transmission_quality: ScreenSpaceTransmissionQuality::High,
-            screen_space_specular_transmission_steps: 1,
-            ..default()
+        Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
         },
         Transform::from_xyz(0.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
@@ -48,7 +50,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
     commands.spawn((
         // "workstation" is the name of the group containing the desk, computer, & keyboard
-        SceneRoot(assets.load("study.vox#workstation")),
+        WorldAssetRoot(assets.load("study.vox#workstation")),
         Transform::from_scale(Vec3::splat(0.05)),
     ));
 }

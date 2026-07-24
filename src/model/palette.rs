@@ -129,32 +129,70 @@ impl VoxelPalette {
     /// Create a new [`VoxelPalette`] by interpolating between the [`VoxelElement`] in the gradient stops
     pub fn from_gradient(stops: &[(u8, VoxelElement)], uses_srgb: bool) -> Self {
         let mut elements = vec![VoxelElement::default(); 256];
-        for (index, (stop, element)) in stops.iter().enumerate() {
-            let default = (u8::MAX - 1, element.clone());
-            let (next_stop, next_element) = stops.get(index + 1).unwrap_or(&default);
-            let distance = (next_stop - stop) as f32;
-            for i in *stop..*next_stop {
-                let fraction = (i - stop) as f32 / distance;
+
+        if stops.is_empty() {
+            return VoxelPalette::new(elements, uses_srgb);
+        }
+
+        // Normalize stops to avoid divide-by-zero and ordering bugs.
+        // If the same stop appears multiple times, keep the last entry.
+        let mut normalized = stops.to_vec();
+        normalized.sort_by_key(|(stop, _)| *stop);
+        let mut deduped: Vec<(u8, VoxelElement)> = Vec::with_capacity(normalized.len());
+        for (stop, element) in normalized {
+            if let Some((last_stop, last_element)) = deduped.last_mut()
+                && *last_stop == stop
+            {
+                *last_element = element;
+                continue;
+            }
+            deduped.push((stop, element));
+        }
+
+        let (first_stop, first_element) = &deduped[0];
+        for index in 0..=*first_stop as usize {
+            elements[index] = first_element.clone();
+        }
+
+        for window in deduped.windows(2) {
+            let (start_stop, start_element) = (&window[0].0, &window[0].1);
+            let (end_stop, end_element) = (&window[1].0, &window[1].1);
+            if end_stop <= start_stop {
+                continue;
+            }
+            let distance = (end_stop - start_stop) as f32;
+            for i in *start_stop..=*end_stop {
+                let fraction = (i - start_stop) as f32 / distance;
                 elements[i as usize] = VoxelElement {
                     color: Color::LinearRgba(
-                        element
+                        start_element
                             .color
                             .to_linear()
-                            .lerp(next_element.color.to_linear(), fraction),
+                            .lerp(end_element.color.to_linear(), fraction),
                     ),
-                    emission: element.emission.lerp(next_element.emission, fraction),
-                    roughness: element.roughness.lerp(next_element.roughness, fraction),
-                    metalness: element.metalness.lerp(next_element.metalness, fraction),
-                    translucency: element
+                    emission: start_element.emission.lerp(end_element.emission, fraction),
+                    roughness: start_element
+                        .roughness
+                        .lerp(end_element.roughness, fraction),
+                    metalness: start_element
+                        .metalness
+                        .lerp(end_element.metalness, fraction),
+                    translucency: start_element
                         .translucency
-                        .lerp(next_element.translucency, fraction),
-                    refraction_index: element
+                        .lerp(end_element.translucency, fraction),
+                    refraction_index: start_element
                         .refraction_index
-                        .lerp(next_element.refraction_index, fraction),
-                    density: element.density.lerp(next_element.density, fraction),
+                        .lerp(end_element.refraction_index, fraction),
+                    density: start_element.density.lerp(end_element.density, fraction),
                 };
             }
         }
+
+        let (last_stop, last_element) = &deduped[deduped.len() - 1];
+        for index in *last_stop as usize..256 {
+            elements[index] = last_element.clone();
+        }
+
         VoxelPalette::new(elements, uses_srgb)
     }
 

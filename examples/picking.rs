@@ -59,7 +59,7 @@ fn spawn_voxels(world: &mut World) {
         .run_system_cached_with(create_voxel_scene, (data, format!("canvas"), context))
         .unwrap();
     world
-        .spawn(SceneRoot(scene))
+        .spawn(WorldAssetRoot(scene))
         .observe(on_tap_voxels.pipe(modify_voxel_model));
 }
 

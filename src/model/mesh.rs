@@ -79,7 +79,7 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
     );
     render_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
 
-    render_mesh.insert_indices(Indices::U32(indices.clone()));
+    render_mesh.insert_indices(Indices::U32(indices));
 
     render_mesh
 }

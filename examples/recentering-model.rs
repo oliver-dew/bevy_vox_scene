@@ -49,7 +49,7 @@ fn setup(
     commands.spawn((
         DirectionalLight {
             illuminance: 5000.0,
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             ..Default::default()
         },
         Transform::IDENTITY.looking_to(Vec3::new(2.5, -1., 0.85), Vec3::Y),
@@ -59,7 +59,7 @@ fn setup(
         // Only load a single model when using `UnitOffset::CENTER_BASE`
         // If you attempt to load a scene containing several models using a setting other than the default of `UnitOffset::CENTER`,
         // their transforms will be messed up
-        SceneRoot(assets.load("study.vox#workstation/desk")),
+        WorldAssetRoot(assets.load("study.vox#workstation/desk")),
     );
 
     // Add a ground plane for the voxel desk to stand on

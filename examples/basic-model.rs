@@ -1,5 +1,5 @@
 use bevy::{
-    pbr::{Atmosphere, ScatteringMedium},
+    light::{Atmosphere, atmosphere::ScatteringMedium},
     prelude::*,
 };
 use bevy_vox_scene::VoxScenePlugin;
@@ -19,14 +19,14 @@ fn setup(
     commands.spawn((
         Camera3d::default(),
         Transform::from_xyz(30.0, 30.0, 60.0).looking_at(Vec3::ZERO, Vec3::Y),
-        Atmosphere::earthlike(scattering_mediums.add(ScatteringMedium::default())),
+        Atmosphere::earth(scattering_mediums.add(ScatteringMedium::default())),
     ));
 
     commands.spawn(
         // Load a single model using the name assigned to it in MagicaVoxel
         // If a model is nested in a named group, than the group will form part of the path
         // Path components are separated with a slash
-        SceneRoot(assets.load("study.vox#workstation/desk")),
+        WorldAssetRoot(assets.load("study.vox#workstation/desk")),
     );
 
     commands.spawn((

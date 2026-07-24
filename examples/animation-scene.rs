@@ -27,14 +27,14 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         },
     ));
 
-    commands.spawn(SceneRoot(assets.load("deer.vox"))).observe(
-        |trigger: On<VoxelInstanceReady>, mut commands: Commands| {
+    commands
+        .spawn(WorldAssetRoot(assets.load("deer.vox")))
+        .observe(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
             if trigger.model_name == Some("deer".to_string()) {
                 // add marker component to scope pause action
                 commands.entity(trigger.instance).insert(Deer);
             }
-        },
-    );
+        });
 }
 
 /// Press any key to toggle the pause state of the animation

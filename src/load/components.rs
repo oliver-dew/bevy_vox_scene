@@ -98,8 +98,13 @@ pub enum AnimationUpdate {
 
 impl VoxelAnimationPlayer {
     pub(crate) fn did_advance_frame(&mut self, delta: Duration) -> AnimationUpdate {
-        if self.is_paused {
+        if self.is_paused || self.frames.is_empty() {
             return AnimationUpdate::SameFrame;
+        }
+        if let AnimationRepeatMode::Count(end_count) = self.repeat_mode
+            && self.timer.play_count >= end_count
+        {
+            return AnimationUpdate::ReachedEnd;
         }
         self.timer.stopwatch.tick(delta);
         if self.timer.stopwatch.elapsed() > self.frame_rate {
@@ -142,4 +147,48 @@ pub struct VoxelLayer {
     pub id: u32,
     /// An optional name for the Layer, assignable in Magica Voxel layer editor.
     pub name: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::{AnimationRepeatMode, AnimationUpdate, VoxelAnimationPlayer};
+
+    #[test]
+    fn test_did_advance_frame_empty_frames_returns_same_frame() {
+        let mut player = VoxelAnimationPlayer {
+            frames: vec![],
+            frame_rate: Duration::from_millis(1),
+            ..Default::default()
+        };
+        let update = player.did_advance_frame(Duration::from_millis(10));
+        assert!(matches!(update, AnimationUpdate::SameFrame));
+    }
+
+    #[test]
+    fn test_did_advance_frame_count_mode_reaches_end() {
+        let mut player = VoxelAnimationPlayer {
+            frames: vec![0],
+            frame_rate: Duration::from_millis(1),
+            repeat_mode: AnimationRepeatMode::Count(1),
+            ..Default::default()
+        };
+
+        let update = player.did_advance_frame(Duration::from_millis(10));
+        assert!(matches!(update, AnimationUpdate::ReachedEnd));
+    }
+
+    #[test]
+    fn test_did_advance_frame_count_mode_advances_before_end() {
+        let mut player = VoxelAnimationPlayer {
+            frames: vec![3, 7],
+            frame_rate: Duration::from_millis(1),
+            repeat_mode: AnimationRepeatMode::Count(2),
+            ..Default::default()
+        };
+
+        let update = player.did_advance_frame(Duration::from_millis(10));
+        assert!(matches!(update, AnimationUpdate::AdvanceFrame(7)));
+    }
 }

@@ -49,7 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn(
         // Load a model nested inside a group by using a `/` to separate the path components
-        SceneRoot(asset_server.load("study.vox#tank/goldfish")),
+        WorldAssetRoot(asset_server.load("study.vox#tank/goldfish")),
     );
 }
 
