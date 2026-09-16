@@ -69,7 +69,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 // Will run against every named child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
-    trigger: On<Add, Name>,
+    trigger: On<Add<Name>>,
     model_query: Query<&Name>,
     mut commands: Commands,
     assets: Res<AssetServer>,

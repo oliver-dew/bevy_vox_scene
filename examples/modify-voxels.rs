@@ -1,5 +1,8 @@
 use bevy::{
-    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    core_pipeline::tonemapping::Tonemapping,
+    pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
+    post_process::bloom::Bloom,
+    prelude::*,
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
@@ -34,6 +37,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.add_observer(on_spawn_voxel_instance);
     commands.spawn((
         Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
+        },
         Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
@@ -74,7 +81,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn on_spawn_voxel_instance(
-    trigger: On<Add, Name>,
+    trigger: On<Add<Name>>,
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {

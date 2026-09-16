@@ -52,9 +52,7 @@ mod tests {
     };
 
     use crate::{
-        VoxelAnimationPlayer,
-        load::AnimationRepeatMode,
-        test_support::setup_and_load_voxel_scene,
+        VoxelAnimationPlayer, load::AnimationRepeatMode, test_support::setup_and_load_voxel_scene,
     };
 
     #[derive(Component)]
@@ -69,7 +67,7 @@ mod tests {
         // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
         // so we can advance a frame on each call to `app.update`
         app.add_observer(
-            move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
+            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
                 commands
                     .entity(trigger.entity)
                     .insert(VoxelAnimationPlayer {
@@ -122,7 +120,7 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
         app.update();
         app.add_observer(
-            move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
+            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
                     VoxelAnimationPlayer {
@@ -144,7 +142,11 @@ mod tests {
         app.update();
         app.update();
         let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
-        assert_eq!(query.iter(app.world()).count(), 0, "animation root despawned");
+        assert_eq!(
+            query.iter(app.world()).count(),
+            0,
+            "animation root despawned"
+        );
     }
 
     #[async_std::test]
@@ -153,7 +155,7 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
         app.update();
         app.add_observer(
-            move |trigger: On<Add, VoxelAnimationPlayer>, mut commands: Commands| {
+            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
                     VoxelAnimationPlayer {
@@ -171,6 +173,10 @@ mod tests {
         app.update();
         app.update();
         let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
-        assert_eq!(query.iter(app.world()).count(), 1, "animation root retained");
+        assert_eq!(
+            query.iter(app.world()).count(),
+            1,
+            "animation root retained"
+        );
     }
 }

@@ -65,7 +65,7 @@ fn spawn_voxels(world: &mut World) {
 
 /// Tap with left button to add voxels, right button to erase
 fn on_tap_voxels(
-    trigger: On<Pointer<Press>>,
+    trigger: On<PointerPress>,
     query: Query<(&VoxelModelInstance, &Mesh3d, &GlobalTransform)>,
     models: Res<Assets<VoxelModel>>,
 ) -> Option<VoxelModifier> {

@@ -13,12 +13,12 @@ use bevy::{
     reflect::TypePath,
     world_serialization::WorldAsset,
 };
+#[cfg(test)]
+pub(crate) use components::AnimationRepeatMode;
 use components::LayerInfo;
 pub use components::{
     AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
-#[cfg(test)]
-pub(crate) use components::AnimationRepeatMode;
 use parse_scene::{find_model_names, parse_scene_graph};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -437,7 +437,7 @@ mod tests {
                 .load_state(handle.id()),
             LoadState::Loaded
         ));
-        app.add_observer(|trigger: On<Add, Name>, query: Query<&Name>| {
+        app.add_observer(|trigger: On<Add<Name>>, query: Query<&Name>| {
             let name = query
                 .get(trigger.entity)
                 .expect("name on added entity")

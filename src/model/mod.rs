@@ -283,7 +283,7 @@ mod tests {
             .get(mesh_handle)
             .expect("mesh generated");
         assert_eq!(
-            mesh.compute_aabb().expect("aabb").half_extents,
+            mesh.get_aabb().expect("aabb").half_extents,
             Vec3A::new(0.5, 2.5, 0.5)
         );
         assert_eq!(
