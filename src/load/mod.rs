@@ -5,7 +5,6 @@ mod parse_scene;
 use anyhow::anyhow;
 use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
-    color::LinearRgba,
     ecs::error::BevyError,
     log::info,
     math::Vec3,
@@ -24,8 +23,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    VoxelContext, VoxelData, VoxelQueryable,
-    model::{MaterialProperty, VoxelModel, VoxelPalette},
+    VoxelContext, VoxelData,
+    model::{VoxelModel, VoxelPalette, queryable::VoxelQueryable},
 };
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::world_serialization::WorldAsset`]s.
@@ -58,6 +57,49 @@ pub struct VoxLoaderSettings {
     pub diffuse_roughness: f32,
     /// Set to `true` if you want to modify the voxel model after it has been spawned, `false` if the voxels will be immutable
     pub supports_remeshing: bool,
+    /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
+    /// palette atlases use less texture memory. Both modes create per-model materials.
+    #[serde(default)]
+    pub texture_mode: VoxelTextureMode,
+}
+
+/// Selects the per-model texture layout used by voxel meshes.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoxelTextureMode {
+    /// Merge coplanar faces regardless of color and bake their voxel data into packed islands.
+    Packed(TexturePackSettings),
+    /// Use a 16x16 palette texture and merge faces only when their palette indices match.
+    Palette,
+}
+
+impl Default for VoxelTextureMode {
+    fn default() -> Self {
+        Self::Packed(TexturePackSettings::default())
+    }
+}
+
+/// Controls the layout of a packed per-model texture atlas.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePackSettings {
+    /// Texels added around each face island and filled by extending its edge texels.
+    #[serde(default = "default_atlas_padding")]
+    pub padding: u32,
+    /// Atlas dimensions are rounded up to a multiple of this value.
+    #[serde(default = "default_atlas_alignment")]
+    pub alignment: u32,
+    /// Maximum width or height of the atlas.
+    #[serde(default = "default_max_atlas_dimension")]
+    pub max_dimension: u32,
+}
+
+impl Default for TexturePackSettings {
+    fn default() -> Self {
+        Self {
+            padding: default_atlas_padding(),
+            alignment: default_atlas_alignment(),
+            max_dimension: default_max_atlas_dimension(),
+        }
+    }
 }
 
 impl Default for VoxLoaderSettings {
@@ -70,8 +112,21 @@ impl Default for VoxLoaderSettings {
             uses_srgb: true,
             diffuse_roughness: 0.8,
             supports_remeshing: false,
+            texture_mode: VoxelTextureMode::default(),
         }
     }
+}
+
+const fn default_atlas_padding() -> u32 {
+    1
+}
+
+const fn default_atlas_alignment() -> u32 {
+    4
+}
+
+const fn default_max_atlas_dimension() -> u32 {
+    8192
 }
 
 /// An offset applied to the vertex positions of the mesh expressed as a unit of the mesh's size.
@@ -142,25 +197,6 @@ impl VoxSceneLoader {
             settings.emission_strength,
             settings.uses_srgb,
         );
-        let translucent_material = palette.create_material_in_load_context(load_context);
-        let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {
-            let mut opaque_material = translucent_material.clone();
-            #[cfg(feature = "pbr_transmission_textures")]
-            {
-                opaque_material.specular_transmission_texture = None;
-            }
-            opaque_material.specular_transmission = 0.0;
-            Ok::<_, BevyError>(opaque_material)
-        });
-        if palette.emission == MaterialProperty::VariesPerElement {
-            _ = load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
-                let mut non_emissive = translucent_material.clone();
-                non_emissive.emissive_texture = None;
-                non_emissive.emissive = LinearRgba::BLACK;
-                Ok::<_, BevyError>(non_emissive)
-            });
-        }
-
         // Scene graph
         let layers: Vec<LayerInfo> = file
             .layers
@@ -193,30 +229,29 @@ impl VoxSceneLoader {
                 let (visible_voxels, ior, has_mesh) =
                     data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
                 let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
-                if has_mesh {
-                    _ = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
-                        Ok::<_, BevyError>(crate::model::mesh::mesh_model(&visible_voxels, &data))
+                let material = has_mesh.then(|| {
+                    let atlas = crate::model::mesh::mesh_model(&visible_voxels, &data);
+                    let mut material = palette.create_atlas_material(&atlas, |label, image| {
+                        load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
-
                     if let Some(ior) = ior {
-                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                            let mut material = translucent_material.clone();
-                            material.ior = ior;
-                            material.thickness = data.size().min_element() as f32;
-                            Ok::<_, BevyError>(material)
-                        });
+                        material.ior = ior;
+                        material.thickness = data.size().min_element() as f32;
                     } else {
-                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                            let mut opaque_material = translucent_material.clone();
-                            #[cfg(feature = "pbr_transmission_textures")]
-                            {
-                                opaque_material.specular_transmission_texture = None;
-                            }
-                            opaque_material.specular_transmission = 0.0;
-                            Ok::<_, BevyError>(opaque_material)
-                        });
+                        #[cfg(feature = "pbr_transmission_textures")]
+                        {
+                            material.specular_transmission_texture = None;
+                        }
+                        material.specular_transmission = 0.0;
                     }
-                }
+                    load_context.add_labeled_asset(format!("{}@mesh", name), atlas.mesh);
+                    let mut non_emissive = material.clone();
+                    non_emissive.emissive_texture = None;
+                    non_emissive.emissive = bevy::color::LinearRgba::BLACK;
+                    load_context
+                        .add_labeled_asset(format!("{}@material-no-emission", name), non_emissive);
+                    load_context.add_labeled_asset(format!("{}@material", name), material)
+                });
                 if has_cloud {
                     _ = load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
                         Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(
@@ -230,6 +265,7 @@ impl VoxSceneLoader {
                     data,
                     has_mesh,
                     has_cloud,
+                    material,
                 };
                 _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
                     Ok::<_, BevyError>(model.clone())
@@ -238,20 +274,7 @@ impl VoxSceneLoader {
             })
             .collect();
 
-        let transmissive_material = load_context
-            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-        load_context.add_labeled_asset(
-            "voxel-context".to_string(),
-            VoxelContext {
-                palette,
-                opaque_material: opaque_material.map_err(|error| {
-                    VoxLoaderError::InvalidAsset(anyhow!(
-                        "Failed to create opaque material labeled asset: {error}"
-                    ))
-                })?,
-                transmissive_material,
-            },
-        );
+        load_context.add_labeled_asset("voxel-context".to_string(), VoxelContext { palette });
         let scene = parse_scene_graph(
             load_context,
             &file.scenes,
@@ -386,10 +409,10 @@ mod tests {
             .get(mat_handle)
             .expect("material");
         #[cfg(feature = "pbr_transmission_textures")]
-        assert!(material.specular_transmission_texture.is_some());
-        assert_eq!(material.specular_transmission, 1.0);
+        assert!(material.specular_transmission_texture.is_none());
+        assert!((material.specular_transmission - 0.98).abs() < 0.001);
         assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
-        assert!(material.metallic_roughness_texture.is_some());
+        assert!(material.metallic_roughness_texture.is_none());
     }
 
     #[async_std::test]
@@ -422,7 +445,7 @@ mod tests {
         #[cfg(feature = "pbr_transmission_textures")]
         assert!(material.specular_transmission_texture.is_none());
         assert_eq!(material.specular_transmission, 0.0);
-        assert!(material.metallic_roughness_texture.is_some());
+        assert!(material.metallic_roughness_texture.is_none());
     }
 
     #[async_std::test]

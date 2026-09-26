@@ -20,14 +20,12 @@ use bevy::{
 
 pub use self::{data::VoxelData, voxel::Voxel};
 use crate::{VoxelAnimationPlayer, load::VoxelAnimationFrame};
-pub(crate) use palette::MaterialProperty;
 pub(crate) use voxel::RawVoxel;
 pub(super) mod data;
 pub(super) mod mesh;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod modify;
-#[cfg(feature = "modify_voxels")]
-pub(super) mod queryable;
+pub(crate) mod queryable;
 #[cfg(feature = "generate_voxels")]
 pub(super) mod sdf;
 #[cfg(feature = "modify_voxels")]
@@ -48,6 +46,7 @@ pub struct VoxelModel {
     pub has_mesh: bool,
     /// True if the model contains cloud voxels
     pub has_cloud: bool,
+    pub(crate) material: Option<Handle<StandardMaterial>>,
 }
 
 /// Create a voxel scene from some supplied voxel data
@@ -62,11 +61,18 @@ pub fn create_voxel_scene(
     contexts: Res<Assets<VoxelContext>>,
 ) -> Handle<WorldAsset> {
     let context = contexts.get(&context_handle).expect("Voxel Context exists");
-    let (maybe_mesh, average_ior, maybe_cloud) = data.remesh(
+    let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(
         &context.palette.indices_of_refraction,
         &context.palette.density_for_voxel,
     );
-    let maybe_mesh_handle = maybe_mesh.map(|mesh| meshes.add(mesh));
+    let (maybe_mesh_handle, maybe_material_handle) = maybe_atlas.map_or((None, None), |atlas| {
+        let mesh_handle = meshes.add(atlas.mesh.clone());
+        let mut material = context
+            .palette
+            .create_atlas_material(&atlas, |_, image| images.add(image));
+        configure_material(&mut material, average_ior, &data);
+        (Some(mesh_handle), Some(materials.add(material)))
+    });
     let cloud_image = maybe_cloud.map(|image| images.add(image));
 
     let model = VoxelModel {
@@ -74,6 +80,7 @@ pub fn create_voxel_scene(
         data: data.clone(),
         has_mesh: maybe_mesh_handle.is_some(),
         has_cloud: cloud_image.is_some(),
+        material: maybe_material_handle.clone(),
     };
     let model_handle = models.add(model.clone());
 
@@ -89,17 +96,8 @@ pub fn create_voxel_scene(
     // TODO boolean for "retain model data"
     if let Some(mesh_handle) = maybe_mesh_handle {
         root.insert(Mesh3d(mesh_handle));
-        if let Some(ior) = average_ior {
-            let mut transmissive_material = materials
-                .get(context.transmissive_material.id())
-                .expect("Transmissive materialo exists")
-                .clone();
-            transmissive_material.ior = ior;
-            transmissive_material.thickness = data.size().min_element() as f32;
-            let mat_handle = materials.add(transmissive_material);
-            root.insert(MeshMaterial3d(mat_handle));
-        } else {
-            root.insert(MeshMaterial3d(context.opaque_material.clone()));
+        if let Some(material_handle) = maybe_material_handle {
+            root.insert(MeshMaterial3d(material_handle));
         }
     }
     if cloud_image.is_some() {
@@ -132,11 +130,19 @@ pub fn create_voxel_animation(
     let mut root = world.spawn((Transform::IDENTITY, Visibility::Visible));
     root.with_children(|spawner| {
         for (index, data) in frames.iter().enumerate() {
-            let (maybe_mesh, average_ior, maybe_cloud) = data.remesh(
+            let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(
                 &context.palette.indices_of_refraction,
                 &context.palette.density_for_voxel,
             );
-            let maybe_mesh_handle = maybe_mesh.map(|mesh| meshes.add(mesh));
+            let (maybe_mesh_handle, maybe_material_handle) =
+                maybe_atlas.map_or((None, None), |atlas| {
+                    let mesh_handle = meshes.add(atlas.mesh.clone());
+                    let mut material = context
+                        .palette
+                        .create_atlas_material(&atlas, |_, image| images.add(image));
+                    configure_material(&mut material, average_ior, data);
+                    (Some(mesh_handle), Some(materials.add(material)))
+                });
             let cloud_image = maybe_cloud.map(|image| images.add(image));
 
             let model = VoxelModel {
@@ -144,6 +150,7 @@ pub fn create_voxel_animation(
                 data: data.clone(),
                 has_mesh: maybe_mesh_handle.is_some(),
                 has_cloud: cloud_image.is_some(),
+                material: maybe_material_handle.clone(),
             };
             let model_handle = models.add(model.clone());
             let mut frame = spawner.spawn((
@@ -161,17 +168,8 @@ pub fn create_voxel_animation(
             ));
             if let Some(mesh_handle) = maybe_mesh_handle {
                 frame.insert(Mesh3d(mesh_handle));
-                if let Some(ior) = average_ior {
-                    let mut transmissive_material = materials
-                        .get(context.transmissive_material.id())
-                        .expect("Transmissive materialo exists")
-                        .clone();
-                    transmissive_material.ior = ior;
-                    transmissive_material.thickness = data.size().min_element() as f32;
-                    let mat_handle = materials.add(transmissive_material);
-                    frame.insert(MeshMaterial3d(mat_handle));
-                } else {
-                    frame.insert(MeshMaterial3d(context.opaque_material.clone()));
+                if let Some(material_handle) = maybe_material_handle {
+                    frame.insert(MeshMaterial3d(material_handle));
                 }
             }
             if cloud_image.is_some() {
@@ -194,37 +192,34 @@ pub fn create_voxel_animation(
     scenes.add(scene)
 }
 
-/// A [`VoxelPalette`] that can be shared by multiple models, and handles to the [`StandardMaterial`]s derived from the palette.
+/// A [`VoxelPalette`] and other data shared by voxel models in the same scene.
 #[derive(Asset, TypePath, Clone, Debug)]
 pub struct VoxelContext {
     /// The palette used by the models
     pub palette: VoxelPalette,
-
-    pub(crate) opaque_material: Handle<StandardMaterial>,
-    pub(crate) transmissive_material: Handle<StandardMaterial>,
 }
 
 /// Create a new context with the supplied palette
 #[cfg(feature = "generate_voxels")]
 pub fn create_voxel_context(
     In(palette): In<VoxelPalette>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut contexts: ResMut<Assets<VoxelContext>>,
 ) -> Handle<VoxelContext> {
-    let material = palette.create_material(&mut images);
-    let mut opaque_material = material.clone();
-    #[cfg(feature = "pbr_transmission_textures")]
-    {
-        opaque_material.specular_transmission_texture = None;
+    contexts.add(VoxelContext { palette })
+}
+
+#[cfg(feature = "generate_voxels")]
+fn configure_material(material: &mut StandardMaterial, average_ior: Option<f32>, data: &VoxelData) {
+    if let Some(ior) = average_ior {
+        material.ior = ior;
+        material.thickness = data.size().min_element() as f32;
+    } else {
+        #[cfg(feature = "pbr_transmission_textures")]
+        {
+            material.specular_transmission_texture = None;
+        }
+        material.specular_transmission = 0.0;
     }
-    opaque_material.specular_transmission = 0.0;
-    let context = VoxelContext {
-        palette,
-        opaque_material: materials.add(opaque_material),
-        transmissive_material: materials.add(material),
-    };
-    contexts.add(context)
 }
 
 #[cfg(test)]

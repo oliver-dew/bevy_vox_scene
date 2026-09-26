@@ -43,6 +43,7 @@ ndcopy = "0.3.0"
 anyhow = "1.0.38"
 thiserror = "2.0.12"
 serde = "1.0.219"
+rectangle-pack = "0.4.2"
 
 [dev-dependencies]
 bevy = { version = "0.20.0-rc.1", default-features = false, features = ["3d", "dev"] }

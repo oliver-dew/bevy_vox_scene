@@ -34,6 +34,7 @@ impl From<RawVoxel> for Voxel {
 pub(crate) struct VisibleVoxel {
     pub index: u8,
     pub visibility: VoxelVisibility,
+    pub merge_index: u8,
 }
 
 impl BlockyVoxel for VisibleVoxel {
@@ -43,10 +44,10 @@ impl BlockyVoxel for VisibleVoxel {
 }
 
 impl MergeVoxel for VisibleVoxel {
-    type MergeValue = VisibleVoxel;
+    type MergeValue = (VoxelVisibility, u8);
 
     fn merge_value(&self) -> Self::MergeValue {
-        *self
+        (self.visibility, self.merge_index)
     }
 }
 

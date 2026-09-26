@@ -65,14 +65,14 @@ pub(crate) mod test_support;
 use load::VoxSceneLoader;
 use load::VoxelAnimationFrame;
 pub use load::{
-    UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
+    TexturePackSettings, UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer,
+    VoxelModelInstance, VoxelTextureMode,
 };
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
-pub use model::{
-    Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette, create_voxel_animation,
-    create_voxel_context, create_voxel_scene,
-};
+pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
+#[cfg(feature = "generate_voxels")]
+pub use model::{create_voxel_animation, create_voxel_context, create_voxel_scene};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
     modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},

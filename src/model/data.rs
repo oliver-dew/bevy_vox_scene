@@ -1,15 +1,14 @@
 use bevy::{
     image::Image,
     math::{IVec3, UVec3},
-    mesh::Mesh,
 };
 use block_mesh::VoxelVisibility;
 use ndshape::{RuntimeShape, Shape};
 use std::fmt::Debug;
 
-use crate::VoxLoaderSettings;
+use crate::{VoxLoaderSettings, VoxelTextureMode};
 
-use super::{RawVoxel, voxel::VisibleVoxel};
+use super::{RawVoxel, mesh::MeshAtlas, voxel::VisibleVoxel};
 
 /// The voxel data used to create a mesh and a material.
 #[derive(Clone)]
@@ -71,7 +70,7 @@ impl VoxelData {
         &self,
         ior_for_voxel: &[Option<f32>],
         density_for_voxel: &[Option<f32>],
-    ) -> (Option<Mesh>, Option<f32>, Option<Image>) {
+    ) -> (Option<MeshAtlas>, Option<f32>, Option<Image>) {
         let (visible_voxels, average_ior, needs_meshing) =
             self.visible_voxels(ior_for_voxel, density_for_voxel);
         let (cloud_voxels, has_cloud) = self.cloud_voxels(density_for_voxel);
@@ -101,6 +100,10 @@ impl VoxelData {
             .iter()
             .map(|v| VisibleVoxel {
                 index: v.0,
+                merge_index: match self.settings.texture_mode {
+                    VoxelTextureMode::Packed(_) => 0,
+                    VoxelTextureMode::Palette => v.0,
+                },
                 visibility: if *v == RawVoxel::EMPTY {
                     VoxelVisibility::Empty
                 } else if let Some(ior) = ior_for_voxel[v.0 as usize] {

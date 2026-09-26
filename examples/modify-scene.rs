@@ -80,8 +80,8 @@ fn on_spawn_voxel_instance(
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {
                 is_on: true,
-                on_material: assets.load("study.vox#material"), // emissive texture
-                off_material: assets.load("study.vox#material-no-emission"), // non-emissive texture
+                on_material: assets.load("study.vox#tank/black-light@material"),
+                off_material: assets.load("study.vox#tank/black-light@material-no-emission"),
             });
         }
         "tank/goldfish" | "tank/tetra" => {

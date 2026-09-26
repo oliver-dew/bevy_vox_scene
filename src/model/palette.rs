@@ -1,43 +1,25 @@
 use bevy::{
-    asset::{Assets, Handle, LoadContext, RenderAssetUsages},
+    asset::{Handle, RenderAssetUsages},
     color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
-    image::Image,
+    image::{Image, ImageSampler},
     math::FloatExt,
     pbr::StandardMaterial,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 use dot_vox::DotVoxData;
 
+use super::mesh::MeshAtlas;
+
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
 #[derive(Clone, Debug)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
-    pub(crate) emission: MaterialProperty,
-    pub(crate) metalness: MaterialProperty,
-    pub(crate) roughness: MaterialProperty,
-    pub(crate) transmission: MaterialProperty,
     pub(crate) indices_of_refraction: Vec<Option<f32>>,
     pub(crate) density_for_voxel: Vec<Option<f32>>,
     /// If true, uses SRGB for colors. Uses Linear colors if false.
     pub(crate) uses_srgb: bool,
 }
 
-#[derive(PartialEq, Clone, Debug)]
-pub(crate) enum MaterialProperty {
-    VariesPerElement,
-    Constant(f32),
-}
-
-impl MaterialProperty {
-    fn from_slice(slice: &[f32]) -> Self {
-        let max_element = slice.max_element();
-        if max_element - slice.min_element() < 0.001 {
-            MaterialProperty::Constant(max_element)
-        } else {
-            MaterialProperty::VariesPerElement
-        }
-    }
-}
 /// A material for a type of voxel brick modelled with physical properties such as color, roughness and so on.
 #[derive(Clone, Debug)]
 pub struct VoxelElement {
@@ -74,11 +56,6 @@ impl Default for VoxelElement {
 impl VoxelPalette {
     /// Create a new [`VoxelPalette`] from the supplied [`VoxelElement`]s
     pub fn new(mut elements: Vec<VoxelElement>, uses_srgb: bool) -> Self {
-        let emission_data: Vec<f32> = elements.iter().map(|e| e.emission).collect();
-        let roughness_data: Vec<f32> = elements.iter().map(|e| e.roughness).collect();
-        let metalness_data: Vec<f32> = elements.iter().map(|e| e.metalness).collect();
-        let translucency_data: Vec<f32> = elements.iter().map(|e| e.translucency).collect();
-
         elements.resize_with(256, VoxelElement::default);
         let indices_of_refraction: Vec<Option<f32>> = elements
             .iter()
@@ -102,10 +79,6 @@ impl VoxelPalette {
             .collect();
         VoxelPalette {
             elements,
-            emission: MaterialProperty::from_slice(&emission_data),
-            metalness: MaterialProperty::from_slice(&metalness_data),
-            roughness: MaterialProperty::from_slice(&roughness_data),
-            transmission: MaterialProperty::from_slice(&translucency_data),
             indices_of_refraction,
             density_for_voxel,
             uses_srgb,
@@ -243,73 +216,108 @@ impl VoxelPalette {
         )
     }
 
-    pub(crate) fn create_material_in_load_context(
+    pub(crate) fn create_atlas_material(
         &self,
-        load_context: &mut LoadContext,
+        atlas: &MeshAtlas,
+        get_handle: impl FnMut(&str, Image) -> Handle<Image>,
     ) -> StandardMaterial {
-        self._create_material(|name, image| load_context.add_labeled_asset(name.to_string(), image))
-    }
-
-    pub(crate) fn create_material(&self, images: &mut Assets<Image>) -> StandardMaterial {
-        self._create_material(|_, image| images.add(image))
+        self._create_material(
+            atlas.width,
+            atlas.height,
+            &atlas.palette_indices,
+            &atlas.used_palette_indices,
+            get_handle,
+        )
     }
 
     fn _create_material(
         &self,
+        width: u32,
+        height: u32,
+        palette_indices: &[u8],
+        used_palette_indices: &[u8],
         mut get_handle: impl FnMut(&str, Image) -> Handle<Image>,
     ) -> StandardMaterial {
         let image_size = Extent3d {
-            width: 16,
-            height: 16,
+            width,
+            height,
             depth_or_array_layers: 1,
         };
-        let color_data: Vec<u8> = self
-            .elements
+        let color_data: Vec<u8> = palette_indices
             .iter()
-            .flat_map(|e| {
+            .flat_map(|index| {
+                let element = &self.elements[*index as usize];
                 if self.uses_srgb {
-                    e.color.to_srgba().to_u8_array()
+                    element.color.to_srgba().to_u8_array()
                 } else {
-                    e.color.to_linear().to_u8_array()
+                    element.color.to_linear().to_u8_array()
                 }
             })
             .collect();
-        let emission_data: Vec<f32> = self.elements.iter().map(|e| e.emission).collect();
-        let roughness_data: Vec<f32> = self.elements.iter().map(|e| e.roughness).collect();
-        let metalness_data: Vec<f32> = self.elements.iter().map(|e| e.metalness).collect();
+        let emission_data: Vec<f32> = palette_indices
+            .iter()
+            .map(|index| self.elements[*index as usize].emission)
+            .collect();
+        let roughness_data: Vec<f32> = palette_indices
+            .iter()
+            .map(|index| self.elements[*index as usize].roughness)
+            .collect();
+        let metalness_data: Vec<f32> = palette_indices
+            .iter()
+            .map(|index| self.elements[*index as usize].metalness)
+            .collect();
         #[cfg(feature = "pbr_transmission_textures")]
-        let translucency_data: Vec<f32> = self.elements.iter().map(|e| e.translucency).collect();
+        let translucency_data: Vec<f32> = palette_indices
+            .iter()
+            .map(|index| self.elements[*index as usize].translucency)
+            .collect();
 
-        let has_emission = match self.emission {
-            MaterialProperty::VariesPerElement => true,
-            MaterialProperty::Constant(emission) => emission > 0.0,
+        let used_elements: Vec<&VoxelElement> = used_palette_indices
+            .iter()
+            .map(|index| &self.elements[*index as usize])
+            .collect();
+        let first = used_elements.first().copied().unwrap_or(&self.elements[0]);
+        let varies = |get: fn(&VoxelElement) -> f32| {
+            used_elements
+                .iter()
+                .any(|element| (get(element) - get(first)).abs() >= 0.001)
         };
-        let has_roughness = self.roughness == MaterialProperty::VariesPerElement;
-        let has_metalness = self.metalness == MaterialProperty::VariesPerElement;
+        let first_color = first.color.to_linear();
+        let base_color_varies = used_elements
+            .iter()
+            .any(|element| !rgba_approx_eq(element.color.to_linear(), first_color));
+        let first_emissive = first_color * first.emission;
+        let emissive_varies = used_elements.iter().any(|element| {
+            !rgba_approx_eq(element.color.to_linear() * element.emission, first_emissive)
+        });
+        let has_roughness = varies(|element| element.roughness);
+        let has_metalness = varies(|element| element.metalness);
         let has_roughness_metalness = has_roughness || has_metalness;
-        let has_translucency = self.transmission == MaterialProperty::VariesPerElement;
+        let has_translucency = varies(|element| element.translucency);
 
-        let base_color_texture = Some(get_handle(
-            "material_color",
-            Image::new(
-                image_size,
-                TextureDimension::D2,
-                color_data,
-                if self.uses_srgb {
-                    TextureFormat::Rgba8UnormSrgb
-                } else {
-                    TextureFormat::Rgba8Unorm
-                },
-                RenderAssetUsages::RENDER_WORLD,
-            ),
-        ));
+        let base_color_texture = base_color_varies.then(|| {
+            get_handle(
+                "material_color",
+                nearest_image(Image::new(
+                    image_size,
+                    TextureDimension::D2,
+                    color_data,
+                    if self.uses_srgb {
+                        TextureFormat::Rgba8UnormSrgb
+                    } else {
+                        TextureFormat::Rgba8Unorm
+                    },
+                    RenderAssetUsages::RENDER_WORLD,
+                )),
+            )
+        });
 
-        let emissive_texture = if has_emission {
+        let emissive_texture = if emissive_varies {
             let emission_bytes: Vec<u8> = emission_data
                 .iter()
-                .zip(self.elements.iter().map(|e| e.color))
-                .flat_map(|(emission, color)| {
-                    (color.to_linear() * *emission)
+                .zip(palette_indices)
+                .flat_map(|(emission, index)| {
+                    (self.elements[*index as usize].color.to_linear() * *emission)
                         .to_f32_array()
                         .iter()
                         .flat_map(|c| c.to_le_bytes())
@@ -318,13 +326,13 @@ impl VoxelPalette {
                 .collect();
             Some(get_handle(
                 "material_emission",
-                Image::new(
+                nearest_image(Image::new(
                     image_size,
                     TextureDimension::D2,
                     emission_bytes,
                     TextureFormat::Rgba32Float,
                     RenderAssetUsages::RENDER_WORLD,
-                ),
+                )),
             ))
         } else {
             None
@@ -364,13 +372,13 @@ impl VoxelPalette {
             };
             let handle = get_handle(
                 "material_metallic_roughness",
-                Image::new(
+                nearest_image(Image::new(
                     image_size,
                     TextureDimension::D2,
                     raw,
                     format,
                     RenderAssetUsages::RENDER_WORLD,
-                ),
+                )),
             );
             Some(handle)
         } else {
@@ -397,13 +405,13 @@ impl VoxelPalette {
             };
             let handle = get_handle(
                 "material_specular_transmission",
-                Image::new(
+                nearest_image(Image::new(
                     image_size,
                     TextureDimension::D2,
                     raw,
                     format,
                     RenderAssetUsages::RENDER_WORLD,
-                ),
+                )),
             );
             Some(handle)
         } else {
@@ -411,25 +419,33 @@ impl VoxelPalette {
         };
 
         StandardMaterial {
+            base_color: if base_color_varies {
+                Color::WHITE
+            } else {
+                first.color
+            },
             base_color_texture,
-            emissive: if has_emission {
+            emissive: if emissive_varies {
                 LinearRgba::WHITE
             } else {
-                LinearRgba::BLACK
+                first_emissive
             },
             emissive_texture,
-            perceptual_roughness: match (has_roughness_metalness, &self.roughness) {
-                (true, _) | (_, MaterialProperty::VariesPerElement) => 1.0,
-                (false, MaterialProperty::Constant(roughness)) => *roughness,
+            perceptual_roughness: if has_roughness_metalness {
+                1.0
+            } else {
+                first.roughness
             },
-            metallic: match (has_roughness_metalness, &self.metalness) {
-                (true, _) | (false, MaterialProperty::VariesPerElement) => 1.0,
-                (false, MaterialProperty::Constant(metalness)) => *metalness,
+            metallic: if has_roughness_metalness {
+                1.0
+            } else {
+                first.metalness
             },
             metallic_roughness_texture,
-            specular_transmission: match self.transmission {
-                MaterialProperty::Constant(transmission) => transmission,
-                MaterialProperty::VariesPerElement => 1.0,
+            specular_transmission: if has_translucency {
+                1.0
+            } else {
+                first.translucency
             },
             #[cfg(feature = "pbr_transmission_textures")]
             specular_transmission_texture,
@@ -438,10 +454,16 @@ impl VoxelPalette {
     }
 }
 
-trait VecComparable<T> {
-    fn max_element(&self) -> T;
+fn nearest_image(mut image: Image) -> Image {
+    image.sampler = ImageSampler::nearest();
+    image
+}
 
-    fn min_element(&self) -> T;
+fn rgba_approx_eq(left: LinearRgba, right: LinearRgba) -> bool {
+    left.to_f32_array()
+        .iter()
+        .zip(right.to_f32_array())
+        .all(|(left, right)| (left - right).abs() < 0.001)
 }
 
 trait Lerpable {
@@ -454,36 +476,5 @@ impl Lerpable for LinearRgba {
         let rhs = rhs.to_f32_array();
         let mixed: [f32; 4] = std::array::from_fn(|i| lhs[i].lerp(rhs[i], amount));
         LinearRgba::from_f32_array(mixed)
-    }
-}
-impl VecComparable<f32> for Vec<f32> {
-    fn max_element(&self) -> f32 {
-        self.iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
-    }
-
-    fn min_element(&self) -> f32 {
-        self.iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
-    }
-}
-
-impl VecComparable<f32> for &[f32] {
-    fn max_element(&self) -> f32 {
-        self.iter()
-            .cloned()
-            .max_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
-    }
-
-    fn min_element(&self) -> f32 {
-        self.iter()
-            .cloned()
-            .min_by(|a, b| a.partial_cmp(b).expect("tried to compare NaN"))
-            .unwrap()
     }
 }

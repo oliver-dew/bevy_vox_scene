@@ -1,8 +1,10 @@
 use bevy::{
     asset::{Assets, Handle},
     ecs::system::{In, ResMut},
+    image::Image,
     math::{IVec3, Vec3},
     mesh::Mesh,
+    pbr::StandardMaterial,
     prelude::Res,
 };
 use ndshape::Shape;
@@ -88,6 +90,8 @@ impl VoxelModifier {
 pub fn modify_voxel_model(
     In(maybe_modifier): In<Option<VoxelModifier>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut models: ResMut<Assets<VoxelModel>>,
     contexts: Res<Assets<VoxelContext>>,
 ) {
@@ -122,11 +126,42 @@ pub fn modify_voxel_model(
         }
     }
     model.data.voxels = updated;
-    let (maybe_mesh, _average_ior, _maybe_cloud) =
+    let (maybe_atlas, average_ior, _maybe_cloud) =
         model.data.remesh(refraction_indices, &density_for_voxel);
 
-    if let Some(mesh) = maybe_mesh {
-        let _ = meshes.insert(&modifier.mesh, mesh);
+    if let Some(atlas) = maybe_atlas {
+        let mut material = context
+            .palette
+            .create_atlas_material(&atlas, |_, image| images.add(image));
+        if let Some(ior) = average_ior {
+            material.ior = ior;
+            material.thickness = model.size().min_element() as f32;
+        } else {
+            #[cfg(feature = "pbr_transmission_textures")]
+            {
+                material.specular_transmission_texture = None;
+            }
+            material.specular_transmission = 0.0;
+        }
+        let _ = meshes.insert(&modifier.mesh, atlas.mesh);
+
+        if let Some(material_handle) = &model.material {
+            if let Some(old_material) = materials.get(material_handle) {
+                let mut old_images = vec![
+                    old_material.base_color_texture.clone(),
+                    old_material.emissive_texture.clone(),
+                    old_material.metallic_roughness_texture.clone(),
+                ];
+                #[cfg(feature = "pbr_transmission_textures")]
+                old_images.push(old_material.specular_transmission_texture.clone());
+                for image_handle in old_images.into_iter().flatten() {
+                    images.remove(image_handle.id());
+                }
+            }
+            let _ = materials.insert(material_handle, material);
+        } else {
+            model.material = Some(materials.add(material));
+        }
     }
 }
 

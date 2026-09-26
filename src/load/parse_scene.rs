@@ -13,7 +13,7 @@ use bevy::{
 };
 use dot_vox::{Frame, SceneNode};
 
-use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
+use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, model::queryable::VoxelQueryable};
 
 use super::{
     VoxelAnimationFrame,
