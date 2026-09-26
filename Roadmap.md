@@ -146,6 +146,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 - [ ] Add regression coverage for single-colour, emissive, metallic/rough, glass, cloud-only, animated, and runtime-edited models.
 - [ ] Compare rendered output against the current palette-atlas path for all supported MagicaVoxel material properties.
 - [ ] Benchmark mesh generation time, atlas-baking time, vertex count, draw count, and texture memory.
+- [x] Add opt-in atlas diagnostics for dimensions, occupancy, padding/alignment overhead, packing waste, island count, and vertex reduction.
 - [ ] Test native, WebGPU, and WebGL2 builds, including their existing texture-format differences.
 - [x] Document the memory/performance trade-off and the new configuration in the README and changelog.
 

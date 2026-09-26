@@ -114,6 +114,9 @@ pub struct TexturePackSettings {
     /// Optional mipmap generation. Limited mip chains increase island padding and alignment.
     #[serde(default)]
     pub mip_policy: TextureMipPolicy,
+    /// Log atlas dimensions, occupancy, packing overhead, and geometry reduction.
+    #[serde(default)]
+    pub log_diagnostics: bool,
 }
 
 /// Controls mipmap generation for packed texture atlases.
@@ -149,6 +152,7 @@ impl Default for TexturePackSettings {
             alignment: default_atlas_alignment(),
             max_dimension: default_max_atlas_dimension(),
             mip_policy: TextureMipPolicy::Disabled,
+            log_diagnostics: false,
         }
     }
 }

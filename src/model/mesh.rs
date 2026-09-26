@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use bevy::{
     asset::RenderAssetUsages,
+    log::info,
     math::Vec3,
     mesh::{Indices, Mesh, VertexAttributeValues},
     render::render_resource::PrimitiveTopology,
@@ -52,6 +53,13 @@ struct PackedRect {
 struct AmbientOcclusionSample {
     offset: [i32; 3],
     weight: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AtlasUsage {
+    content_texels: u64,
+    allocated_texels: u64,
+    atlas_texels: u64,
 }
 
 pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas {
@@ -127,6 +135,17 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas
         )
         .expect("voxel ambient occlusion atlas exceeds the maximum texture size")
     });
+    if let Some(settings) = pack_settings.filter(|settings| settings.log_diagnostics) {
+        log_atlas_diagnostics(
+            voxels,
+            data,
+            &islands,
+            atlas_width,
+            atlas_height,
+            ambient_occlusion_layout.as_ref(),
+            settings,
+        );
+    }
 
     let offset = data.model_size() * data.settings.mesh_offset.0;
     let leading_padding = (data.padding() / 2) as f32 * data.settings.voxel_size;
@@ -543,6 +562,153 @@ fn align(value: u32, alignment: u32) -> u32 {
     value.div_ceil(alignment).saturating_mul(alignment)
 }
 
+fn atlas_usage(
+    islands: &[Island],
+    atlas_width: u32,
+    atlas_height: u32,
+    padding: u32,
+    rectangle_alignment: u32,
+    size: impl Fn(&Island) -> (u32, u32),
+) -> AtlasUsage {
+    let mut content_texels = 0_u64;
+    let mut allocated_texels = 0_u64;
+    for island in islands {
+        let (width, height) = size(island);
+        content_texels += u64::from(width) * u64::from(height);
+        let allocated_width = align(
+            width.saturating_add(padding.saturating_mul(2)),
+            rectangle_alignment,
+        );
+        let allocated_height = align(
+            height.saturating_add(padding.saturating_mul(2)),
+            rectangle_alignment,
+        );
+        allocated_texels += u64::from(allocated_width) * u64::from(allocated_height);
+    }
+    AtlasUsage {
+        content_texels,
+        allocated_texels,
+        atlas_texels: u64::from(atlas_width) * u64::from(atlas_height),
+    }
+}
+
+fn log_atlas_diagnostics(
+    voxels: &[VisibleVoxel],
+    data: &VoxelData,
+    islands: &[Island],
+    atlas_width: u32,
+    atlas_height: u32,
+    ambient_occlusion_layout: Option<&(u32, u32, Vec<PackedRect>)>,
+    settings: crate::TexturePackSettings,
+) {
+    let rectangle_alignment = settings.mip_policy.alignment();
+    let material = atlas_usage(
+        islands,
+        atlas_width,
+        atlas_height,
+        settings.padding,
+        rectangle_alignment,
+        |island| (island.quad.width, island.quad.height),
+    );
+    let palette_islands = per_color_island_count(voxels, data);
+    let packed_vertices = islands.len() * 4;
+    let palette_vertices = palette_islands * 4;
+    let vertex_reduction = if palette_vertices == 0 {
+        0.0
+    } else {
+        100.0 * (1.0 - packed_vertices as f64 / palette_vertices as f64)
+    };
+    let size = data.size();
+    info!(
+        "voxel material atlas: model={}x{}x{}, atlas={}x{}, islands={}, occupancy={:.1}% ({} texels), padding/alignment={:.1}% ({} texels), packing-waste={:.1}% ({} texels), vertices={} vs {} per-color ({:.1}% reduction), max_lod={}",
+        size.x,
+        size.y,
+        size.z,
+        atlas_width,
+        atlas_height,
+        islands.len(),
+        percent(material.content_texels, material.atlas_texels),
+        material.content_texels,
+        percent(
+            material
+                .allocated_texels
+                .saturating_sub(material.content_texels),
+            material.atlas_texels,
+        ),
+        material
+            .allocated_texels
+            .saturating_sub(material.content_texels),
+        percent(
+            material
+                .atlas_texels
+                .saturating_sub(material.allocated_texels),
+            material.atlas_texels,
+        ),
+        material
+            .atlas_texels
+            .saturating_sub(material.allocated_texels),
+        packed_vertices,
+        palette_vertices,
+        vertex_reduction,
+        settings.mip_policy.max_lod(),
+    );
+
+    if let Some((width, height, _)) = ambient_occlusion_layout {
+        let ao = atlas_usage(
+            islands,
+            *width,
+            *height,
+            settings.padding,
+            rectangle_alignment,
+            |island| (island.quad.width + 1, island.quad.height + 1),
+        );
+        info!(
+            "voxel AO atlas: atlas={}x{}, islands={}, occupancy={:.1}% ({} texels), padding/alignment={:.1}% ({} texels), packing-waste={:.1}% ({} texels), max_lod={}",
+            width,
+            height,
+            islands.len(),
+            percent(ao.content_texels, ao.atlas_texels),
+            ao.content_texels,
+            percent(
+                ao.allocated_texels.saturating_sub(ao.content_texels),
+                ao.atlas_texels,
+            ),
+            ao.allocated_texels.saturating_sub(ao.content_texels),
+            percent(
+                ao.atlas_texels.saturating_sub(ao.allocated_texels),
+                ao.atlas_texels,
+            ),
+            ao.atlas_texels.saturating_sub(ao.allocated_texels),
+            settings.mip_policy.max_lod(),
+        );
+    }
+}
+
+fn per_color_island_count(voxels: &[VisibleVoxel], data: &VoxelData) -> usize {
+    let mut palette_voxels = voxels.to_vec();
+    for voxel in &mut palette_voxels {
+        voxel.merge_index = voxel.index;
+    }
+    let mut buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
+    greedy_quads(
+        &palette_voxels,
+        &data.shape,
+        [0; 3],
+        data.shape.as_array().map(|value| value - 1),
+        &RIGHT_HANDED_Y_UP_CONFIG.faces,
+        &mut buffer,
+    );
+    buffer.quads.groups.iter().map(Vec::len).sum()
+}
+
+fn percent(part: u64, total: u64) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        part as f64 / total as f64 * 100.0
+    }
+}
+
 fn common_alignment(left: u32, right: u32) -> u32 {
     let left = left.max(1);
     let right = right.max(1);
@@ -557,7 +723,8 @@ fn common_alignment(left: u32, right: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        Island, ambient_occlusion_at, ambient_occlusion_stencil, mesh_model, pack_islands,
+        AtlasUsage, Island, ambient_occlusion_at, ambient_occlusion_stencil, atlas_usage,
+        mesh_model, pack_islands,
     };
     use crate::{
         AmbientOcclusionSettings, VoxLoaderSettings, VoxelTextureMode,
@@ -633,6 +800,29 @@ mod tests {
     fn mip_alignment_preserves_custom_atlas_alignment() {
         assert_eq!(super::common_alignment(6, 4), 12);
         assert_eq!(super::common_alignment(4, 8), 8);
+    }
+
+    #[test]
+    fn atlas_diagnostics_separate_content_overhead_and_packing_space() {
+        let islands = [Island {
+            quad: UnorientedQuad {
+                minimum: [0; 3],
+                width: 3,
+                height: 5,
+            },
+            face_index: 0,
+        }];
+        assert_eq!(
+            atlas_usage(&islands, 16, 16, 2, 4, |island| (
+                island.quad.width,
+                island.quad.height
+            )),
+            AtlasUsage {
+                content_texels: 15,
+                allocated_texels: 96,
+                atlas_texels: 256,
+            }
+        );
     }
 
     #[test]

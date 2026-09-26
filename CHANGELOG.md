@@ -8,6 +8,7 @@
 - Add `VoxelTextureMode::Palette` as a lower-texture-memory compatibility mode using per-model 16x16 palette atlases.
 - Add optional distance-weighted voxel ambient occlusion for packed atlases through `AmbientOcclusionSettings`.
 - Add optional limited mip chains with mip-safe padding and alignment through `TextureMipPolicy`.
+- Add opt-in packed-atlas utilization and geometry-reduction logging through `TexturePackSettings::log_diagnostics`.
 - Stop generating duplicate `@material-no-emission` sub-assets; emissive properties can be toggled directly on each model's material.
 
 ## 0.22

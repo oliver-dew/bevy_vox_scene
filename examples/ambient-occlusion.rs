@@ -3,7 +3,7 @@ use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
     input::{common_conditions::input_just_pressed}, pbr::ScreenSpaceAmbientOcclusion, post_process::bloom::Bloom, prelude::*,
 };
-use bevy_vox_scene::{AmbientOcclusionSettings, VoxLoaderSettings, VoxScenePlugin};
+use bevy_vox_scene::{AmbientOcclusionSettings, TexturePackSettings, VoxLoaderSettings, VoxScenePlugin, VoxelTextureMode};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press S to toggle Screen Space Ambient Occlusion
@@ -15,6 +15,8 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
+                    texture_mode: VoxelTextureMode::Packed(TexturePackSettings { log_diagnostics: true,
+                    ..default() }),
                     ambient_occlusion: Some(AmbientOcclusionSettings {
                         depth: 4,
                         intensity: 1.0,
