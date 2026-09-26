@@ -65,8 +65,8 @@ pub(crate) mod test_support;
 use load::VoxSceneLoader;
 use load::VoxelAnimationFrame;
 pub use load::{
-    TexturePackSettings, UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer,
-    VoxelModelInstance, VoxelTextureMode,
+    AmbientOcclusionSettings, TexturePackSettings, UnitOffset, VoxLoaderSettings,
+    VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance, VoxelTextureMode,
 };
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;

@@ -1,6 +1,7 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
+    color::LinearRgba,
     core_pipeline::tonemapping::Tonemapping,
     input::keyboard::KeyboardInput,
     pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
@@ -72,7 +73,6 @@ fn on_spawn_voxel_instance(
     trigger: On<Add<Name>>,
     model_query: Query<&Name>,
     mut commands: Commands,
-    assets: Res<AssetServer>,
 ) {
     let mut entity_commands = commands.entity(trigger.entity);
     let name = model_query.get(trigger.entity).unwrap().as_str();
@@ -80,8 +80,8 @@ fn on_spawn_voxel_instance(
         "tank/black-light" => {
             entity_commands.insert(EmissiveToggle {
                 is_on: true,
-                on_material: assets.load("study.vox#tank/black-light@material"),
-                off_material: assets.load("study.vox#tank/black-light@material-no-emission"),
+                emissive_texture: None,
+                emissive: LinearRgba::BLACK,
             });
         }
         "tank/goldfish" | "tank/tetra" => {
@@ -94,20 +94,20 @@ fn on_spawn_voxel_instance(
 }
 
 fn toggle_black_light(
-    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut EmissiveToggle)>,
+    mut query: Query<(&MeshMaterial3d<StandardMaterial>, &mut EmissiveToggle)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if keys.get_just_pressed().next().is_none() {
         return;
     };
-    let Ok((entity, mut emissive_toggle)) = query.single_mut() else {
+    let Ok((material_handle, mut emissive_toggle)) = query.single_mut() else {
         return;
     };
-    emissive_toggle.toggle();
-    commands
-        .entity(entity)
-        .insert(MeshMaterial3d(emissive_toggle.material().clone()));
+    let Some(mut material) = materials.get_mut(material_handle) else {
+        return;
+    };
+    emissive_toggle.toggle(&mut material);
 }
 
 fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
@@ -135,20 +135,21 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
 #[derive(Component)]
 struct EmissiveToggle {
     is_on: bool,
-    on_material: Handle<StandardMaterial>,
-    off_material: Handle<StandardMaterial>,
+    emissive_texture: Option<Handle<Image>>,
+    emissive: LinearRgba,
 }
 
 impl EmissiveToggle {
-    fn toggle(&mut self) {
-        self.is_on = !self.is_on;
-    }
-
-    fn material(&self) -> &Handle<StandardMaterial> {
-        match self.is_on {
-            true => &self.on_material,
-            false => &self.off_material,
+    fn toggle(&mut self, material: &mut StandardMaterial) {
+        if self.is_on {
+            self.emissive_texture = material.emissive_texture.take();
+            self.emissive = material.emissive;
+            material.emissive = LinearRgba::BLACK;
+        } else {
+            material.emissive_texture = self.emissive_texture.clone();
+            material.emissive = self.emissive;
         }
+        self.is_on = !self.is_on;
     }
 }
 

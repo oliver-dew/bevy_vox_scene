@@ -151,6 +151,7 @@ pub fn modify_voxel_model(
                     old_material.base_color_texture.clone(),
                     old_material.emissive_texture.clone(),
                     old_material.metallic_roughness_texture.clone(),
+                    old_material.occlusion_texture.clone(),
                 ];
                 #[cfg(feature = "pbr_transmission_textures")]
                 old_images.push(old_material.specular_transmission_texture.clone());

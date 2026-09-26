@@ -93,6 +93,7 @@ cargo run --example <example name>
 - When spawning individual named meshes as subassets (`assets.load("study.vox#desk")`), you'll need to ensure that the name you have given it in Magica Voxel is unique within the file. Avoid names that begin with the word `material` or `model` as these are reserved for the various subassets that make up the scene.
 - In MagicaVoxel's raytraced renders, emissive materials contribute to the lighting of a scene. Emissive materials do not currently do this in Bevy, they just glow. If in future Bevy implements a global illumination system, then emissive materials would contribute to the lighting.
 - Material properties (color, roughness, metalness, emission, transparency) are represented by per-model texture atlases indexed by mesh UVs. `VoxelTextureMode::Packed(TexturePackSettings::default())` (the default) packs merged face islands at one texel per voxel to reduce geometry. `VoxelTextureMode::Palette` retains 16x16 palette textures and color-based face merging when lower texture memory is preferable. Neither mode supports "Minecraft" style textures tiled over each voxel; for that effect, consider using [the `bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) instead.
+- Packed atlases can optionally bake distance-weighted voxel ambient occlusion by setting `VoxLoaderSettings::ambient_occlusion` to `Some(AmbientOcclusionSettings { depth, intensity })`. Depths above `8` are clamped, depth `0` disables AO, and palette texture mode does not support spatial AO.
 
 ### Transparent materials
 

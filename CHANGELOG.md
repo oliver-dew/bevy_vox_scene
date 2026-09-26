@@ -1,12 +1,18 @@
 # Changelog
 
+## 0.23
+
+- Update to Bevy 0.20
+- Generate texture atlases and `StandardMaterial`s per model instead of storing shared material assets in `VoxelContext`.
+- Add `VoxelTextureMode::Packed(TexturePackSettings)`, which merges coplanar faces across palette indices and bakes their PBR properties into configurable packed face islands.
+- Add `VoxelTextureMode::Palette` as a lower-texture-memory compatibility mode using per-model 16x16 palette atlases.
+- Add optional distance-weighted voxel ambient occlusion for packed atlases through `AmbientOcclusionSettings`.
+- Stop generating duplicate `@material-no-emission` sub-assets; emissive properties can be toggled directly on each model's material.
+
 ## 0.22
 
 - Update to Bevy 0.19
 - To create a minimal update path, `bevy_vox_scene` 0.22 continues to load `WorldAsset`, the new name for the older `Scene` format. A future version will change the loaded format to bsn.
-- Generate texture atlases and `StandardMaterial`s per model instead of storing shared material assets in `VoxelContext`.
-- Add `VoxelTextureMode::Packed(TexturePackSettings)`, which merges coplanar faces across palette indices and bakes their PBR properties into configurable packed face islands.
-- Add `VoxelTextureMode::Palette` as a lower-texture-memory compatibility mode using per-model 16x16 palette atlases.
 
 ## 0.21
 

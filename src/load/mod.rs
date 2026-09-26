@@ -61,6 +61,27 @@ pub struct VoxLoaderSettings {
     /// palette atlases use less texture memory. Both modes create per-model materials.
     #[serde(default)]
     pub texture_mode: VoxelTextureMode,
+    /// Optional voxel-residency ambient occlusion baked into packed texture atlases.
+    #[serde(default)]
+    pub ambient_occlusion: Option<AmbientOcclusionSettings>,
+}
+
+/// Controls voxel-residency ambient occlusion baked into packed texture atlases.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub struct AmbientOcclusionSettings {
+    /// Height and radius of the sampling cone. Zero disables AO; values above 8 are clamped.
+    pub depth: usize,
+    /// Multiplier applied to normalized occlusion. Negative and non-finite values act as zero.
+    pub intensity: f32,
+}
+
+impl Default for AmbientOcclusionSettings {
+    fn default() -> Self {
+        Self {
+            depth: 2,
+            intensity: 1.0,
+        }
+    }
 }
 
 /// Selects the per-model texture layout used by voxel meshes.
@@ -113,6 +134,7 @@ impl Default for VoxLoaderSettings {
             diffuse_roughness: 0.8,
             supports_remeshing: false,
             texture_mode: VoxelTextureMode::default(),
+            ambient_occlusion: None,
         }
     }
 }
@@ -245,11 +267,6 @@ impl VoxSceneLoader {
                         material.specular_transmission = 0.0;
                     }
                     load_context.add_labeled_asset(format!("{}@mesh", name), atlas.mesh);
-                    let mut non_emissive = material.clone();
-                    non_emissive.emissive_texture = None;
-                    non_emissive.emissive = bevy::color::LinearRgba::BLACK;
-                    load_context
-                        .add_labeled_asset(format!("{}@material-no-emission", name), non_emissive);
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
                 if has_cloud {

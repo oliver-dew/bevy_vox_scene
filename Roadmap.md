@@ -18,11 +18,68 @@ Each mesh has a unique set of textures. Each face of the mesh corresponds to a u
 Bakes ambient occlusion based on voxel residency
 
 - Ambient occlusion should be configurable with an `Option<AmbientOcclusionSettings>` member on VoxLoaderSettings
-- it should contain two values, `depth: usize, intensity: f32`
+- it should contain two values, `depth: usize, intensity: f32`. Valid depths are 1..=8 (depth of 0 produces no effect, over 8 will likely degrade performance).
 
-For each exposed face, calculate the voxel residency within an inverted cone (with the tip sliced off) positioned just above the face, pointing up according to the face normal. eg depth 1 will only check voxel residency a max of 1 diagonal step away
+For each exposed face, calculate the voxel residency within an inverted cone (with the tip sliced off) positioned just above the face, pointing up according to the face normal. eg depth 1 will only check voxel residency a max of 1 diagonal step away. Depth of 8 will create a cone 8 voxels high, with a radius of 8.
+
+We could use the sdf module (if we added a cone primitive), to generate this shape.
 
 normalize the residency, multiply by intensity, write to an AO texture, which, unlike the others, will be sampled with linear interpolation 
+
+#### Ambient Occlusion implementation plan
+
+##### API and behavior
+
+- [x] Add a public, serializable `AmbientOcclusionSettings { depth: usize, intensity: f32 }` with documented defaults and export it from the crate root.
+- [x] Add `ambient_occlusion: Option<AmbientOcclusionSettings>` to `VoxLoaderSettings`, defaulting to `None` so existing scenes retain their current appearance and build cost.
+- [x] Treat depth `0` as disabled, clamp depth to a maximum of `8`, and treat negative or non-finite intensity as zero.
+- [x] Add explicit tests for zero depth, oversized depth, negative intensity, and non-finite intensity.
+- [x] Define AO output as visibility: `1.0` is fully exposed and `0.0` is fully occluded. Compute it as `1.0 - clamp(normalized_residency * intensity, 0.0, 1.0)`.
+- [x] Restrict baked AO to `VoxelTextureMode::Packed`, because the palette mode reuses one UV texel for every face of a color and therefore cannot represent position-dependent AO. Palette-plus-AO configurations disable AO.
+- [x] Enforce an effective packed-island padding of at least one texel when AO is enabled, even when `TexturePackSettings::padding == 0`.
+
+##### Sampling kernel
+
+- [x] Use a circular truncated cone in integer voxel coordinates. Layer `1` is immediately above the face, each layer's radius equals its distance along the normal, and samples on the circular boundary are included.
+- [x] Precompute one oriented integer offset stencil per face for the configured depth, without depending on the feature-gated SDF module.
+- [x] Weight each sample by inverse Euclidean distance so nearby occluders contribute more strongly. Keep angular weighting as a possible later refinement if the result is too harsh or produces visible bands.
+- [x] Normalize residency by the sum of all possible distance weights rather than the raw sample count, so increasing depth does not automatically darken the result. Treat positions outside the model as empty so AO does not darken model boundaries.
+- [x] Treat opaque and transmissive voxels as occluders; exclude empty and cloud/media cells through their existing visibility classification.
+- [ ] Add dedicated occupancy tests for opaque, transmissive, cloud/media, and out-of-bounds samples.
+- [x] Rotate the canonical stencil into the local normal, U, and V axes of each of the six face orientations.
+- [x] Build each face-orientation stencil once per mesh so baking performs voxel lookups rather than rebuilding cone geometry for every texel.
+
+##### Atlas baking
+
+- [x] Extend `MeshAtlas` with optional AO texel data, keeping geometric AO separate from the palette-index data consumed by `VoxelPalette`.
+- [x] Pack AO separately as `(width + 1) × (height + 1)` islands and calculate it on the voxel-face corner lattice using the oriented face basis.
+- [x] Write AO as linear `R8Unorm`, where `255` is fully exposed and `0` is fully occluded.
+- [ ] Verify that linear-filtered `R8Unorm` works on native, WebGPU, and WebGL2 targets.
+- [x] Extend each island's AO edge values into its padding so bilinear samples cannot blend with unrelated islands or unused atlas space.
+- [x] Give the AO image a linear minification/magnification sampler while retaining nearest-neighbour sampling for voxel-authored PBR maps.
+- [x] Omit the AO image and material binding when AO is disabled.
+- [ ] If every baked AO value is fully exposed, consider omitting the texture as a later optimization.
+
+##### Material and asset integration
+
+- [x] Register each AO image as a model-qualified labeled sub-asset, assign it to `StandardMaterial::occlusion_texture`, and select the independently packed UV1 coordinates through `occlusion_channel`.
+- [x] Include the AO image handle when cleaning up and replacing material images during runtime voxel remeshing.
+- [x] Ensure generated scenes, loaded `.vox` scenes, and every animation frame receive their own AO texture.
+- [x] Keep cloud-density texture generation and palette material properties independent from AO baking.
+
+##### Correctness and performance
+
+- [ ] Add unit tests for isolated faces, fully open space, a single nearby occluder, opposing walls, model boundaries, and all six face orientations.
+- [x] Add unit coverage showing concave geometry produces occlusion and palette mode omits spatial AO.
+- [x] Add material-level tests for the AO image format, pixel bytes, material binding, and linear sampler configuration.
+- [ ] Add pixel-level tests for AO normalization, intensity scaling, and padding replication.
+- [x] Add a unit test confirming nearby stencil samples carry more weight than distant samples.
+- [ ] Add a symmetry test: rotating the same voxel arrangement and face normal should produce the same AO value.
+- [ ] Add runtime-remeshing coverage showing that adding or removing a nearby voxel updates affected AO texels and retires the previous image asset.
+- [ ] Add a visual example that can toggle baked AO on and off, and compare it with Bevy SSAO to catch banding or over-darkening.
+- [ ] Benchmark depths `1`, `2`, `4`, and `8` on representative models. Record sample count, bake time, atlas memory, and runtime-remeshing cost.
+- [ ] If depth `8` is too expensive, investigate a summed-volume occupancy structure or separable approximation before parallelizing the baker.
+- [ ] Test native, WebGPU, WebGL2, and WebAssembly builds with AO enabled.
 
 ### Changes needed
 
@@ -75,7 +132,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 
 - [x] Refactor palette material creation into one per-model material pipeline that can bake either a packed face atlas or a 16x16 palette atlas.
 - [x] Update `.vox` loading to register mesh-local images and a mesh-local `StandardMaterial` as labeled sub-assets.
-- [x] Preserve the current opaque/transmissive material behavior, average IOR, thickness, and non-emissive material variants.
+- [x] Preserve the current opaque/transmissive material behavior, average IOR, and thickness.
 - [x] Update generated voxel scenes so every model receives its own material; keep only palette data and other genuinely shared state in `VoxelContext`.
 - [x] Update runtime remeshing so voxel edits rebuild the atlas, image assets, material constants, and UVs together without leaking stale assets.
 - [x] Verify animated models use the correct atlas and material for every frame.

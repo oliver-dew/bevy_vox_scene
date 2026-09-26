@@ -3,12 +3,13 @@ use bevy::{
     color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
     image::{Image, ImageSampler},
     math::FloatExt,
+    mesh::UvChannel,
     pbr::StandardMaterial,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 use dot_vox::DotVoxData;
 
-use super::mesh::MeshAtlas;
+use super::mesh::{AmbientOcclusionAtlas, MeshAtlas};
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
 #[derive(Clone, Debug)]
@@ -226,6 +227,7 @@ impl VoxelPalette {
             atlas.height,
             &atlas.palette_indices,
             &atlas.used_palette_indices,
+            atlas.ambient_occlusion.as_ref(),
             get_handle,
         )
     }
@@ -236,6 +238,7 @@ impl VoxelPalette {
         height: u32,
         palette_indices: &[u8],
         used_palette_indices: &[u8],
+        ambient_occlusion: Option<&AmbientOcclusionAtlas>,
         mut get_handle: impl FnMut(&str, Image) -> Handle<Image>,
     ) -> StandardMaterial {
         let image_size = Extent3d {
@@ -385,6 +388,23 @@ impl VoxelPalette {
             None
         };
 
+        let occlusion_texture = ambient_occlusion.map(|atlas| {
+            get_handle(
+                "material_occlusion",
+                linear_image(Image::new(
+                    Extent3d {
+                        width: atlas.width,
+                        height: atlas.height,
+                        depth_or_array_layers: 1,
+                    },
+                    TextureDimension::D2,
+                    atlas.data.clone(),
+                    TextureFormat::R8Unorm,
+                    RenderAssetUsages::RENDER_WORLD,
+                )),
+            )
+        });
+
         #[cfg(feature = "pbr_transmission_textures")]
         let specular_transmission_texture: Option<Handle<Image>> = if has_translucency {
             #[cfg(feature = "webgpu")]
@@ -442,6 +462,12 @@ impl VoxelPalette {
                 first.metalness
             },
             metallic_roughness_texture,
+            occlusion_channel: if ambient_occlusion.is_some() {
+                UvChannel::Uv1
+            } else {
+                UvChannel::Uv0
+            },
+            occlusion_texture,
             specular_transmission: if has_translucency {
                 1.0
             } else {
@@ -456,6 +482,11 @@ impl VoxelPalette {
 
 fn nearest_image(mut image: Image) -> Image {
     image.sampler = ImageSampler::nearest();
+    image
+}
+
+fn linear_image(mut image: Image) -> Image {
+    image.sampler = ImageSampler::linear();
     image
 }
 
@@ -476,5 +507,61 @@ impl Lerpable for LinearRgba {
         let rhs = rhs.to_f32_array();
         let mixed: [f32; 4] = std::array::from_fn(|i| lhs[i].lerp(rhs[i], amount));
         LinearRgba::from_f32_array(mixed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VoxelPalette, nearest_image};
+    use crate::model::mesh::{AmbientOcclusionAtlas, MeshAtlas};
+    use bevy::{
+        asset::{Assets, RenderAssetUsages},
+        color::palettes::css::WHITE,
+        image::{Image, ImageSampler},
+        mesh::{Mesh, UvChannel},
+        render::render_resource::{PrimitiveTopology, TextureFormat},
+    };
+
+    #[test]
+    fn ambient_occlusion_uses_a_linear_r8_texture() {
+        let palette = VoxelPalette::from_colors(vec![WHITE.into()], true);
+        let atlas = MeshAtlas {
+            mesh: Mesh::new(
+                PrimitiveTopology::TriangleList,
+                RenderAssetUsages::RENDER_WORLD,
+            ),
+            width: 2,
+            height: 1,
+            palette_indices: vec![0, 0],
+            used_palette_indices: vec![0],
+            ambient_occlusion: Some(AmbientOcclusionAtlas {
+                width: 1,
+                height: 2,
+                data: vec![u8::MAX, 128],
+            }),
+        };
+        let mut images = Assets::<Image>::default();
+        let material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
+        let image = images
+            .get(
+                material
+                    .occlusion_texture
+                    .as_ref()
+                    .expect("occlusion texture"),
+            )
+            .expect("occlusion image");
+
+        assert_eq!(image.texture_descriptor.format, TextureFormat::R8Unorm);
+        assert_eq!(image.texture_descriptor.size.width, 1);
+        assert_eq!(image.texture_descriptor.size.height, 2);
+        assert_eq!(image.sampler, ImageSampler::linear());
+        assert_eq!(image.data.as_deref(), Some([u8::MAX, 128].as_slice()));
+        assert_eq!(material.occlusion_channel, UvChannel::Uv1);
+
+        // Keep nearest sampling behavior covered for the other generated maps.
+        assert_eq!(
+            nearest_image(Image::default()).sampler,
+            ImageSampler::nearest()
+        );
     }
 }
