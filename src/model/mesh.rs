@@ -17,7 +17,7 @@ use rectangle_pack::{
 };
 
 use super::{VoxelData, queryable::VoxelQueryable, voxel::VisibleVoxel};
-use crate::VoxelTextureMode;
+use crate::{TextureMipPolicy, VoxelTextureMode};
 
 pub(crate) struct MeshAtlas {
     pub(crate) mesh: Mesh,
@@ -26,6 +26,7 @@ pub(crate) struct MeshAtlas {
     pub(crate) palette_indices: Vec<u8>,
     pub(crate) used_palette_indices: Vec<u8>,
     pub(crate) ambient_occlusion: Option<AmbientOcclusionAtlas>,
+    pub(crate) mip_policy: TextureMipPolicy,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -83,6 +84,11 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas
     });
     let pack_settings = match data.settings.texture_mode {
         VoxelTextureMode::Packed(mut settings) => {
+            if settings.mip_policy.max_lod() > 0 {
+                let mip_alignment = settings.mip_policy.alignment();
+                settings.padding = settings.padding.max(mip_alignment);
+                settings.alignment = common_alignment(settings.alignment, mip_alignment);
+            }
             if requested_ambient_occlusion.is_some() {
                 settings.padding = settings.padding.max(1);
             }
@@ -104,6 +110,7 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas
             settings.padding,
             settings.alignment,
             settings.max_dimension,
+            settings.mip_policy.alignment(),
         )
         .expect("voxel mesh atlas exceeds the maximum texture size"),
         None => (16, 16, vec![PackedRect { x: 0, y: 0 }; islands.len()]),
@@ -115,6 +122,7 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas
             settings.padding,
             settings.alignment,
             settings.max_dimension,
+            settings.mip_policy.alignment(),
             |island| (island.quad.width + 1, island.quad.height + 1),
         )
         .expect("voxel ambient occlusion atlas exceeds the maximum texture size")
@@ -253,6 +261,8 @@ pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> MeshAtlas
             .filter_map(|(index, used)| used.then_some(index as u8))
             .collect(),
         ambient_occlusion,
+        mip_policy: pack_settings
+            .map_or(TextureMipPolicy::Disabled, |settings| settings.mip_policy),
     }
 }
 
@@ -425,10 +435,16 @@ fn pack_islands(
     padding: u32,
     alignment: u32,
     max_dimension: u32,
+    rectangle_alignment: u32,
 ) -> Option<(u32, u32, Vec<PackedRect>)> {
-    pack_islands_with_size(islands, padding, alignment, max_dimension, |island| {
-        (island.quad.width, island.quad.height)
-    })
+    pack_islands_with_size(
+        islands,
+        padding,
+        alignment,
+        max_dimension,
+        rectangle_alignment,
+        |island| (island.quad.width, island.quad.height),
+    )
 }
 
 fn pack_islands_with_size(
@@ -436,9 +452,11 @@ fn pack_islands_with_size(
     padding: u32,
     alignment: u32,
     max_dimension: u32,
+    rectangle_alignment: u32,
     size: impl Fn(&Island) -> (u32, u32),
 ) -> Option<(u32, u32, Vec<PackedRect>)> {
     let alignment = alignment.max(1);
+    let rectangle_alignment = rectangle_alignment.max(1);
     let mut rectangles: GroupedRectsToPlace<usize, ()> = GroupedRectsToPlace::new();
     let mut total_area = 0_u64;
     let mut minimum_width = 1;
@@ -446,8 +464,8 @@ fn pack_islands_with_size(
     for (id, island) in islands.iter().enumerate() {
         let padded = padding.checked_mul(2)?;
         let (content_width, content_height) = size(island);
-        let width = content_width.checked_add(padded)?;
-        let height = content_height.checked_add(padded)?;
+        let width = align(content_width.checked_add(padded)?, rectangle_alignment);
+        let height = align(content_height.checked_add(padded)?, rectangle_alignment);
         total_area += u64::from(width) * u64::from(height);
         minimum_width = minimum_width.max(width);
         minimum_height = minimum_height.max(height);
@@ -525,12 +543,28 @@ fn align(value: u32, alignment: u32) -> u32 {
     value.div_ceil(alignment).saturating_mul(alignment)
 }
 
+fn common_alignment(left: u32, right: u32) -> u32 {
+    let left = left.max(1);
+    let right = right.max(1);
+    let mut a = left;
+    let mut b = right;
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    left.saturating_div(a).saturating_mul(right)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Island, ambient_occlusion_stencil, mesh_model, pack_islands};
-    use crate::{AmbientOcclusionSettings, VoxLoaderSettings, VoxelTextureMode, model::RawVoxel};
+    use super::{
+        Island, ambient_occlusion_at, ambient_occlusion_stencil, mesh_model, pack_islands,
+    };
+    use crate::{
+        AmbientOcclusionSettings, VoxLoaderSettings, VoxelTextureMode,
+        model::{RawVoxel, VoxelData, voxel::VisibleVoxel},
+    };
     use bevy::{math::UVec3, mesh::Mesh};
-    use block_mesh::{RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad};
+    use block_mesh::{RIGHT_HANDED_Y_UP_CONFIG, UnorientedQuad, VoxelVisibility};
     use ndshape::Shape;
 
     #[test]
@@ -554,12 +588,51 @@ mod tests {
             },
         ];
         let padding = 1;
-        let first = pack_islands(&islands, padding, 4, 8192).expect("islands fit");
-        let second = pack_islands(&islands, padding, 4, 8192).expect("islands fit");
+        let first = pack_islands(&islands, padding, 4, 8192, 1).expect("islands fit");
+        let second = pack_islands(&islands, padding, 4, 8192, 1).expect("islands fit");
         assert_eq!((first.0, first.1), (second.0, second.1));
         assert_eq!(first.2, second.2);
         assert!(first.0 >= 10 + 2 * padding);
         assert!(first.1 >= 2 + 2 * padding);
+    }
+
+    #[test]
+    fn mip_safe_packing_aligns_atlas_and_island_origins() {
+        let islands = [
+            Island {
+                quad: UnorientedQuad {
+                    minimum: [0; 3],
+                    width: 3,
+                    height: 5,
+                },
+                face_index: 0,
+            },
+            Island {
+                quad: UnorientedQuad {
+                    minimum: [0; 3],
+                    width: 7,
+                    height: 2,
+                },
+                face_index: 0,
+            },
+        ];
+        let mip_alignment = 8;
+        let (width, height, packed) =
+            pack_islands(&islands, mip_alignment, 4, 8192, mip_alignment).expect("islands fit");
+
+        assert_eq!(width % mip_alignment, 0);
+        assert_eq!(height % mip_alignment, 0);
+        assert!(
+            packed
+                .iter()
+                .all(|rect| rect.x % mip_alignment == 0 && rect.y % mip_alignment == 0)
+        );
+    }
+
+    #[test]
+    fn mip_alignment_preserves_custom_atlas_alignment() {
+        assert_eq!(super::common_alignment(6, 4), 12);
+        assert_eq!(super::common_alignment(4, 8), 8);
     }
 
     #[test]
@@ -603,6 +676,90 @@ mod tests {
                     .all(|sample| (sample.weight - expected).abs() < f32::EPSILON)
             );
         }
+    }
+
+    #[test]
+    fn ambient_occlusion_treats_empty_and_out_of_bounds_samples_as_exposed() {
+        let (data, visible) = empty_ao_volume();
+
+        for face in &RIGHT_HANDED_Y_UP_CONFIG.faces {
+            let stencil = ambient_occlusion_stencil(face, 2);
+            assert_eq!(
+                ambient_occlusion_at([4; 3], &stencil, 1.0, &visible, &data),
+                u8::MAX
+            );
+
+            let normal = face.signed_normal().to_array();
+            let boundary = std::array::from_fn(|axis| {
+                if normal[axis] > 0 {
+                    data.shape.as_array()[axis] as i32
+                } else if normal[axis] < 0 {
+                    0
+                } else {
+                    4
+                }
+            });
+            assert_eq!(
+                ambient_occlusion_at(boundary, &stencil, 1.0, &visible, &data),
+                u8::MAX
+            );
+        }
+    }
+
+    #[test]
+    fn ambient_occlusion_classifies_opaque_transmissive_and_cloud_voxels() {
+        let opaque = classified_sample_ao(None, None);
+        let transmissive = classified_sample_ao(Some(1.5), None);
+        let cloud = classified_sample_ao(None, Some(0.5));
+
+        assert!(opaque < u8::MAX);
+        assert_eq!(transmissive, opaque);
+        assert_eq!(cloud, u8::MAX);
+    }
+
+    #[test]
+    fn ambient_occlusion_nearby_samples_contribute_more_than_distant_samples() {
+        let (data, visible) = empty_ao_volume();
+        let stencil = ambient_occlusion_stencil(&RIGHT_HANDED_Y_UP_CONFIG.faces[0], 2);
+        let near = stencil
+            .iter()
+            .max_by(|left, right| left.weight.total_cmp(&right.weight))
+            .expect("near sample");
+        let far = stencil
+            .iter()
+            .min_by(|left, right| left.weight.total_cmp(&right.weight))
+            .expect("far sample");
+
+        let near_ao = ao_with_occupied_offsets(&data, &visible, &stencil, &[near.offset], 1.0);
+        let far_ao = ao_with_occupied_offsets(&data, &visible, &stencil, &[far.offset], 1.0);
+        assert!(near_ao < far_ao);
+    }
+
+    #[test]
+    fn ambient_occlusion_intensity_scales_and_clamps_residency() {
+        let (data, visible) = empty_ao_volume();
+        let stencil = ambient_occlusion_stencil(&RIGHT_HANDED_Y_UP_CONFIG.faces[0], 1);
+        let offset = stencil[0].offset;
+
+        let low = ao_with_occupied_offsets(&data, &visible, &stencil, &[offset], 0.5);
+        let normal = ao_with_occupied_offsets(&data, &visible, &stencil, &[offset], 1.0);
+        let high = ao_with_occupied_offsets(&data, &visible, &stencil, &[offset], 8.0);
+        assert!(low > normal);
+        assert_eq!(high, 0);
+    }
+
+    #[test]
+    fn ambient_occlusion_is_rotation_symmetric_for_all_face_orientations() {
+        let (data, visible) = empty_ao_volume();
+        let values: Vec<u8> = RIGHT_HANDED_Y_UP_CONFIG
+            .faces
+            .iter()
+            .map(|face| {
+                let stencil = ambient_occlusion_stencil(face, 1);
+                ao_with_occupied_offsets(&data, &visible, &stencil, &[stencil[0].offset], 1.0)
+            })
+            .collect();
+        assert!(values.iter().all(|value| *value == values[0]));
     }
 
     #[test]
@@ -716,5 +873,48 @@ mod tests {
         let empty_properties = vec![None; 256];
         let (visible, _, _) = data.visible_voxels(&empty_properties, &empty_properties);
         mesh_model(&visible, &data)
+    }
+
+    fn empty_ao_volume() -> (VoxelData, Vec<VisibleVoxel>) {
+        let data = VoxelData::new(
+            UVec3::splat(9),
+            VoxLoaderSettings {
+                mesh_outer_faces: false,
+                ..Default::default()
+            },
+        );
+        let empty_properties = vec![None; 256];
+        let (visible, _, _) = data.visible_voxels(&empty_properties, &empty_properties);
+        (data, visible)
+    }
+
+    fn classified_sample_ao(ior: Option<f32>, density: Option<f32>) -> u8 {
+        let (mut data, _) = empty_ao_volume();
+        let stencil = ambient_occlusion_stencil(&RIGHT_HANDED_Y_UP_CONFIG.faces[0], 1);
+        let position = std::array::from_fn(|axis| (4 + stencil[0].offset[axis]) as u32);
+        data.voxels[data.shape.linearize(position) as usize] = RawVoxel(0);
+
+        let mut ior_for_voxel = vec![None; 256];
+        ior_for_voxel[0] = ior;
+        let mut density_for_voxel = vec![None; 256];
+        density_for_voxel[0] = density;
+        let (visible, _, _) = data.visible_voxels(&ior_for_voxel, &density_for_voxel);
+        ambient_occlusion_at([4; 3], &stencil, 1.0, &visible, &data)
+    }
+
+    fn ao_with_occupied_offsets(
+        data: &VoxelData,
+        empty_visible: &[VisibleVoxel],
+        stencil: &[super::AmbientOcclusionSample],
+        offsets: &[[i32; 3]],
+        intensity: f32,
+    ) -> u8 {
+        let mut visible = empty_visible.to_vec();
+        for offset in offsets {
+            let position = std::array::from_fn(|axis| (4 + offset[axis]) as u32);
+            let index = data.shape.linearize(position) as usize;
+            visible[index].visibility = VoxelVisibility::Opaque;
+        }
+        ambient_occlusion_at([4; 3], stencil, intensity, &visible, data)
     }
 }

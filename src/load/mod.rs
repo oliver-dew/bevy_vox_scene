@@ -111,6 +111,35 @@ pub struct TexturePackSettings {
     /// Maximum width or height of the atlas.
     #[serde(default = "default_max_atlas_dimension")]
     pub max_dimension: u32,
+    /// Optional mipmap generation. Limited mip chains increase island padding and alignment.
+    #[serde(default)]
+    pub mip_policy: TextureMipPolicy,
+}
+
+/// Controls mipmap generation for packed texture atlases.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextureMipPolicy {
+    /// Do not generate mipmaps. This preserves the existing atlas layout and memory use.
+    #[default]
+    Disabled,
+    /// Generate mip levels through `max_lod`. Values above 4 are clamped to 4.
+    Limited {
+        /// Highest generated mip level; level 0 is the original atlas.
+        max_lod: u8,
+    },
+}
+
+impl TextureMipPolicy {
+    pub(crate) fn max_lod(self) -> u8 {
+        match self {
+            Self::Disabled => 0,
+            Self::Limited { max_lod } => max_lod.min(4),
+        }
+    }
+
+    pub(crate) fn alignment(self) -> u32 {
+        1 << self.max_lod()
+    }
 }
 
 impl Default for TexturePackSettings {
@@ -119,6 +148,7 @@ impl Default for TexturePackSettings {
             padding: default_atlas_padding(),
             alignment: default_atlas_alignment(),
             max_dimension: default_max_atlas_dimension(),
+            mip_policy: TextureMipPolicy::Disabled,
         }
     }
 }

@@ -65,7 +65,7 @@ pub(crate) mod test_support;
 use load::VoxSceneLoader;
 use load::VoxelAnimationFrame;
 pub use load::{
-    AmbientOcclusionSettings, TexturePackSettings, UnitOffset, VoxLoaderSettings,
+    AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxLoaderSettings,
     VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance, VoxelTextureMode,
 };
 #[cfg(feature = "generate_voxels")]

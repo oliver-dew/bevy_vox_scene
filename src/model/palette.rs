@@ -1,7 +1,7 @@
 use bevy::{
     asset::{Handle, RenderAssetUsages},
     color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
-    image::{Image, ImageSampler},
+    image::{Image, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo},
     math::FloatExt,
     mesh::UvChannel,
     pbr::StandardMaterial,
@@ -10,6 +10,7 @@ use bevy::{
 use dot_vox::DotVoxData;
 
 use super::mesh::{AmbientOcclusionAtlas, MeshAtlas};
+use crate::TextureMipPolicy;
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
 #[derive(Clone, Debug)]
@@ -228,6 +229,7 @@ impl VoxelPalette {
             &atlas.palette_indices,
             &atlas.used_palette_indices,
             atlas.ambient_occlusion.as_ref(),
+            atlas.mip_policy,
             get_handle,
         )
     }
@@ -239,6 +241,7 @@ impl VoxelPalette {
         palette_indices: &[u8],
         used_palette_indices: &[u8],
         ambient_occlusion: Option<&AmbientOcclusionAtlas>,
+        mip_policy: TextureMipPolicy,
         mut get_handle: impl FnMut(&str, Image) -> Handle<Image>,
     ) -> StandardMaterial {
         let image_size = Extent3d {
@@ -301,17 +304,20 @@ impl VoxelPalette {
         let base_color_texture = base_color_varies.then(|| {
             get_handle(
                 "material_color",
-                nearest_image(Image::new(
-                    image_size,
-                    TextureDimension::D2,
-                    color_data,
-                    if self.uses_srgb {
-                        TextureFormat::Rgba8UnormSrgb
-                    } else {
-                        TextureFormat::Rgba8Unorm
-                    },
-                    RenderAssetUsages::RENDER_WORLD,
-                )),
+                nearest_image(
+                    Image::new(
+                        image_size,
+                        TextureDimension::D2,
+                        color_data,
+                        if self.uses_srgb {
+                            TextureFormat::Rgba8UnormSrgb
+                        } else {
+                            TextureFormat::Rgba8Unorm
+                        },
+                        RenderAssetUsages::RENDER_WORLD,
+                    ),
+                    mip_policy,
+                ),
             )
         });
 
@@ -329,13 +335,16 @@ impl VoxelPalette {
                 .collect();
             Some(get_handle(
                 "material_emission",
-                nearest_image(Image::new(
-                    image_size,
-                    TextureDimension::D2,
-                    emission_bytes,
-                    TextureFormat::Rgba32Float,
-                    RenderAssetUsages::RENDER_WORLD,
-                )),
+                nearest_image(
+                    Image::new(
+                        image_size,
+                        TextureDimension::D2,
+                        emission_bytes,
+                        TextureFormat::Rgba32Float,
+                        RenderAssetUsages::RENDER_WORLD,
+                    ),
+                    mip_policy,
+                ),
             ))
         } else {
             None
@@ -375,13 +384,16 @@ impl VoxelPalette {
             };
             let handle = get_handle(
                 "material_metallic_roughness",
-                nearest_image(Image::new(
-                    image_size,
-                    TextureDimension::D2,
-                    raw,
-                    format,
-                    RenderAssetUsages::RENDER_WORLD,
-                )),
+                nearest_image(
+                    Image::new(
+                        image_size,
+                        TextureDimension::D2,
+                        raw,
+                        format,
+                        RenderAssetUsages::RENDER_WORLD,
+                    ),
+                    mip_policy,
+                ),
             );
             Some(handle)
         } else {
@@ -391,17 +403,20 @@ impl VoxelPalette {
         let occlusion_texture = ambient_occlusion.map(|atlas| {
             get_handle(
                 "material_occlusion",
-                linear_image(Image::new(
-                    Extent3d {
-                        width: atlas.width,
-                        height: atlas.height,
-                        depth_or_array_layers: 1,
-                    },
-                    TextureDimension::D2,
-                    atlas.data.clone(),
-                    TextureFormat::R8Unorm,
-                    RenderAssetUsages::RENDER_WORLD,
-                )),
+                linear_image(
+                    Image::new(
+                        Extent3d {
+                            width: atlas.width,
+                            height: atlas.height,
+                            depth_or_array_layers: 1,
+                        },
+                        TextureDimension::D2,
+                        atlas.data.clone(),
+                        TextureFormat::R8Unorm,
+                        RenderAssetUsages::RENDER_WORLD,
+                    ),
+                    mip_policy,
+                ),
             )
         });
 
@@ -425,13 +440,16 @@ impl VoxelPalette {
             };
             let handle = get_handle(
                 "material_specular_transmission",
-                nearest_image(Image::new(
-                    image_size,
-                    TextureDimension::D2,
-                    raw,
-                    format,
-                    RenderAssetUsages::RENDER_WORLD,
-                )),
+                nearest_image(
+                    Image::new(
+                        image_size,
+                        TextureDimension::D2,
+                        raw,
+                        format,
+                        RenderAssetUsages::RENDER_WORLD,
+                    ),
+                    mip_policy,
+                ),
             );
             Some(handle)
         } else {
@@ -480,13 +498,94 @@ impl VoxelPalette {
     }
 }
 
-fn nearest_image(mut image: Image) -> Image {
-    image.sampler = ImageSampler::nearest();
-    image
+fn nearest_image(image: Image, mip_policy: TextureMipPolicy) -> Image {
+    mipmapped_image(image, mip_policy, MipDownsample::Nearest)
 }
 
-fn linear_image(mut image: Image) -> Image {
-    image.sampler = ImageSampler::linear();
+fn linear_image(image: Image, mip_policy: TextureMipPolicy) -> Image {
+    mipmapped_image(image, mip_policy, MipDownsample::AverageR8)
+}
+
+#[derive(Clone, Copy)]
+enum MipDownsample {
+    Nearest,
+    AverageR8,
+}
+
+fn mipmapped_image(
+    mut image: Image,
+    mip_policy: TextureMipPolicy,
+    downsample: MipDownsample,
+) -> Image {
+    let requested_max_lod = u32::from(mip_policy.max_lod());
+    let width = image.texture_descriptor.size.width;
+    let height = image.texture_descriptor.size.height;
+    let available_max_lod = width.max(height).ilog2();
+    let max_lod = requested_max_lod.min(available_max_lod);
+
+    if max_lod == 0 {
+        image.sampler = match downsample {
+            MipDownsample::Nearest => ImageSampler::nearest(),
+            MipDownsample::AverageR8 => ImageSampler::linear(),
+        };
+        return image;
+    }
+
+    let bytes_per_pixel = image
+        .texture_descriptor
+        .format
+        .pixel_size()
+        .expect("generated atlas uses an uncompressed texture format");
+    let mut previous = image.data.take().expect("generated atlas has pixel data");
+    let mut data = previous.clone();
+    let mut previous_width = width;
+    let mut previous_height = height;
+
+    for _ in 0..max_lod {
+        let next_width = (previous_width / 2).max(1);
+        let next_height = (previous_height / 2).max(1);
+        let mut next = vec![0; next_width as usize * next_height as usize * bytes_per_pixel];
+        for y in 0..next_height {
+            for x in 0..next_width {
+                let destination = (y * next_width + x) as usize * bytes_per_pixel;
+                match downsample {
+                    MipDownsample::Nearest => {
+                        let source = ((y * 2) * previous_width + x * 2) as usize * bytes_per_pixel;
+                        next[destination..destination + bytes_per_pixel]
+                            .copy_from_slice(&previous[source..source + bytes_per_pixel]);
+                    }
+                    MipDownsample::AverageR8 => {
+                        debug_assert_eq!(bytes_per_pixel, 1);
+                        let mut sum = 0_u32;
+                        let mut count = 0_u32;
+                        for source_y in y * 2..(y * 2 + 2).min(previous_height) {
+                            for source_x in x * 2..(x * 2 + 2).min(previous_width) {
+                                sum += u32::from(
+                                    previous[(source_y * previous_width + source_x) as usize],
+                                );
+                                count += 1;
+                            }
+                        }
+                        next[destination] = (sum / count) as u8;
+                    }
+                }
+            }
+        }
+        data.extend_from_slice(&next);
+        previous = next;
+        previous_width = next_width;
+        previous_height = next_height;
+    }
+
+    image.data = Some(data);
+    image.texture_descriptor.mip_level_count = max_lod + 1;
+    let mut sampler = match downsample {
+        MipDownsample::Nearest => ImageSamplerDescriptor::nearest(),
+        MipDownsample::AverageR8 => ImageSamplerDescriptor::linear(),
+    };
+    sampler.mipmap_filter = ImageFilterMode::Linear;
+    sampler.lod_max_clamp = max_lod as f32;
+    image.sampler = ImageSampler::Descriptor(sampler);
     image
 }
 
@@ -512,8 +611,11 @@ impl Lerpable for LinearRgba {
 
 #[cfg(test)]
 mod tests {
-    use super::{VoxelPalette, nearest_image};
-    use crate::model::mesh::{AmbientOcclusionAtlas, MeshAtlas};
+    use super::{MipDownsample, VoxelPalette, mipmapped_image, nearest_image};
+    use crate::{
+        TextureMipPolicy,
+        model::mesh::{AmbientOcclusionAtlas, MeshAtlas},
+    };
     use bevy::{
         asset::{Assets, RenderAssetUsages},
         color::palettes::css::WHITE,
@@ -539,6 +641,7 @@ mod tests {
                 height: 2,
                 data: vec![u8::MAX, 128],
             }),
+            mip_policy: TextureMipPolicy::Disabled,
         };
         let mut images = Assets::<Image>::default();
         let material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
@@ -560,8 +663,38 @@ mod tests {
 
         // Keep nearest sampling behavior covered for the other generated maps.
         assert_eq!(
-            nearest_image(Image::default()).sampler,
+            nearest_image(Image::default(), TextureMipPolicy::Disabled).sampler,
             ImageSampler::nearest()
         );
+    }
+
+    #[test]
+    fn limited_mip_policy_generates_levels_and_trilinear_sampling() {
+        let image = Image::new(
+            bevy::render::render_resource::Extent3d {
+                width: 8,
+                height: 8,
+                depth_or_array_layers: 1,
+            },
+            bevy::render::render_resource::TextureDimension::D2,
+            (0..64).collect(),
+            TextureFormat::R8Unorm,
+            RenderAssetUsages::RENDER_WORLD,
+        );
+        let image = mipmapped_image(
+            image,
+            TextureMipPolicy::Limited { max_lod: 2 },
+            MipDownsample::AverageR8,
+        );
+
+        assert_eq!(image.texture_descriptor.mip_level_count, 3);
+        assert_eq!(image.data.as_ref().map(Vec::len), Some(64 + 16 + 4));
+        let ImageSampler::Descriptor(sampler) = image.sampler else {
+            panic!("custom mip sampler");
+        };
+        assert_eq!(sampler.mag_filter, bevy::image::ImageFilterMode::Linear);
+        assert_eq!(sampler.min_filter, bevy::image::ImageFilterMode::Linear);
+        assert_eq!(sampler.mipmap_filter, bevy::image::ImageFilterMode::Linear);
+        assert_eq!(sampler.lod_max_clamp, 2.0);
     }
 }

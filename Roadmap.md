@@ -45,7 +45,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 - [x] Weight each sample by inverse Euclidean distance so nearby occluders contribute more strongly. Keep angular weighting as a possible later refinement if the result is too harsh or produces visible bands.
 - [x] Normalize residency by the sum of all possible distance weights rather than the raw sample count, so increasing depth does not automatically darken the result. Treat positions outside the model as empty so AO does not darken model boundaries.
 - [x] Treat opaque and transmissive voxels as occluders; exclude empty and cloud/media cells through their existing visibility classification.
-- [ ] Add dedicated occupancy tests for opaque, transmissive, cloud/media, and out-of-bounds samples.
+- [x] Add dedicated occupancy tests for opaque, transmissive, cloud/media, and out-of-bounds samples.
 - [x] Rotate the canonical stencil into the local normal, U, and V axes of each of the six face orientations.
 - [x] Build each face-orientation stencil once per mesh so baking performs voxel lookups rather than rebuilding cone geometry for every texel.
 
@@ -125,6 +125,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 - [x] Fill island padding by extending edge texels so linear filtering and mipmaps cannot sample unrelated islands.
 - [x] Use constant `StandardMaterial` properties and omit a texture whenever a property is uniform across the mesh.
 - [x] Set nearest-neighbour sampling for the voxel-derived maps.
+- [x] Add an opt-in limited mip policy, mip-block-aligned island packing, CPU mip generation for every generated map, and linear blending between mip levels.
 - [ ] Verify mipmap behavior at a distance.
 - [ ] Add pixel-level tests for every baked channel, including face orientation and padding.
 
