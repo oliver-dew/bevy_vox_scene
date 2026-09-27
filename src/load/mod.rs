@@ -189,7 +189,7 @@ const fn default_max_atlas_dimension() -> u32 {
 /// An offset applied to the vertex positions of the mesh expressed as a unit of the mesh's size.
 /// For a fully centered mesh, use [`UnitOffset::CENTER`]
 /// For a mesh centred around it's base, use [`UnitOffset::CENTER_BASE`]
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct UnitOffset(pub(crate) Vec3);
 
 impl UnitOffset {

@@ -14,9 +14,19 @@ Add an offline exporter in this repository with GLB as its first output format. 
 
 Structure the implementation as three layers:
 
-1. A shared bake step converts parsed voxel data into an output-neutral representation of geometry, images, materials, nodes, and model references. The current runtime loader and offline exporter should reuse this logic rather than maintain separate mesh and material pipelines.
-2. An optional `export` feature in `bevy_vox_scene` converts the baked representation to GLB. Export-only dependencies must be optional so existing runtime users do not compile them.
-3. A separate CLI package in this repository's Cargo workspace provides file and directory conversion, command-line settings, diagnostics, and exit codes. It depends on `bevy_vox_scene` with `export` enabled. Applications consuming its output do not depend on either crate.
+1. A Bevy-independent `vox_bake` workspace crate parses and bakes voxel data into an owned representation of surface geometry, material images and parameters, optional cloud-density volumes, scene nodes, and animation tracks. This representation describes the complete voxel scene rather than only the subset supported by glTF. It owns the expensive classification, meshing, texture, material, hierarchy, and frame-selection work used by every adapter.
+2. Output adapters consume `vox_bake` results according to their capabilities. `bevy_vox_scene` creates Bevy meshes, images, materials, `FogVolume` entities, and flipbook animation entities. An optional glTF adapter evaluates animation tracks into static snapshots and converts supported surface content to GLB; it rejects cloud volumes through an explicit policy because glTF cannot represent their density fields. The glTF and PNG dependencies remain optional and do not enter the Bevy runtime-only dependency graph.
+3. The `vox-to-gltf` CLI package depends on `vox_bake` and its glTF adapter, plus command-line and filesystem concerns. It must not depend on Bevy or `bevy_vox_scene`. Applications consuming its output do not depend on any of these crates.
+
+The resulting dependency direction should be:
+
+```text
+bevy_vox_scene -> vox_bake <- vox-to-gltf
+       |                         |
+      bevy                    gltf/png/clap
+```
+
+If `vox-to-gltf` is distributed through crates.io, `vox_bake` must also be published there because registry packages cannot depend only on an unpublished workspace path crate. `vox_bake` can remain an implementation-focused package in this repository even though it is independently versioned and published.
 
 The initial command should support an explicit conversion such as:
 
@@ -52,7 +62,7 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 #### Scope and public behavior
 
 - [x] Define the first release as static `.vox` scene/model to `.glb` conversion, with animated content exported as an ordered sequence of static GLB files.
-- [ ] Document which `VoxLoaderSettings` affect export and ensure their defaults match runtime loading.
+- [x] Document which `VoxLoaderSettings` affect export and inherit omitted CLI options from the runtime loader defaults.
 - [x] Define explicit policies for cloud content, hidden layers, and unsupported material properties. The first implementation rejects cloud content and omits hidden nodes.
 - [x] Define animation export as one complete scene snapshot per frame, using one-based `-001`, `-002`, ... filename suffixes.
 - [x] Define how scene animations with tracks of different lengths select a frame after a shorter track ends, matching the current runtime repeat/hold behavior where possible. Shorter tracks hold their last frame.
@@ -62,11 +72,24 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 
 #### Shared bake representation
 
+- [ ] Treat the full baked-scene refactor as a later consolidation step. The working GLB exporter may continue to reuse the existing `VoxelData`, meshing, palette, naming, and transform helpers until another consumer justifies the broader abstraction.
+- [ ] Add a `vox_bake` package to the workspace with no dependency on `bevy` or `bevy_vox_scene`.
+- [ ] Move `.vox` parsing, bake-relevant settings and defaults, voxel classification, meshing, texture packing, AO, material analysis, cloud-density extraction, scene hierarchy, and animation-track evaluation into `vox_bake`.
+- [ ] Define Bevy-independent data using owned arrays, pixel buffers, explicit formats, numeric resource indices, and either plain transform arrays or a small engine-neutral math dependency. Do not expose Bevy `Mesh`, `Image`, `StandardMaterial`, handles, entities, or asset contexts.
 - [ ] Separate `.vox` parsing and baking from `AssetLoader`, `LoadContext`, and Bevy asset handles.
-- [ ] Introduce an owned baked-scene representation containing meshes, material parameters, image pixels, image sampling information, nodes, transforms, hierarchy, names, and shared-resource indices.
+- [ ] Introduce an owned baked-scene representation containing surface meshes, material parameters, 2D image pixels and sampling information, optional 3D cloud-density volumes, nodes, transforms, hierarchy, names, animation tracks, and shared-resource indices.
+- [ ] Represent each model as optional surface and volume content so mixed models retain both parts. Do not reduce the shared representation to glTF's supported feature set.
+- [ ] Store animation as frame-indexed model and transform references independent of playback implementation. The Bevy adapter should build flipbook entities and `VoxelAnimationPlayer`; the GLB adapter should evaluate the same tracks into one static scene snapshot per output frame.
+- [ ] Give each output adapter an explicit unsupported-content policy. The initial GLB adapter fails on cloud volumes; future policies may omit them or export only surface content, but must report the loss.
 - [ ] Preserve the existing coordinate conversion from MagicaVoxel's left-handed Z-up space to Bevy/glTF-compatible right-handed Y-up space in one well-tested place.
-- [ ] Refactor greedy meshing, per-mesh texture packing, AO baking, and material analysis so both runtime loading and export consume the same results.
-- [ ] Keep Bevy-specific asset registration as an adapter from the baked representation into `LoadContext`.
+- [ ] Refactor voxel classification, cloud-density extraction, greedy meshing, per-mesh texture packing, AO baking, material analysis, hierarchy construction, and animation frame selection so both runtime loading and export consume the same results.
+- [ ] Split bake settings from Bevy runtime settings. Keep `supports_remeshing` and other runtime-only choices in `bevy_vox_scene`; source every shared default used by the CLI and runtime loader from `vox_bake`.
+- [ ] Preserve the existing `bevy_vox_scene` settings API where practical through re-exports or conversion into `vox_bake` settings, and document any unavoidable migration.
+- [ ] Keep Bevy-specific mesh, image, material, `FogVolume`, animation-entity, and asset registration work in an adapter from the baked representation into `LoadContext`.
+- [ ] Keep GLB buffer construction, PNG encoding, glTF material mapping, static frame evaluation, and unsupported-feature errors in the export adapter.
+- [ ] Move `vox-to-gltf` from its temporary dependency on `bevy_vox_scene` to `vox_bake`, then verify `cargo tree -p vox-to-gltf` contains no Bevy crates.
+- [ ] Decide whether the glTF adapter lives behind an optional `gltf` feature in `vox_bake` or in a small separate library target owned by `vox-to-gltf`; retain a reusable library API and avoid duplicating bake logic.
+- [ ] Preserve `bevy_vox_scene::export_vox_to_glb` as a compatibility re-export or document its replacement before removing it.
 - [ ] Verify the refactor does not change existing runtime asset labels, scene behavior, or generated voxel APIs.
 
 #### GLB writer
@@ -89,9 +112,9 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 - [x] Support a single input and explicit output path first.
 - [x] Add `--force` protection against accidental overwrite.
 - [x] For animated input, derive every frame path from the requested output path and check the whole output set for collisions before writing any frame.
-- [ ] Expose the stable bake settings needed for reproducible output; support a serialized settings file if command-line flags become unwieldy.
+- [x] Expose the stable bake settings needed for reproducible output. Consider a serialized settings file if future options make command-line flags unwieldy.
 - [ ] Print a concise conversion summary including frame, model, mesh, triangle, texture, and output-size counts plus any lossy-conversion warnings.
-- [ ] Add batch or directory conversion only after single-file behavior and error reporting are stable.
+- [x] Add recursive directory conversion with source-relative output paths and batch-wide overwrite protection.
 
 #### Validation
 
@@ -117,8 +140,9 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 
 ### Dependencies
 
-- [`gltf`](https://crates.io/crates/gltf), optional behind `export`, for typed glTF JSON structures, validation helpers, and the GLB container writer.
+- `vox_bake` should retain the existing engine-neutral parsing and baking dependencies such as `dot_vox`, `block-mesh`, `ndshape`, and `rectangle-pack`, plus only the small math or serialization dependencies required by its public data model. It must not depend on Bevy.
+- [`gltf`](https://crates.io/crates/gltf), optional to the glTF adapter, for typed glTF JSON structures, validation helpers, and the GLB container writer.
 - A PNG encoder for embedding the generated 2D texture atlases. Prefer reusing an existing transitive/image dependency only if it offers a stable direct API; otherwise add the smallest suitable optional dependency explicitly.
 - [`clap`](https://crates.io/crates/clap) in `vox-to-gltf` for generated help, argument validation, and a maintainable interface as more bake settings are exposed.
 
-The shipped game does not need these dependencies when it consumes the exported GLB. Runtime-only `bevy_vox_scene` users also avoid them unless they enable `export`.
+The shipped game does not need the CLI, glTF, or PNG-writing dependencies when it consumes the exported GLB. Runtime-only `bevy_vox_scene` users depend on `vox_bake` for shared processing but do not compile the glTF adapter. The `vox-to-gltf` dependency tree contains `vox_bake` and export dependencies but no Bevy crates.

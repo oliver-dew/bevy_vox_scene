@@ -10,6 +10,7 @@
 - Add optional limited mip chains with mip-safe padding and alignment through `TextureMipPolicy`.
 - Add opt-in packed-atlas utilization and geometry-reduction logging through `TexturePackSettings::log_diagnostics`.
 - Stop generating duplicate `@material-no-emission` sub-assets; emissive properties can be toggled directly on each model's material.
+- Add the optional GLB exporter and the independently installable `vox-to-gltf` command-line tool for single-file and recursive directory conversion.
 
 ## 0.22
 

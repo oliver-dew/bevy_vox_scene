@@ -5,7 +5,7 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.22.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.22.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.23.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.23.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
@@ -14,7 +14,7 @@ A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing
 - __Voxel animations__
 - __Voxel scenes__, allowing efficient instancing of voxel models, organisation of models into layers, controlling visibility of layers and instances. Use Magica Voxel as your level editor!
 
-## Why `bevy-vox-scene`?
+## Why `bevy_vox_scene`?
 
 Whereas other voxel crates focus on massive voxel worlds and efficient spatial partitioning, or on loading a single model with voxel colors but no other material properties, `bevy_vox_scene` can load an entire scene graph from a Magica Voxel world file, or a voxel animation, and it attempts to recreate the material properties from Magica Voxel's render tab. This means you can produce a scene in Bevy that approximates Magica Voxel's raytraced renders, but at Bevy's real-time interactive framerates.
 
@@ -34,7 +34,7 @@ Almost all Magica Voxel material types are supported. Bevy's screen space transm
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.22.0"
+bevy_vox_scene = "0.23.0"
 ```
 
    Then in code:
@@ -72,11 +72,19 @@ cargo run -p vox-to-gltf -- model.vox --output model.glb
 
 Static input produces the requested file. Animated input produces one complete GLB per frame, named `model-001.glb`, `model-002.glb`, and so on. Existing output is protected unless `--force` is passed. Cloud volumes are currently rejected because glTF has no equivalent representation for Bevy's voxel density texture.
 
+An input directory is processed recursively. In this mode, `--output` names the destination directory and source-relative paths are preserved. Without `--output`, generated files are written beside their `.vox` sources.
+
+```sh
+cargo run -p vox-to-gltf -- assets/vox --output assets/generated
+```
+
 Use `--ao-depth 1..8` to bake voxel ambient occlusion and optionally adjust its strength with `--ao-intensity`. For example:
 
 ```sh
 cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-intensity 1.0
 ```
+
+The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `supports_remeshing` is intentionally omitted because exported GLBs do not contain mutable voxel data.
 
 Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. The export dependencies are not compiled for ordinary runtime-loading users.
 
