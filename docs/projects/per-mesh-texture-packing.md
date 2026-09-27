@@ -1,6 +1,4 @@
-# Roadmap
-
-## Per-mesh texture packing
+# Per-mesh texture packing
 
 ### Context
 

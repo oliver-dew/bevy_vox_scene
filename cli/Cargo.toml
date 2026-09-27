@@ -1,0 +1,15 @@
+[package]
+name = "vox-to-gltf"
+description = "Convert MagicaVoxel .vox files to glTF"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "vox-to-gltf"
+path = "src/main.rs"
+
+[dependencies]
+bevy_vox_scene = { path = "..", default-features = false, features = ["export"] }
+clap = { version = "4.5", features = ["derive"] }

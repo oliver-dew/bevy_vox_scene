@@ -53,6 +53,8 @@ use bevy::{
     asset::AssetApp,
 };
 
+#[cfg(feature = "export")]
+mod export;
 mod load;
 mod model;
 mod observers;
@@ -61,6 +63,8 @@ mod systems;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+#[cfg(feature = "export")]
+pub use export::{ExportError, ExportedGlb, export_vox_to_glb};
 #[doc(inline)]
 use load::VoxSceneLoader;
 use load::VoxelAnimationFrame;

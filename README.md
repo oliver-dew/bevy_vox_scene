@@ -62,6 +62,24 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 3. Add the plugin to the app.
 4. Spawn a scene graph using `WorldAssetRoot`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
+### Offline GLB export
+
+Applications with fixed voxel assets can preprocess `.vox` files into GLB and load them through Bevy's normal glTF loader without shipping `bevy_vox_scene`. Run the workspace CLI with:
+
+```sh
+cargo run -p vox-to-gltf -- model.vox --output model.glb
+```
+
+Static input produces the requested file. Animated input produces one complete GLB per frame, named `model-001.glb`, `model-002.glb`, and so on. Existing output is protected unless `--force` is passed. Cloud volumes are currently rejected because glTF has no equivalent representation for Bevy's voxel density texture.
+
+Use `--ao-depth 1..8` to bake voxel ambient occlusion and optionally adjust its strength with `--ao-intensity`. For example:
+
+```sh
+cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-intensity 1.0
+```
+
+Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. The export dependencies are not compiled for ordinary runtime-loading users.
+
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore
 cargo run --example <example name>

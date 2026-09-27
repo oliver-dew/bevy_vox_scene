@@ -18,7 +18,8 @@ use components::LayerInfo;
 pub use components::{
     AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
-use parse_scene::{find_model_names, parse_scene_graph};
+use parse_scene::parse_scene_graph;
+pub(crate) use parse_scene::{find_model_names, transform_from_frame};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 

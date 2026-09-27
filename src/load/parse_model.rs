@@ -7,7 +7,7 @@ use super::VoxLoaderSettings;
 
 impl VoxelData {
     /// Ingest Magica Voxel data and perform coordinate conversion from MV's left-handed Z-up to bevy's right-handed Y-up
-    pub(super) fn from_model(model: &Model, settings: VoxLoaderSettings) -> VoxelData {
+    pub(crate) fn from_model(model: &Model, settings: VoxLoaderSettings) -> VoxelData {
         let mut data = VoxelData::new(
             UVec3::new(model.size.x, model.size.z, model.size.y),
             settings,

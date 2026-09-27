@@ -20,7 +20,7 @@ use super::{
     components::{LayerInfo, VoxelAnimationPlayer},
 };
 
-pub(super) fn find_model_names(
+pub(crate) fn find_model_names(
     name_for_model: &mut Vec<Option<String>>,
     graph: &Vec<SceneNode>,
     scene_node: &SceneNode,
@@ -478,7 +478,7 @@ fn parse_bool(value: Option<String>) -> bool {
     }
 }
 
-fn transform_from_frame(frame: &Frame, scene_scale: f32) -> Mat4 {
+pub(crate) fn transform_from_frame(frame: &Frame, scene_scale: f32) -> Mat4 {
     let Some(position) = frame.position() else {
         return Mat4::IDENTITY;
     };

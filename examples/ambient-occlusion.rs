@@ -1,9 +1,13 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
-    input::{common_conditions::input_just_pressed}, pbr::ScreenSpaceAmbientOcclusion, post_process::bloom::Bloom, prelude::*,
+    input::common_conditions::input_just_pressed, pbr::ScreenSpaceAmbientOcclusion,
+    post_process::bloom::Bloom, prelude::*,
 };
-use bevy_vox_scene::{AmbientOcclusionSettings, TexturePackSettings, VoxLoaderSettings, VoxScenePlugin, VoxelTextureMode};
+use bevy_vox_scene::{
+    AmbientOcclusionSettings, TexturePackSettings, VoxLoaderSettings, VoxScenePlugin,
+    VoxelTextureMode,
+};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press S to toggle Screen Space Ambient Occlusion
@@ -15,21 +19,26 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
-                    texture_mode: VoxelTextureMode::Packed(TexturePackSettings { log_diagnostics: true,
-                    ..default() }),
+                    texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
+                        log_diagnostics: true,
+                        ..default()
+                    }),
                     ambient_occlusion: Some(AmbientOcclusionSettings {
                         depth: 4,
                         intensity: 1.0,
                     }),
                     ..default()
-                })
+                }),
             },
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, (
-            toggle_ssao.run_if(input_just_pressed(KeyCode::KeyS)),
-            toggle_baked_ao.run_if(input_just_pressed(KeyCode::KeyA)),
-        ))
+        .add_systems(
+            Update,
+            (
+                toggle_ssao.run_if(input_just_pressed(KeyCode::KeyS)),
+                toggle_baked_ao.run_if(input_just_pressed(KeyCode::KeyA)),
+            ),
+        )
         .run();
 }
 
@@ -65,26 +74,23 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
 }
 
-fn toggle_ssao(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut SSAOVisible)>,
-) {
+fn toggle_ssao(mut commands: Commands, mut query: Query<(Entity, &mut SSAOVisible)>) {
     let Ok((entity, mut ssao_visible)) = query.single_mut() else {
         return;
     };
-        ssao_visible.0 = !ssao_visible.0;
-        match ssao_visible.0 {
-            true => {
-                commands
-                    .entity(entity)
-                    .insert(ScreenSpaceAmbientOcclusion::default());
-            }
-            false => {
-                commands
-                    .entity(entity)
-                    .remove::<ScreenSpaceAmbientOcclusion>();
-            }
+    ssao_visible.0 = !ssao_visible.0;
+    match ssao_visible.0 {
+        true => {
+            commands
+                .entity(entity)
+                .insert(ScreenSpaceAmbientOcclusion::default());
         }
+        false => {
+            commands
+                .entity(entity)
+                .remove::<ScreenSpaceAmbientOcclusion>();
+        }
+    }
 }
 
 fn toggle_baked_ao(
@@ -93,7 +99,9 @@ fn toggle_baked_ao(
     material_handle: Single<&MeshMaterial3d<StandardMaterial>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let Some(mut material) = materials.get_mut(&material_handle.0) else { return };
+    let Some(mut material) = materials.get_mut(&material_handle.0) else {
+        return;
+    };
     *show_baked_ao = !(*show_baked_ao);
     if *show_baked_ao && let Some(handle) = &*occlusion_handle {
         material.occlusion_texture = Some(handle.clone());
