@@ -7,7 +7,6 @@ use bevy::{
     pbr::StandardMaterial,
     prelude::Res,
 };
-use ndshape::Shape;
 
 use crate::VoxelModelInstance;
 
@@ -104,8 +103,6 @@ pub fn modify_voxel_model(
     let Some(mut model) = models.get_mut(modifier.instance.model.id()) else {
         return;
     };
-    let refraction_indices = &context.palette.indices_of_refraction;
-    let density_for_voxel = &context.palette.density_for_voxel;
     let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
     let model_size = model.size();
     let region = modifier.region.clamped(model_size);
@@ -115,7 +112,8 @@ pub fn modify_voxel_model(
     for x in start.x..end.x {
         for y in start.y..end.y {
             for z in start.z..end.z {
-                let index = model.data.shape.linearize([x as u32, y as u32, z as u32]) as usize;
+                let index =
+                    vox_bake::linearize([x as u32, y as u32, z as u32], model.data.dimensions);
                 let source: Voxel = model.data.voxels[index].clone().into();
                 updated[index] = RawVoxel::from((modifier.modify)(
                     IVec3::new(x, y, z) - leading_padding,
@@ -126,8 +124,7 @@ pub fn modify_voxel_model(
         }
     }
     model.data.voxels = updated;
-    let (maybe_atlas, average_ior, _maybe_cloud) =
-        model.data.remesh(refraction_indices, &density_for_voxel);
+    let (maybe_atlas, average_ior, _maybe_cloud) = model.data.remesh(&context.palette.baked);
 
     if let Some(atlas) = maybe_atlas {
         let mut material = context
@@ -143,7 +140,10 @@ pub fn modify_voxel_model(
             }
             material.specular_transmission = 0.0;
         }
-        let _ = meshes.insert(&modifier.mesh, atlas.mesh);
+        let _ = meshes.insert(
+            &modifier.mesh,
+            super::mesh::to_bevy_mesh(&atlas.mesh, model.data.settings.supports_remeshing),
+        );
 
         if let Some(material_handle) = &model.material {
             if let Some(old_material) = materials.get(material_handle) {

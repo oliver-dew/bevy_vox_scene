@@ -10,7 +10,7 @@ The generated files can be loaded by Bevy's standard glTF loader or any other GL
 cargo install vox-to-gltf --locked
 ```
 
-The initial implementation reuses the exporter from `bevy_vox_scene`, so installing the tool currently compiles part of Bevy. A planned `vox_bake` extraction will remove Bevy from the CLI dependency tree without changing the command-line interface.
+The converter depends on the engine-independent `vox_bake` library and does not compile or depend on Bevy.
 
 ## Usage
 
@@ -28,7 +28,7 @@ vox-to-gltf assets/vox --output assets/generated
 
 Animated voxel input produces one complete GLB per frame using `-001`, `-002`, and subsequent suffixes. Existing files are protected unless `--force` is supplied.
 
-Loader settings that affect the baked output are available as command-line options, including voxel scale, mesh offset, texture layout, material settings, packed-atlas settings, and ambient occlusion. Their defaults come directly from `VoxLoaderSettings::default()`.
+Bake settings that affect the output are available as command-line options, including voxel scale, mesh offset, texture layout, material settings, packed-atlas settings, and ambient occlusion. Their defaults come directly from `VoxBakeSettings::default()`.
 
 ```sh
 vox-to-gltf model.vox \
@@ -39,4 +39,8 @@ vox-to-gltf model.vox \
 
 Run `vox-to-gltf --help` for the complete option list and current defaults.
 
+Each generated frame reports its model, mesh, triangle, texture, and byte counts. Supported but lossy conversions produce warnings; for example, PNG images contain only the base mip level even when packed-atlas settings reserve space for additional levels.
+
 Cloud-density volumes are currently rejected because glTF has no portable representation equivalent to Bevy's voxel-backed `FogVolume`.
+
+See the [offline processing guide](https://github.com/Utsira/bevy_vox_scene/blob/main/docs/offline-processing.md) for local checkout installation, CI consistency checks, build-script integration, and loading the generated files without `bevy_vox_scene`.

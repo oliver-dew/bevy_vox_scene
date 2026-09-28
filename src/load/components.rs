@@ -10,12 +10,6 @@ use bevy::{
 
 use crate::{VoxelContext, VoxelModel};
 
-#[derive(Debug, Clone)]
-pub(crate) struct LayerInfo {
-    pub name: Option<String>,
-    pub is_hidden: bool,
-}
-
 /// An instance of a [`VoxelModel`].
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]

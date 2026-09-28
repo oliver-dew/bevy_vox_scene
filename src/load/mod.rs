@@ -7,21 +7,19 @@ use bevy::{
     asset::{AssetLoader, LoadContext, io::Reader},
     ecs::error::BevyError,
     log::info,
-    math::Vec3,
     platform::collections::HashSet,
     reflect::TypePath,
     world_serialization::WorldAsset,
 };
 #[cfg(test)]
 pub(crate) use components::AnimationRepeatMode;
-use components::LayerInfo;
 pub use components::{
     AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
 };
 use parse_scene::parse_scene_graph;
-pub(crate) use parse_scene::{find_model_names, transform_from_frame};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use vox_bake::{AmbientOcclusionSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode};
 
 use crate::{
     VoxelContext, VoxelData,
@@ -67,140 +65,36 @@ pub struct VoxLoaderSettings {
     pub ambient_occlusion: Option<AmbientOcclusionSettings>,
 }
 
-/// Controls voxel-residency ambient occlusion baked into packed texture atlases.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-pub struct AmbientOcclusionSettings {
-    /// Height and radius of the sampling cone. Zero disables AO; values above 8 are clamped.
-    pub depth: usize,
-    /// Multiplier applied to normalized occlusion. Negative and non-finite values act as zero.
-    pub intensity: f32,
-}
-
-impl Default for AmbientOcclusionSettings {
-    fn default() -> Self {
-        Self {
-            depth: 2,
-            intensity: 1.0,
-        }
-    }
-}
-
-/// Selects the per-model texture layout used by voxel meshes.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VoxelTextureMode {
-    /// Merge coplanar faces regardless of color and bake their voxel data into packed islands.
-    Packed(TexturePackSettings),
-    /// Use a 16x16 palette texture and merge faces only when their palette indices match.
-    Palette,
-}
-
-impl Default for VoxelTextureMode {
-    fn default() -> Self {
-        Self::Packed(TexturePackSettings::default())
-    }
-}
-
-/// Controls the layout of a packed per-model texture atlas.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TexturePackSettings {
-    /// Texels added around each face island and filled by extending its edge texels.
-    #[serde(default = "default_atlas_padding")]
-    pub padding: u32,
-    /// Atlas dimensions are rounded up to a multiple of this value.
-    #[serde(default = "default_atlas_alignment")]
-    pub alignment: u32,
-    /// Maximum width or height of the atlas.
-    #[serde(default = "default_max_atlas_dimension")]
-    pub max_dimension: u32,
-    /// Optional mipmap generation. Limited mip chains increase island padding and alignment.
-    #[serde(default)]
-    pub mip_policy: TextureMipPolicy,
-    /// Log atlas dimensions, occupancy, packing overhead, and geometry reduction.
-    #[serde(default)]
-    pub log_diagnostics: bool,
-}
-
-/// Controls mipmap generation for packed texture atlases.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TextureMipPolicy {
-    /// Do not generate mipmaps. This preserves the existing atlas layout and memory use.
-    #[default]
-    Disabled,
-    /// Generate mip levels through `max_lod`. Values above 4 are clamped to 4.
-    Limited {
-        /// Highest generated mip level; level 0 is the original atlas.
-        max_lod: u8,
-    },
-}
-
-impl TextureMipPolicy {
-    pub(crate) fn max_lod(self) -> u8 {
-        match self {
-            Self::Disabled => 0,
-            Self::Limited { max_lod } => max_lod.min(4),
-        }
-    }
-
-    pub(crate) fn alignment(self) -> u32 {
-        1 << self.max_lod()
-    }
-}
-
-impl Default for TexturePackSettings {
-    fn default() -> Self {
-        Self {
-            padding: default_atlas_padding(),
-            alignment: default_atlas_alignment(),
-            max_dimension: default_max_atlas_dimension(),
-            mip_policy: TextureMipPolicy::Disabled,
-            log_diagnostics: false,
-        }
-    }
-}
-
 impl Default for VoxLoaderSettings {
     fn default() -> Self {
+        let bake = VoxBakeSettings::default();
         Self {
-            voxel_size: 1.0,
-            mesh_outer_faces: true,
-            mesh_offset: UnitOffset::CENTER,
-            emission_strength: 20.0,
-            uses_srgb: true,
-            diffuse_roughness: 0.8,
+            voxel_size: bake.voxel_size,
+            mesh_outer_faces: bake.mesh_outer_faces,
+            mesh_offset: bake.mesh_offset,
+            emission_strength: bake.emission_strength,
+            uses_srgb: bake.uses_srgb,
+            diffuse_roughness: bake.diffuse_roughness,
             supports_remeshing: false,
-            texture_mode: VoxelTextureMode::default(),
-            ambient_occlusion: None,
+            texture_mode: bake.texture_mode,
+            ambient_occlusion: bake.ambient_occlusion,
         }
     }
 }
 
-const fn default_atlas_padding() -> u32 {
-    1
-}
-
-const fn default_atlas_alignment() -> u32 {
-    4
-}
-
-const fn default_max_atlas_dimension() -> u32 {
-    8192
-}
-
-/// An offset applied to the vertex positions of the mesh expressed as a unit of the mesh's size.
-/// For a fully centered mesh, use [`UnitOffset::CENTER`]
-/// For a mesh centred around it's base, use [`UnitOffset::CENTER_BASE`]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct UnitOffset(pub(crate) Vec3);
-
-impl UnitOffset {
-    /// Vertex positions will not be offset at all, so that the origin will be the minimum of the model's AABB
-    pub const ZERO: Self = UnitOffset(Vec3::ZERO);
-
-    /// Offset representing the center of a model
-    pub const CENTER: Self = UnitOffset(Vec3::splat(0.5));
-
-    /// Offset representing the center base of a model
-    pub const CENTER_BASE: Self = UnitOffset(Vec3::new(0.5, 0.0, 0.5));
+impl From<&VoxLoaderSettings> for VoxBakeSettings {
+    fn from(settings: &VoxLoaderSettings) -> Self {
+        Self {
+            voxel_size: settings.voxel_size,
+            mesh_outer_faces: settings.mesh_outer_faces,
+            mesh_offset: settings.mesh_offset.clone(),
+            emission_strength: settings.emission_strength,
+            uses_srgb: settings.uses_srgb,
+            diffuse_roughness: settings.diffuse_roughness,
+            texture_mode: settings.texture_mode,
+            ambient_occlusion: settings.ambient_occlusion,
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -240,58 +134,34 @@ impl VoxSceneLoader {
         load_context: &'a mut LoadContext,
         settings: &'a VoxLoaderSettings,
     ) -> Result<WorldAsset, VoxLoaderError> {
-        let file = match dot_vox::load_bytes(bytes) {
+        let file = match vox_bake::source::parse_vox(bytes) {
             Ok(data) => data,
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
         info!("Loading {}", load_context.path());
         let settings = self.global_settings.clone().unwrap_or(settings.clone());
 
-        // Palette
-        let palette = VoxelPalette::from_data(
-            &file,
-            settings.diffuse_roughness,
-            settings.emission_strength,
-            settings.uses_srgb,
-        );
-        // Scene graph
-        let layers: Vec<LayerInfo> = file
-            .layers
-            .iter()
-            .map(|layer| LayerInfo {
-                name: layer.name(),
-                is_hidden: layer.hidden(),
-            })
-            .collect();
-        let Some(root_scene) = file.scenes.first() else {
-            return Err(VoxLoaderError::InvalidAsset(anyhow!(
-                "VOX file contains no scene graph root"
-            )));
-        };
-
-        let model_count = file.models.len();
+        let baked_scene = vox_bake::bake_scene(&file, &VoxBakeSettings::from(&settings))
+            .map_err(|error| VoxLoaderError::InvalidAsset(anyhow!(error)))?;
+        let palette = VoxelPalette::from_baked(baked_scene.palette.clone());
         let mut subassets: HashSet<String> = HashSet::default();
-        let mut model_names: Vec<Option<String>> = vec![None; model_count];
-        find_model_names(&mut model_names, &file.scenes, root_scene, None);
 
         // Models
 
-        let models: Vec<VoxelModel> = model_names
+        let models: Vec<VoxelModel> = baked_scene
+            .models
             .iter()
-            .zip(file.models)
-            .enumerate()
-            .map(|(index, (maybe_name, model))| {
-                let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data = VoxelData::from_model(&model, settings.clone());
-                let (visible_voxels, ior, has_mesh) =
-                    data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
-                let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
-                let material = has_mesh.then(|| {
-                    let atlas = crate::model::mesh::mesh_model(&visible_voxels, &data);
+            .map(|scene_model| {
+                let name = scene_model.name.clone();
+                let data = VoxelData::from_grid(scene_model.grid.clone(), settings.clone());
+                let baked = &scene_model.baked;
+                let has_mesh = baked.surface.is_some();
+                let has_cloud = baked.volume.is_some();
+                let material = baked.surface.as_ref().map(|atlas| {
                     let mut material = palette.create_atlas_material(&atlas, |label, image| {
                         load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
-                    if let Some(ior) = ior {
+                    if let Some(ior) = baked.average_ior {
                         material.ior = ior;
                         material.thickness = data.size().min_element() as f32;
                     } else {
@@ -301,15 +171,18 @@ impl VoxSceneLoader {
                         }
                         material.specular_transmission = 0.0;
                     }
-                    load_context.add_labeled_asset(format!("{}@mesh", name), atlas.mesh);
+                    load_context.add_labeled_asset(
+                        format!("{}@mesh", name),
+                        crate::model::mesh::to_bevy_mesh(
+                            &atlas.mesh,
+                            data.settings.supports_remeshing,
+                        ),
+                    );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
-                if has_cloud {
+                if let Some(cloud) = &baked.volume {
                     _ = load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
-                        Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(
-                            &cloud_voxels,
-                            &data,
-                        ))
+                        Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(cloud))
                     });
                 }
                 let model = VoxelModel {
@@ -329,13 +202,11 @@ impl VoxSceneLoader {
         load_context.add_labeled_asset("voxel-context".to_string(), VoxelContext { palette });
         let scene = parse_scene_graph(
             load_context,
-            &file.scenes,
-            root_scene,
-            None,
+            &baked_scene.nodes,
+            baked_scene.root,
             &models,
             &mut subassets,
-            &layers,
-            settings.voxel_size,
+            &baked_scene.layers,
         );
 
         Ok(scene)

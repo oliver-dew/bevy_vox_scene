@@ -61,12 +61,12 @@ pub fn create_voxel_scene(
     contexts: Res<Assets<VoxelContext>>,
 ) -> Handle<WorldAsset> {
     let context = contexts.get(&context_handle).expect("Voxel Context exists");
-    let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(
-        &context.palette.indices_of_refraction,
-        &context.palette.density_for_voxel,
-    );
+    let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&context.palette.baked);
     let (maybe_mesh_handle, maybe_material_handle) = maybe_atlas.map_or((None, None), |atlas| {
-        let mesh_handle = meshes.add(atlas.mesh.clone());
+        let mesh_handle = meshes.add(mesh::to_bevy_mesh(
+            &atlas.mesh,
+            data.settings.supports_remeshing,
+        ));
         let mut material = context
             .palette
             .create_atlas_material(&atlas, |_, image| images.add(image));
@@ -130,13 +130,13 @@ pub fn create_voxel_animation(
     let mut root = world.spawn((Transform::IDENTITY, Visibility::Visible));
     root.with_children(|spawner| {
         for (index, data) in frames.iter().enumerate() {
-            let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(
-                &context.palette.indices_of_refraction,
-                &context.palette.density_for_voxel,
-            );
+            let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&context.palette.baked);
             let (maybe_mesh_handle, maybe_material_handle) =
                 maybe_atlas.map_or((None, None), |atlas| {
-                    let mesh_handle = meshes.add(atlas.mesh.clone());
+                    let mesh_handle = meshes.add(mesh::to_bevy_mesh(
+                        &atlas.mesh,
+                        data.settings.supports_remeshing,
+                    ));
                     let mut material = context
                         .palette
                         .create_atlas_material(&atlas, |_, image| images.add(image));

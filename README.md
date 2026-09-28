@@ -88,6 +88,8 @@ The CLI also exposes the export-relevant loader settings through `--voxel-size`,
 
 Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. The export dependencies are not compiled for ordinary runtime-loading users.
 
+See the [offline processing guide](docs/offline-processing.md) for local installation, recursive conversion, CI consistency checks, `build.rs` integration, and loading generated assets without `bevy_vox_scene`.
+
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore
 cargo run --example <example name>

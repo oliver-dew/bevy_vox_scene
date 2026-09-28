@@ -3,7 +3,6 @@ use bevy::{
     math::{BVec3, IVec3, UVec3, Vec3},
     transform::components::GlobalTransform,
 };
-use ndshape::Shape;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutOfBoundsError;
@@ -117,7 +116,7 @@ impl VoxelQueryable for VoxelData {
     fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         let position = self.point_in_model(position)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
-        let index = self.shape.linearize((position + leading_padding).into()) as usize;
+        let index = vox_bake::linearize((position + leading_padding).into(), self.dimensions);
         let raw_voxel = self.voxels.get(index).ok_or(OutOfBoundsError)?;
         let voxel: Voxel = raw_voxel.clone().into();
         Ok(voxel)
@@ -132,7 +131,7 @@ impl VoxelData {
     /// * `point` - the position at which the voxel will be written, in voxel space
     pub fn set_voxel(&mut self, voxel: Voxel, point: UVec3) {
         let leading_padding = UVec3::splat(self.padding() / 2);
-        let index = self.shape.linearize((point + leading_padding).into()) as usize;
+        let index = vox_bake::linearize((point + leading_padding).into(), self.dimensions);
         let raw_voxel: RawVoxel = voxel.into();
         self.voxels[index] = raw_voxel;
     }

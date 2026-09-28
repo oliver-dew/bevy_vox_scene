@@ -68,10 +68,7 @@ pub use export::{ExportError, ExportedGlb, export_vox_to_glb};
 #[doc(inline)]
 use load::VoxSceneLoader;
 use load::VoxelAnimationFrame;
-pub use load::{
-    AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxLoaderSettings,
-    VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance, VoxelTextureMode,
-};
+pub use load::{VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
@@ -83,7 +80,10 @@ pub use model::{
     queryable::VoxelQueryable,
 };
 pub use observers::VoxelInstanceReady;
-
+pub use vox_bake::{
+    AmbientOcclusionSettings, BakedImage, BakedMesh, BakedMeshAtlas, BakedPixelFormat, BakedVolume,
+    TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode,
+};
 /// Plugin adding functionality for loading `.vox` files.
 ///
 /// Registers an [`bevy::asset::AssetLoader`] capable of loading `.vox` files as spawnable [`VoxelScene`]s.

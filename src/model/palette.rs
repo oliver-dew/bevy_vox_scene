@@ -7,17 +7,16 @@ use bevy::{
     pbr::StandardMaterial,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use dot_vox::DotVoxData;
 
-use super::mesh::{AmbientOcclusionAtlas, MeshAtlas};
+use super::mesh::MeshAtlas;
 use crate::TextureMipPolicy;
+use vox_bake::{BakedImage, BakedMaterial, BakedPalette};
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
 #[derive(Clone, Debug)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
-    pub(crate) indices_of_refraction: Vec<Option<f32>>,
-    pub(crate) density_for_voxel: Vec<Option<f32>>,
+    pub(crate) baked: BakedPalette,
     /// If true, uses SRGB for colors. Uses Linear colors if false.
     pub(crate) uses_srgb: bool,
 }
@@ -59,30 +58,25 @@ impl VoxelPalette {
     /// Create a new [`VoxelPalette`] from the supplied [`VoxelElement`]s
     pub fn new(mut elements: Vec<VoxelElement>, uses_srgb: bool) -> Self {
         elements.resize_with(256, VoxelElement::default);
-        let indices_of_refraction: Vec<Option<f32>> = elements
+        let materials = elements
             .iter()
-            .map(|e| {
-                if e.translucency > 0.0 {
-                    Some(e.refraction_index)
+            .map(|element| BakedMaterial {
+                color: if uses_srgb {
+                    element.color.to_srgba().to_f32_array()
                 } else {
-                    None
-                }
-            })
-            .collect();
-        let density_for_voxel = elements
-            .iter()
-            .map(|e| {
-                if e.density > 0.0 {
-                    Some(e.density)
-                } else {
-                    None
-                }
+                    element.color.to_linear().to_f32_array()
+                },
+                emission: element.emission,
+                roughness: element.roughness,
+                metalness: element.metalness,
+                translucency: element.translucency,
+                refraction_index: element.refraction_index,
+                density: element.density,
             })
             .collect();
         VoxelPalette {
             elements,
-            indices_of_refraction,
-            density_for_voxel,
+            baked: BakedPalette::new(materials, uses_srgb),
             uses_srgb,
         }
     }
@@ -171,51 +165,39 @@ impl VoxelPalette {
         VoxelPalette::new(elements, uses_srgb)
     }
 
-    pub(crate) fn from_data(
-        data: &DotVoxData,
-        diffuse_roughness: f32,
-        emission_strength: f32,
-        uses_srgb: bool,
-    ) -> Self {
-        VoxelPalette::new(
-            data.palette
-                .iter()
-                .zip(data.materials.iter())
-                .map(|(color, material)| VoxelElement {
-                    color: if uses_srgb {
-                        Color::srgba_u8(color.r, color.g, color.b, color.a)
-                    } else {
-                        Color::linear_rgba(
-                            color.r as f32 / 255.,
-                            color.g as f32 / 255.,
-                            color.b as f32 / 255.,
-                            color.a as f32 / 255.,
-                        )
-                    },
-                    emission: material.emission().unwrap_or(0.0)
-                        * (material.radiant_flux().unwrap_or(0.0) + 1.0)
-                        * emission_strength,
-                    roughness: if material.material_type() == Some("_diffuse") {
-                        diffuse_roughness
-                    } else {
-                        material.roughness().unwrap_or(0.0)
-                    },
-                    metalness: material.metalness().unwrap_or(0.0),
-                    translucency: material.opacity().unwrap_or(0.0),
-                    refraction_index: if material.material_type() == Some("_glass") {
-                        1.0 + material.refractive_index().unwrap_or(0.0)
-                    } else {
-                        0.0
-                    },
-                    density: if material.material_type() == Some("_media") {
-                        material.density().unwrap_or(0.0) * 10.0
-                    } else {
-                        0.0
-                    },
-                })
-                .collect(),
-            uses_srgb,
-        )
+    pub(crate) fn from_baked(baked: BakedPalette) -> Self {
+        let elements = baked
+            .materials
+            .iter()
+            .map(|material| VoxelElement {
+                color: if baked.uses_srgb {
+                    Color::srgba(
+                        material.color[0],
+                        material.color[1],
+                        material.color[2],
+                        material.color[3],
+                    )
+                } else {
+                    Color::linear_rgba(
+                        material.color[0],
+                        material.color[1],
+                        material.color[2],
+                        material.color[3],
+                    )
+                },
+                emission: material.emission,
+                roughness: material.roughness,
+                metalness: material.metalness,
+                translucency: material.translucency,
+                refraction_index: material.refraction_index,
+                density: material.density,
+            })
+            .collect();
+        VoxelPalette {
+            elements,
+            uses_srgb: baked.uses_srgb,
+            baked,
+        }
     }
 
     pub(crate) fn create_atlas_material(
@@ -240,7 +222,7 @@ impl VoxelPalette {
         height: u32,
         palette_indices: &[u8],
         used_palette_indices: &[u8],
-        ambient_occlusion: Option<&AmbientOcclusionAtlas>,
+        ambient_occlusion: Option<&BakedImage>,
         mip_policy: TextureMipPolicy,
         mut get_handle: impl FnMut(&str, Image) -> Handle<Image>,
     ) -> StandardMaterial {
@@ -411,7 +393,7 @@ impl VoxelPalette {
                             depth_or_array_layers: 1,
                         },
                         TextureDimension::D2,
-                        atlas.data.clone(),
+                        atlas.pixels.clone(),
                         TextureFormat::R8Unorm,
                         RenderAssetUsages::RENDER_WORLD,
                     ),
@@ -611,35 +593,32 @@ impl Lerpable for LinearRgba {
 
 #[cfg(test)]
 mod tests {
-    use super::{MipDownsample, VoxelPalette, mipmapped_image, nearest_image};
-    use crate::{
-        TextureMipPolicy,
-        model::mesh::{AmbientOcclusionAtlas, MeshAtlas},
-    };
+    use super::{MipDownsample, VoxelElement, VoxelPalette, mipmapped_image, nearest_image};
+    use crate::{TextureMipPolicy, model::mesh::MeshAtlas};
     use bevy::{
         asset::{Assets, RenderAssetUsages},
-        color::palettes::css::WHITE,
+        color::{ColorToComponents, palettes::css::WHITE},
         image::{Image, ImageSampler},
-        mesh::{Mesh, UvChannel},
-        render::render_resource::{PrimitiveTopology, TextureFormat},
+        mesh::UvChannel,
+        render::render_resource::TextureFormat,
     };
+    use std::collections::HashMap;
+    use vox_bake::{BakedImage, BakedPixelFormat};
 
     #[test]
     fn ambient_occlusion_uses_a_linear_r8_texture() {
         let palette = VoxelPalette::from_colors(vec![WHITE.into()], true);
         let atlas = MeshAtlas {
-            mesh: Mesh::new(
-                PrimitiveTopology::TriangleList,
-                RenderAssetUsages::RENDER_WORLD,
-            ),
+            mesh: Default::default(),
             width: 2,
             height: 1,
             palette_indices: vec![0, 0],
             used_palette_indices: vec![0],
-            ambient_occlusion: Some(AmbientOcclusionAtlas {
+            ambient_occlusion: Some(BakedImage {
                 width: 1,
                 height: 2,
-                data: vec![u8::MAX, 128],
+                format: BakedPixelFormat::R8Linear,
+                pixels: vec![u8::MAX, 128],
             }),
             mip_policy: TextureMipPolicy::Disabled,
         };
@@ -696,5 +675,96 @@ mod tests {
         assert_eq!(sampler.min_filter, bevy::image::ImageFilterMode::Linear);
         assert_eq!(sampler.mipmap_filter, bevy::image::ImageFilterMode::Linear);
         assert_eq!(sampler.lod_max_clamp, 2.0);
+    }
+
+    #[test]
+    fn material_adapter_images_preserve_shared_palette_channels() {
+        let palette = VoxelPalette::new(
+            vec![
+                VoxelElement {
+                    color: bevy::color::Color::srgba(0.2, 0.4, 0.6, 0.25),
+                    emission: 0.5,
+                    roughness: 0.2,
+                    metalness: 0.3,
+                    translucency: 0.4,
+                    ..Default::default()
+                },
+                VoxelElement {
+                    color: bevy::color::Color::srgba(0.8, 0.6, 0.4, 0.75),
+                    emission: 2.0,
+                    roughness: 0.7,
+                    metalness: 0.9,
+                    translucency: 0.8,
+                    ..Default::default()
+                },
+            ],
+            true,
+        );
+        let atlas = MeshAtlas {
+            mesh: Default::default(),
+            width: 2,
+            height: 1,
+            palette_indices: vec![0, 1],
+            used_palette_indices: vec![0, 1],
+            ambient_occlusion: Some(BakedImage {
+                width: 2,
+                height: 1,
+                format: BakedPixelFormat::R8Linear,
+                pixels: vec![63, 191],
+            }),
+            mip_policy: TextureMipPolicy::Disabled,
+        };
+        let mut images = HashMap::new();
+        palette.create_atlas_material(&atlas, |label, image| {
+            images.insert(label.to_owned(), image);
+            Default::default()
+        });
+
+        let expected_color = atlas
+            .palette_indices
+            .iter()
+            .flat_map(|index| {
+                palette.baked.materials[*index as usize].srgba_u8(palette.baked.uses_srgb)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            images["material_color"].data.as_deref(),
+            Some(expected_color.as_slice())
+        );
+        assert_eq!(
+            images["material_occlusion"].data.as_deref(),
+            Some([63, 191].as_slice())
+        );
+
+        let expected_emission = atlas
+            .palette_indices
+            .iter()
+            .flat_map(|index| {
+                let element = &palette.elements[*index as usize];
+                (element.color.to_linear() * element.emission)
+                    .to_f32_array()
+                    .into_iter()
+                    .flat_map(f32::to_le_bytes)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            images["material_emission"].data.as_deref(),
+            Some(expected_emission.as_slice())
+        );
+
+        #[cfg(feature = "pbr_transmission_textures")]
+        {
+            #[cfg(feature = "webgpu")]
+            let expected = vec![(0.4_f32 * 255.0) as u8, (0.8_f32 * 255.0) as u8];
+            #[cfg(not(feature = "webgpu"))]
+            let expected = [0.4_f32, 0.8]
+                .into_iter()
+                .flat_map(|value| ((value * u16::MAX as f32) as u16).to_le_bytes())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                images["material_specular_transmission"].data.as_deref(),
+                Some(expected.as_slice())
+            );
+        }
     }
 }

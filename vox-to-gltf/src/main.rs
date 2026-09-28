@@ -4,11 +4,11 @@ use std::{
     process::ExitCode,
 };
 
-use bevy_vox_scene::{
-    AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxLoaderSettings,
+use clap::{Command, CommandFactory, FromArgMatches, Parser, ValueEnum};
+use vox_bake::{
+    AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings,
     VoxelTextureMode, export_vox_to_glb,
 };
-use clap::{Command, CommandFactory, FromArgMatches, Parser, ValueEnum};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum MeshOffsetArg {
@@ -130,14 +130,14 @@ fn run() -> Result<(), String> {
             exports
                 .into_iter()
                 .zip(paths)
-                .map(|(export, path)| (path, export.bytes)),
+                .map(|(export, path)| (input.clone(), path, export)),
         );
     }
 
     if !args.force {
         let collisions = outputs
             .iter()
-            .map(|(path, _)| path)
+            .map(|(_, path, _)| path)
             .filter(|path| path.exists())
             .collect::<Vec<_>>();
         if !collisions.is_empty() {
@@ -147,7 +147,7 @@ fn run() -> Result<(), String> {
             ));
         }
     }
-    for (path, bytes) in outputs {
+    for (input, path, export) in outputs {
         if let Some(parent) = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
@@ -155,9 +155,25 @@ fn run() -> Result<(), String> {
             fs::create_dir_all(parent)
                 .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
         }
-        fs::write(&path, &bytes)
+        fs::write(&path, &export.bytes)
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-        println!("wrote {} ({} bytes)", path.display(), bytes.len());
+        let stats = export.statistics;
+        println!(
+            "{} frame {}: {} model(s), {} mesh(es), {} triangle(s), {} texture(s), {} bytes -> {}",
+            input.display(),
+            export.frame_index + 1,
+            stats.models,
+            stats.meshes,
+            stats.triangles,
+            stats.textures,
+            stats.output_bytes,
+            path.display()
+        );
+        if export.frame_index == 0 {
+            for warning in export.warnings {
+                eprintln!("warning: {}: {warning}", input.display());
+            }
+        }
     }
     Ok(())
 }
@@ -171,7 +187,7 @@ fn cli_command() -> Command {
 }
 
 fn defaults_help() -> String {
-    let settings = VoxLoaderSettings::default();
+    let settings = VoxBakeSettings::default();
     let mesh_offset = if settings.mesh_offset == UnitOffset::ZERO {
         "zero"
     } else if settings.mesh_offset == UnitOffset::CENTER_BASE {
@@ -204,7 +220,7 @@ fn defaults_help() -> String {
     };
 
     format!(
-        "Defaults (from VoxelLoaderSettings):\n  voxel size: {}\n  mesh outer faces: {}\n  mesh offset: {}\n  emission strength: {}\n  sRGB colors: {}\n  diffuse roughness: {}\n  texture mode: {}\n  ambient occlusion: {}",
+        "Defaults (from VoxBakeSettings):\n  voxel size: {}\n  mesh outer faces: {}\n  mesh offset: {}\n  emission strength: {}\n  sRGB colors: {}\n  diffuse roughness: {}\n  texture mode: {}\n  ambient occlusion: {}",
         settings.voxel_size,
         settings.mesh_outer_faces,
         mesh_offset,
@@ -216,8 +232,8 @@ fn defaults_help() -> String {
     )
 }
 
-fn loader_settings(args: &Args) -> Result<VoxLoaderSettings, String> {
-    let mut settings = VoxLoaderSettings::default();
+fn loader_settings(args: &Args) -> Result<VoxBakeSettings, String> {
+    let mut settings = VoxBakeSettings::default();
     if let Some(voxel_size) = args.voxel_size {
         settings.voxel_size = voxel_size;
     }
@@ -433,13 +449,13 @@ fn parse_finite_f32(value: &str) -> Result<f32, String> {
 #[cfg(test)]
 mod tests {
     use super::{Args, cli_command, conversion_jobs, loader_settings, output_paths};
-    use bevy_vox_scene::{TextureMipPolicy, VoxLoaderSettings, VoxelTextureMode};
     use clap::Parser;
     use std::{
         fs,
         path::{Path, PathBuf},
         time::{SystemTime, UNIX_EPOCH},
     };
+    use vox_bake::{TextureMipPolicy, VoxBakeSettings, VoxelTextureMode};
 
     #[test]
     fn animation_paths_are_one_based_and_padded() {
@@ -476,7 +492,7 @@ mod tests {
     fn omitted_options_retain_library_defaults() {
         let args = Args::try_parse_from(["vox-to-gltf", "model.vox"]).unwrap();
         let actual = loader_settings(&args).unwrap();
-        let expected = VoxLoaderSettings::default();
+        let expected = VoxBakeSettings::default();
         assert_eq!(actual.voxel_size, expected.voxel_size);
         assert_eq!(actual.mesh_outer_faces, expected.mesh_outer_faces);
         assert_eq!(actual.emission_strength, expected.emission_strength);
@@ -492,8 +508,8 @@ mod tests {
             .try_get_matches_from(["vox-to-gltf", "--help"])
             .unwrap_err()
             .to_string();
-        let defaults = VoxLoaderSettings::default();
-        assert!(help.contains("Defaults (from VoxelLoaderSettings):"));
+        let defaults = VoxBakeSettings::default();
+        assert!(help.contains("Defaults (from VoxBakeSettings):"));
         assert!(help.contains(&format!("voxel size: {}", defaults.voxel_size)));
         assert!(help.contains(&format!(
             "emission strength: {}",
@@ -541,7 +557,7 @@ mod tests {
         assert_eq!(settings.diffuse_roughness, 0.4);
         assert_eq!(
             settings.ambient_occlusion.unwrap().intensity,
-            bevy_vox_scene::AmbientOcclusionSettings::default().intensity
+            vox_bake::AmbientOcclusionSettings::default().intensity
         );
         let VoxelTextureMode::Packed(pack) = settings.texture_mode else {
             panic!("expected packed textures")
