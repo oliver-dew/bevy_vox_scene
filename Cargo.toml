@@ -52,6 +52,7 @@ anyhow = "1.0.38"
 thiserror = "2.0.12"
 serde = "1.0.219"
 vox_bake = { version = "0.1.0", path = "vox_bake" }
+
 [dev-dependencies]
 bevy = { version = "0.20.0-rc.1", default-features = false, features = ["3d", "dev"] }
 utilities = { path = "utilities" }

@@ -18,4 +18,4 @@ The `source` module owns MagicaVoxel parsing and source-format types. Runtime ad
 
 Shared material color helpers provide the linear and sRGB encodings needed by output adapters without depending on Bevy color types.
 
-The optional exporter returns per-frame statistics and structured warnings for supported but lossy conversions. See the [repository's offline processing guide](https://github.com/Utsira/bevy_vox_scene/blob/main/docs/offline-processing.md) for CLI, CI, and build-script workflows.
+The optional exporter returns scene statistics and structured warnings for supported but lossy conversions. Animated voxel models are emitted as sibling frame nodes using `KHR_node_visibility`. See the [repository's offline processing guide](https://github.com/Utsira/bevy_vox_scene/blob/main/docs/offline-processing.md) for CLI, CI, and build-script workflows.

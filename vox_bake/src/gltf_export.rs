@@ -10,16 +10,13 @@ use json::{
 use thiserror::Error;
 
 use crate::{
-    BakeError, BakedMeshAtlas as MeshAtlas, BakedPalette, BakedScene, BakedSceneModel,
-    BakedSceneNode, SceneBakeError, VoxBakeSettings, bake_scene, baked_scene_frame_count,
-    evaluate_baked_scene_frame,
+    BakeError, BakedMeshAtlas as MeshAtlas, BakedPalette, BakedScene, BakedSceneGraphNode,
+    BakedSceneModel, SceneBakeError, VoxBakeSettings, bake_scene,
 };
 
 /// One GLB produced by [`export_vox_to_glb`].
 #[derive(Clone, Debug)]
 pub struct ExportedGlb {
-    /// Zero-based frame index. Static files contain one result with index zero.
-    pub frame_index: usize,
     /// Complete binary glTF file contents.
     pub bytes: Vec<u8>,
     /// Counts describing the generated frame.
@@ -51,6 +48,11 @@ pub enum ExportWarning {
         /// Highest mip level requested by the atlas settings.
         requested_max_lod: u8,
     },
+    /// Animated transform tracks were reduced to their first transform.
+    TransformAnimationFirstFrame {
+        /// Number of transform nodes containing more than one frame.
+        node_count: usize,
+    },
 }
 
 impl std::fmt::Display for ExportWarning {
@@ -59,6 +61,10 @@ impl std::fmt::Display for ExportWarning {
             Self::BaseMipOnly { requested_max_lod } => write!(
                 formatter,
                 "requested atlas mip levels through LOD {requested_max_lod}, but GLB PNG images contain only the base level; generate mipmaps when loading"
+            ),
+            Self::TransformAnimationFirstFrame { node_count } => write!(
+                formatter,
+                "{node_count} animated transform track(s) were reduced to their first transform; voxel model frames remain available as sibling nodes"
             ),
         }
     }
@@ -103,14 +109,13 @@ pub enum ExportError {
 
 /// Convert MagicaVoxel bytes into one or more complete GLB files.
 ///
-/// Static input returns one item. If any shape contains multiple voxel models,
-/// each animation frame is returned as a separate scene snapshot in frame order.
-/// Callers are responsible for naming the files; the CLI uses `-001`, `-002`, …
-/// suffixes for animated output.
+/// Every input returns one item. Animated shapes become sibling mesh nodes under
+/// their shared transform, named with `-001`, `-002`, … suffixes. Frame one is
+/// initially visible and later frames use `KHR_node_visibility` with `visible: false`.
 pub fn export_vox_to_glb(
     bytes: &[u8],
     settings: &VoxBakeSettings,
-) -> Result<Vec<ExportedGlb>, ExportError> {
+) -> Result<ExportedGlb, ExportError> {
     let file = crate::source::parse_vox(bytes).map_err(ExportError::InvalidVox)?;
     let scene = bake_scene(&file, settings).map_err(|error| match error {
         SceneBakeError::MissingScene => ExportError::MissingScene,
@@ -124,24 +129,18 @@ pub fn export_vox_to_glb(
         return Err(ExportError::UnsupportedCloud(model.name.clone()));
     }
 
-    let frame_count = baked_scene_frame_count(&scene).max(1);
-    let warnings = export_warnings(settings);
-    (0..frame_count)
-        .map(|frame_index| {
-            let bytes = write_frame(&scene, frame_index, settings.voxel_size)?;
-            let statistics = export_statistics(&scene, bytes.len());
-            Ok(ExportedGlb {
-                frame_index,
-                bytes,
-                statistics,
-                warnings: warnings.clone(),
-            })
-        })
-        .collect()
+    let warnings = export_warnings(&scene, settings);
+    let bytes = write_scene(&scene, settings.voxel_size)?;
+    let statistics = export_statistics(&scene, bytes.len());
+    Ok(ExportedGlb {
+        bytes,
+        statistics,
+        warnings,
+    })
 }
 
-fn export_warnings(settings: &VoxBakeSettings) -> Vec<ExportWarning> {
-    match settings.texture_mode {
+fn export_warnings(scene: &BakedScene, settings: &VoxBakeSettings) -> Vec<ExportWarning> {
+    let mut warnings = match settings.texture_mode {
         crate::VoxelTextureMode::Packed(crate::TexturePackSettings {
             mip_policy: crate::TextureMipPolicy::Limited { max_lod },
             ..
@@ -149,7 +148,23 @@ fn export_warnings(settings: &VoxBakeSettings) -> Vec<ExportWarning> {
             requested_max_lod: max_lod,
         }],
         _ => Vec::new(),
+    };
+    let animated_transforms = scene
+        .nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                node,
+                BakedSceneGraphNode::Transform { frames, .. } if frames.len() > 1
+            )
+        })
+        .count();
+    if animated_transforms > 0 {
+        warnings.push(ExportWarning::TransformAnimationFirstFrame {
+            node_count: animated_transforms,
+        });
     }
+    warnings
 }
 
 fn export_statistics(scene: &BakedScene, output_bytes: usize) -> ExportStatistics {
@@ -182,11 +197,7 @@ fn export_statistics(scene: &BakedScene, output_bytes: usize) -> ExportStatistic
     }
 }
 
-fn write_frame(
-    scene: &BakedScene,
-    frame_index: usize,
-    voxel_size: f32,
-) -> Result<Vec<u8>, ExportError> {
+fn write_scene(scene: &BakedScene, voxel_size: f32) -> Result<Vec<u8>, ExportError> {
     let mut writer = GltfWriter::new();
     let mut gltf_meshes = Vec::with_capacity(scene.models.len());
     for model in &scene.models {
@@ -196,23 +207,107 @@ fn write_frame(
         });
     }
 
-    let snapshot = evaluate_baked_scene_frame(scene, frame_index);
+    let snapshot = export_scene_nodes(scene);
     let roots = snapshot
         .iter()
         .filter_map(|node| writer.add_scene_node(node, &gltf_meshes))
         .collect();
     let scene = writer.root.push(json::Scene {
-        name: Some(if frame_index == 0 {
-            "Voxel scene".into()
-        } else {
-            format!("Voxel scene frame {}", frame_index + 1)
-        }),
+        name: Some("Voxel scene".into()),
         nodes: roots,
         extensions: None,
         extras: None,
     });
     writer.root.scene = Some(scene);
     writer.finish()
+}
+
+#[derive(Clone, Debug)]
+struct ExportSceneNode {
+    name: Option<String>,
+    transform: [f32; 16],
+    model_index: Option<usize>,
+    children: Vec<ExportSceneNode>,
+    animation_frame: Option<usize>,
+    animation_frame_count: Option<usize>,
+    visible: bool,
+}
+
+fn export_scene_nodes(scene: &BakedScene) -> Vec<ExportSceneNode> {
+    export_scene_node(scene, scene.root, true, None)
+}
+
+fn export_scene_node(
+    scene: &BakedScene,
+    node_index: usize,
+    is_root: bool,
+    animation_name: Option<&str>,
+) -> Vec<ExportSceneNode> {
+    let Some(node) = scene.nodes.get(node_index) else {
+        return Vec::new();
+    };
+    match node {
+        BakedSceneGraphNode::Group { children } => children
+            .iter()
+            .flat_map(|child| export_scene_node(scene, *child, false, animation_name))
+            .collect(),
+        BakedSceneGraphNode::Shape { models } => models
+            .iter()
+            .enumerate()
+            .filter_map(|(frame_index, model_index)| {
+                let model = scene.models.get(*model_index)?;
+                let animated = models.len() > 1;
+                let base_name = animation_name.unwrap_or(&model.name);
+                Some(ExportSceneNode {
+                    name: Some(if animated {
+                        format!("{base_name}-{:03}", frame_index + 1)
+                    } else {
+                        model.name.clone()
+                    }),
+                    transform: glam_identity(),
+                    model_index: Some(*model_index),
+                    children: Vec::new(),
+                    animation_frame: animated.then_some(frame_index),
+                    animation_frame_count: None,
+                    visible: frame_index == 0,
+                })
+            })
+            .collect(),
+        BakedSceneGraphNode::Transform {
+            name,
+            hidden,
+            layer_index,
+            child,
+            frames,
+        } => {
+            if *hidden
+                || scene
+                    .layers
+                    .get(*layer_index)
+                    .is_some_and(|layer| layer.hidden)
+            {
+                return Vec::new();
+            }
+            let children = export_scene_node(scene, *child, false, name.as_deref());
+            let animation_frame_count = children
+                .iter()
+                .filter(|child| child.animation_frame.is_some())
+                .count();
+            vec![ExportSceneNode {
+                name: name.clone(),
+                transform: if is_root {
+                    glam_identity()
+                } else {
+                    frames.first().copied().unwrap_or_else(glam_identity)
+                },
+                model_index: None,
+                children,
+                animation_frame: None,
+                animation_frame_count: (animation_frame_count > 1).then_some(animation_frame_count),
+                visible: true,
+            }]
+        }
+    }
 }
 
 struct GltfWriter {
@@ -612,7 +707,7 @@ impl GltfWriter {
 
     fn add_scene_node(
         &mut self,
-        node: &BakedSceneNode,
+        node: &ExportSceneNode,
         meshes: &[Option<Index<json::Mesh>>],
     ) -> Option<Index<json::Node>> {
         let mesh = match node.model_index {
@@ -624,12 +719,58 @@ impl GltfWriter {
             .iter()
             .filter_map(|child| self.add_scene_node(child, meshes))
             .collect::<Vec<_>>();
+        let (extensions, extras) = if let Some(frame_index) = node.animation_frame {
+            let mut extensions = json::extensions::scene::Node::default();
+            extensions.others.insert(
+                "KHR_node_visibility".into(),
+                serde_json::json!({ "visible": node.visible }),
+            );
+            if !self
+                .root
+                .extensions_used
+                .iter()
+                .any(|name| name == "KHR_node_visibility")
+            {
+                self.root.extensions_used.push("KHR_node_visibility".into());
+            }
+            let extras = serde_json::value::to_raw_value(&serde_json::json!({
+                "vox_bake": {
+                    "version": 1,
+                    "animation_frame": {
+                        "index": frame_index,
+                        "initially_visible": node.visible
+                    }
+                }
+            }))
+            .expect("static voxel animation extras should serialize");
+            (Some(extensions), Some(extras))
+        } else if let Some(frame_count) = node.animation_frame_count {
+            let extras = serde_json::value::to_raw_value(&serde_json::json!({
+                "vox_bake": {
+                    "version": 1,
+                    "animation": {
+                        "frame_count": frame_count
+                    }
+                }
+            }))
+            .expect("static voxel animation extras should serialize");
+            (None, Some(extras))
+        } else {
+            (None, None)
+        };
         Some(self.root.push(json::Node {
             children: (!children.is_empty()).then_some(children),
+            extensions,
+            extras,
             matrix: (node.transform != glam_identity()).then_some(node.transform),
             mesh,
             name: node.name.clone(),
-            ..Default::default()
+            camera: None,
+            rotation: None,
+            scale: None,
+            skin: None,
+            translation: None,
+            weights: None,
         }))
     }
 
@@ -684,8 +825,11 @@ fn align_four(bytes: &mut Vec<u8>, value: u8) {
 mod tests {
     use std::{collections::HashMap, io::Cursor, path::Path};
 
-    use super::{ExportError, export_vox_to_glb};
-    use crate::{AmbientOcclusionSettings, VoxBakeSettings, VoxelTextureMode};
+    use super::{ExportError, export_scene_nodes, export_vox_to_glb, glam_identity};
+    use crate::{
+        AmbientOcclusionSettings, BakedLayer, BakedMaterial, BakedScene, BakedSceneGraphNode,
+        BakedSceneModel, VoxBakeSettings, VoxelGrid, VoxelTextureMode, bake_model,
+    };
 
     fn fixture(name: &str) -> Vec<u8> {
         std::fs::read(
@@ -694,6 +838,17 @@ mod tests {
                 .join(name),
         )
         .expect("workspace test fixture should exist")
+    }
+
+    fn empty_model(name: &str) -> BakedSceneModel {
+        let grid = VoxelGrid::empty([1; 3], true);
+        let palette = crate::BakedPalette::new(vec![BakedMaterial::default()], true);
+        let baked = bake_model(&grid, &palette, &VoxBakeSettings::default()).unwrap();
+        BakedSceneModel {
+            name: name.into(),
+            grid,
+            baked,
+        }
     }
 
     fn validate_glb(bytes: &[u8]) -> gltf::Gltf {
@@ -805,19 +960,9 @@ mod tests {
     #[test]
     fn exports_valid_glb() {
         let bytes = fixture("deer.vox");
-        let exports = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
-        assert_eq!(exports.len(), 4);
-        assert_eq!(
-            exports
-                .iter()
-                .map(|export| export.frame_index)
-                .collect::<Vec<_>>(),
-            [0, 1, 2, 3]
-        );
-        for export in exports {
-            let gltf = validate_glb(&export.bytes);
-            assert!(gltf.document.meshes().next().is_some());
-        }
+        let export = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
+        let gltf = validate_glb(&export.bytes);
+        assert!(gltf.document.meshes().next().is_some());
     }
 
     #[test]
@@ -825,34 +970,179 @@ mod tests {
         let bytes = fixture("deer.vox");
         let first = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
         let second = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
-        assert_eq!(
-            first.iter().map(|export| &export.bytes).collect::<Vec<_>>(),
-            second
-                .iter()
-                .map(|export| &export.bytes)
-                .collect::<Vec<_>>()
-        );
+        assert_eq!(first.bytes, second.bytes);
     }
 
     #[test]
-    fn animation_frames_are_distinct_static_snapshots() {
-        let exports = export_vox_to_glb(&fixture("deer.vox"), &VoxBakeSettings::default()).unwrap();
-        assert_eq!(exports.len(), 4);
-        assert!(
-            exports
-                .windows(2)
-                .all(|pair| pair[0].bytes != pair[1].bytes)
+    fn animation_frames_are_sibling_nodes_with_initial_visibility() {
+        let bytes = fixture("deer.vox");
+        let source = crate::source::parse_vox(&bytes).unwrap();
+        let expected_frames = source
+            .scenes
+            .iter()
+            .filter_map(|node| match node {
+                dot_vox::SceneNode::Shape { models, .. } if models.len() > 1 => Some(models.len()),
+                _ => None,
+            })
+            .sum::<usize>();
+        let export = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
+        let gltf = validate_glb(&export.bytes);
+        assert_eq!(gltf.document.animations().count(), 0);
+        assert_eq!(
+            gltf.document.default_scene().unwrap().name(),
+            Some("Voxel scene")
         );
-        for (index, export) in exports.iter().enumerate() {
-            let gltf = validate_glb(&export.bytes);
-            assert_eq!(gltf.document.animations().count(), 0);
-            let scene_name = gltf.document.default_scene().unwrap().name().unwrap();
-            if index == 0 {
-                assert_eq!(scene_name, "Voxel scene");
-            } else {
-                assert_eq!(scene_name, format!("Voxel scene frame {}", index + 1));
+        assert!(
+            gltf.document
+                .extensions_used()
+                .any(|name| name == "KHR_node_visibility")
+        );
+
+        let frame_nodes = gltf
+            .document
+            .nodes()
+            .filter(|node| node.extension_value("KHR_node_visibility").is_some())
+            .collect::<Vec<_>>();
+        assert_eq!(frame_nodes.len(), expected_frames);
+        assert!(frame_nodes.iter().all(|node| {
+            let name = node.name().expect("animation frame name");
+            name.rsplit_once('-').is_some_and(|(_, suffix)| {
+                suffix.len() >= 3 && suffix.chars().all(|character| character.is_ascii_digit())
+            })
+        }));
+
+        for parent in gltf.document.nodes() {
+            let frames = parent
+                .children()
+                .filter(|node| node.extension_value("KHR_node_visibility").is_some())
+                .collect::<Vec<_>>();
+            if frames.is_empty() {
+                continue;
             }
+            let parent_extras: serde_json::Value = serde_json::from_str(
+                parent
+                    .extras()
+                    .as_ref()
+                    .expect("animated parent extras")
+                    .get(),
+            )
+            .unwrap();
+            assert_eq!(parent_extras["vox_bake"]["version"], 1);
+            assert_eq!(
+                parent_extras["vox_bake"]["animation"]["frame_count"],
+                frames.len()
+            );
+            assert_eq!(
+                frames
+                    .iter()
+                    .filter(|node| {
+                        node.extension_value("KHR_node_visibility")
+                            .and_then(|value| value.get("visible"))
+                            .and_then(serde_json::Value::as_bool)
+                            == Some(true)
+                    })
+                    .count(),
+                1
+            );
+            assert!(frames.iter().skip(1).all(|node| {
+                node.extension_value("KHR_node_visibility")
+                    .and_then(|value| value.get("visible"))
+                    .and_then(serde_json::Value::as_bool)
+                    == Some(false)
+            }));
+            for (index, frame) in frames.iter().enumerate() {
+                let extras: serde_json::Value = serde_json::from_str(
+                    frame
+                        .extras()
+                        .as_ref()
+                        .expect("animation frame extras")
+                        .get(),
+                )
+                .unwrap();
+                assert_eq!(extras["vox_bake"]["version"], 1);
+                assert_eq!(extras["vox_bake"]["animation_frame"]["index"], index);
+                assert_eq!(
+                    extras["vox_bake"]["animation_frame"]["initially_visible"],
+                    index == 0
+                );
+            }
+            assert!(frames.iter().all(|node| node.transform().matrix()
+                == [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]));
         }
+    }
+
+    #[test]
+    fn animated_shapes_keep_independent_frame_counts() {
+        let scene = BakedScene {
+            palette: crate::BakedPalette::new(vec![BakedMaterial::default()], true),
+            models: (0..5)
+                .map(|index| empty_model(&format!("model-{index}")))
+                .collect(),
+            nodes: vec![
+                BakedSceneGraphNode::Transform {
+                    name: Some("root".into()),
+                    hidden: false,
+                    layer_index: 0,
+                    child: 1,
+                    frames: Vec::new(),
+                },
+                BakedSceneGraphNode::Group {
+                    children: vec![2, 4],
+                },
+                BakedSceneGraphNode::Transform {
+                    name: Some("short".into()),
+                    hidden: false,
+                    layer_index: 0,
+                    child: 3,
+                    frames: vec![glam_identity()],
+                },
+                BakedSceneGraphNode::Shape { models: vec![0, 1] },
+                BakedSceneGraphNode::Transform {
+                    name: Some("long".into()),
+                    hidden: false,
+                    layer_index: 0,
+                    child: 5,
+                    frames: vec![glam_identity()],
+                },
+                BakedSceneGraphNode::Shape {
+                    models: vec![2, 3, 4],
+                },
+            ],
+            root: 0,
+            layers: vec![BakedLayer {
+                name: None,
+                hidden: false,
+            }],
+        };
+
+        let root = export_scene_nodes(&scene).remove(0);
+        assert_eq!(root.children[0].children.len(), 2);
+        assert_eq!(root.children[1].children.len(), 3);
+        assert_eq!(
+            root.children[0].children[0].name.as_deref(),
+            Some("short-001")
+        );
+        assert_eq!(
+            root.children[0].children[1].name.as_deref(),
+            Some("short-002")
+        );
+        assert_eq!(
+            root.children[1].children[2].name.as_deref(),
+            Some("long-003")
+        );
+        assert!(root.children[0].children[0].visible);
+        assert!(!root.children[0].children[1].visible);
+        assert!(root.children[1].children[0].visible);
+        assert!(
+            root.children[1].children[1..]
+                .iter()
+                .all(|frame| !frame.visible)
+        );
     }
 
     #[test]
@@ -861,8 +1151,8 @@ mod tests {
             texture_mode: VoxelTextureMode::Palette,
             ..Default::default()
         };
-        let exports = export_vox_to_glb(&fixture("deer.vox"), &settings).unwrap();
-        let gltf = validate_glb(&exports[0].bytes);
+        let export = export_vox_to_glb(&fixture("deer.vox"), &settings).unwrap();
+        let gltf = validate_glb(&export.bytes);
         let dimensions = png_dimensions(&gltf);
         assert!(!dimensions.is_empty());
         assert!(dimensions.iter().all(|dimensions| *dimensions == (16, 16)));
@@ -874,10 +1164,8 @@ mod tests {
 
     #[test]
     fn exports_emissive_and_transmissive_material_extensions() {
-        let exports =
-            export_vox_to_glb(&fixture("study.vox"), &VoxBakeSettings::default()).unwrap();
-        assert_eq!(exports.len(), 1);
-        let gltf = validate_glb(&exports[0].bytes);
+        let export = export_vox_to_glb(&fixture("study.vox"), &VoxBakeSettings::default()).unwrap();
+        let gltf = validate_glb(&export.bytes);
         let used = gltf.document.extensions_used().collect::<Vec<_>>();
         for extension in [
             "KHR_materials_emissive_strength",
@@ -902,9 +1190,8 @@ mod tests {
 
     #[test]
     fn preserves_named_hierarchy_and_shared_mesh_references() {
-        let exports =
-            export_vox_to_glb(&fixture("study.vox"), &VoxBakeSettings::default()).unwrap();
-        let gltf = validate_glb(&exports[0].bytes);
+        let export = export_vox_to_glb(&fixture("study.vox"), &VoxBakeSettings::default()).unwrap();
+        let gltf = validate_glb(&export.bytes);
         let names = gltf
             .document
             .nodes()
@@ -939,8 +1226,8 @@ mod tests {
             }),
             ..Default::default()
         };
-        let exports = export_vox_to_glb(&bytes, &settings).unwrap();
-        let gltf = validate_glb(&exports[0].bytes);
+        let export = export_vox_to_glb(&bytes, &settings).unwrap();
+        let gltf = validate_glb(&export.bytes);
         assert!(gltf.document.materials().any(|material| {
             material
                 .occlusion_texture()
@@ -964,7 +1251,7 @@ mod tests {
         };
         let source = crate::source::parse_vox(&bytes).unwrap();
         let scene = crate::bake_scene(&source, &settings).unwrap();
-        let export = export_vox_to_glb(&bytes, &settings).unwrap().remove(0);
+        let export = export_vox_to_glb(&bytes, &settings).unwrap();
         let gltf = validate_glb(&export.bytes);
 
         for model in &scene.models {
@@ -1051,7 +1338,7 @@ mod tests {
         let settings = VoxBakeSettings::default();
         let source = crate::source::parse_vox(&bytes).unwrap();
         let scene = crate::bake_scene(&source, &settings).unwrap();
-        let export = export_vox_to_glb(&bytes, &settings).unwrap().remove(0);
+        let export = export_vox_to_glb(&bytes, &settings).unwrap();
         let gltf = validate_glb(&export.bytes);
 
         for model in &scene.models {
@@ -1124,7 +1411,7 @@ mod tests {
         let mut expected = HashMap::new();
         collect(&snapshot, &mut expected);
 
-        let export = export_vox_to_glb(&bytes, &settings).unwrap().remove(0);
+        let export = export_vox_to_glb(&bytes, &settings).unwrap();
         let gltf = validate_glb(&export.bytes);
         let mut actual = HashMap::<_, Vec<[f32; 16]>>::new();
         for node in gltf.document.nodes() {
@@ -1159,9 +1446,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let export = export_vox_to_glb(&fixture("deer.vox"), &settings)
-            .unwrap()
-            .remove(0);
+        let export = export_vox_to_glb(&fixture("deer.vox"), &settings).unwrap();
         assert!(export.statistics.models > 0);
         assert!(export.statistics.meshes > 0);
         assert!(export.statistics.triangles > 0);

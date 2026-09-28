@@ -30,7 +30,7 @@ Directory input is recursive and preserves source-relative paths:
 vox-to-gltf assets/vox --output assets/generated
 ```
 
-For example, `assets/vox/characters/robot.vox` becomes `assets/generated/characters/robot.glb`. Animated sources produce `robot-001.glb`, `robot-002.glb`, and so on. The command checks the entire output set before writing and refuses to replace a file unless `--force` is supplied.
+For example, `assets/vox/characters/robot.vox` becomes `assets/generated/characters/robot.glb`. Animated sources also produce one GLB: animated shapes contain sibling mesh nodes named `robot-001`, `robot-002`, and so on. The command checks the entire output set before writing and refuses to replace a file unless `--force` is supplied.
 
 Generated GLBs can be committed to source control. This gives release builds no converter dependency and lets reviewers see when source assets change their deployed output. Run the converter in CI as a consistency check if both `.vox` and `.glb` files are committed.
 
@@ -75,21 +75,12 @@ fn main() {
 
     let output_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     let source = fs::read(&source_path).unwrap();
-    let frames = vox_bake::export_vox_to_glb(
+    let export = vox_bake::export_vox_to_glb(
         &source,
         &vox_bake::VoxBakeSettings::default(),
     )
     .unwrap();
-    let frame_count = frames.len();
-
-    for frame in frames {
-        let name = if frame_count == 1 {
-            "robot.glb".to_owned()
-        } else {
-            format!("robot-{:03}.glb", frame.frame_index + 1)
-        };
-        fs::write(output_dir.join(name), frame.bytes).unwrap();
-    }
+    fs::write(output_dir.join("robot.glb"), export.bytes).unwrap();
 }
 ```
 
@@ -111,9 +102,9 @@ fn spawn(mut commands: Commands, assets: Res<AssetServer>) {
 }
 ```
 
-Animated voxel files are exported as independent GLBs. Load their numbered paths as an ordered collection and choose which scene is visible in application code. The output contains no voxel data for runtime queries or remeshing. Cloud-volume voxels are rejected because glTF has no portable density-volume representation.
+Animated voxel files contain sibling frame nodes beneath each animated shape's transform. Their names use one-based, zero-padded suffixes. `KHR_node_visibility` marks only frame one visible. Versioned, engine-neutral node extras record `vox_bake.animation.frame_count` on the common parent and `vox_bake.animation_frame.index` plus `initially_visible` on each frame. A Bevy post-processing system can use those values to initialize `Visibility` and attach its preferred flipbook component while Bevy's glTF loader does not yet handle the visibility extension directly. Playback speed is intentionally absent because MagicaVoxel does not provide one. The output contains no voxel data for runtime queries or remeshing. Cloud-volume voxels are rejected because glTF has no portable density-volume representation.
 
-Run `vox-to-gltf --help` for all bake settings and their shared library defaults. The converter reports model, mesh, triangle, texture, frame, and byte counts, followed by warnings for supported but lossy conversions.
+Run `vox-to-gltf --help` for all bake settings and their shared library defaults. The converter reports model, mesh, triangle, texture, and byte counts, followed by warnings for supported but lossy conversions.
 
 ## Publishing the crates
 

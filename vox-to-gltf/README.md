@@ -26,7 +26,7 @@ Convert a directory recursively while preserving relative paths:
 vox-to-gltf assets/vox --output assets/generated
 ```
 
-Animated voxel input produces one complete GLB per frame using `-001`, `-002`, and subsequent suffixes. Existing files are protected unless `--force` is supplied.
+Animated voxel input remains one GLB. Each animated shape contains sibling mesh nodes named with `-001`, `-002`, and subsequent suffixes beneath a common transform. Frame one is visible and later frames carry `KHR_node_visibility: false` plus equivalent `vox_bake` node extras for custom engine setup. Existing files are protected unless `--force` is supplied.
 
 Bake settings that affect the output are available as command-line options, including voxel scale, mesh offset, texture layout, material settings, packed-atlas settings, and ambient occlusion. Their defaults come directly from `VoxBakeSettings::default()`.
 
@@ -39,7 +39,7 @@ vox-to-gltf model.vox \
 
 Run `vox-to-gltf --help` for the complete option list and current defaults.
 
-Each generated frame reports its model, mesh, triangle, texture, and byte counts. Supported but lossy conversions produce warnings; for example, PNG images contain only the base mip level even when packed-atlas settings reserve space for additional levels.
+Each generated scene reports its model, mesh, triangle, texture, and byte counts. Supported but lossy conversions produce warnings; for example, PNG images contain only the base mip level even when packed-atlas settings reserve space for additional levels.
 
 Cloud-density volumes are currently rejected because glTF has no portable representation equivalent to Bevy's voxel-backed `FogVolume`.
 

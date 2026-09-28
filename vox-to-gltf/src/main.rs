@@ -123,15 +123,9 @@ fn run() -> Result<(), String> {
     for (input, output) in jobs {
         let source = fs::read(&input)
             .map_err(|error| format!("could not read {}: {error}", input.display()))?;
-        let exports = export_vox_to_glb(&source, &settings)
+        let export = export_vox_to_glb(&source, &settings)
             .map_err(|error| format!("could not convert {}: {error}", input.display()))?;
-        let paths = output_paths(&output, exports.len());
-        outputs.extend(
-            exports
-                .into_iter()
-                .zip(paths)
-                .map(|(export, path)| (input.clone(), path, export)),
-        );
+        outputs.push((input, output, export));
     }
 
     if !args.force {
@@ -159,9 +153,8 @@ fn run() -> Result<(), String> {
             .map_err(|error| format!("could not write {}: {error}", path.display()))?;
         let stats = export.statistics;
         println!(
-            "{} frame {}: {} model(s), {} mesh(es), {} triangle(s), {} texture(s), {} bytes -> {}",
+            "{}: {} model(s), {} mesh(es), {} triangle(s), {} texture(s), {} bytes -> {}",
             input.display(),
-            export.frame_index + 1,
             stats.models,
             stats.meshes,
             stats.triangles,
@@ -169,10 +162,8 @@ fn run() -> Result<(), String> {
             stats.output_bytes,
             path.display()
         );
-        if export.frame_index == 0 {
-            for warning in export.warnings {
-                eprintln!("warning: {}: {warning}", input.display());
-            }
+        for warning in export.warnings {
+            eprintln!("warning: {}: {warning}", input.display());
         }
     }
     Ok(())
@@ -383,26 +374,6 @@ fn has_vox_extension(path: &Path) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("vox"))
 }
 
-fn output_paths(output: &Path, count: usize) -> Vec<PathBuf> {
-    if count <= 1 {
-        return vec![output.to_owned()];
-    }
-    let parent = output.parent().unwrap_or_else(|| Path::new(""));
-    let stem = output.file_stem().unwrap_or_default().to_string_lossy();
-    let extension = output.extension().unwrap_or_default().to_string_lossy();
-    (1..=count)
-        .map(|frame| {
-            let suffix = format!("{frame:03}");
-            let filename = if extension.is_empty() {
-                format!("{stem}-{suffix}")
-            } else {
-                format!("{stem}-{suffix}.{extension}")
-            };
-            parent.join(filename)
-        })
-        .collect()
-}
-
 fn parse_ao_intensity(value: &str) -> Result<f32, String> {
     parse_non_negative_f32(value)
         .map_err(|_| "AO intensity must be a finite, non-negative number".to_string())
@@ -448,22 +419,13 @@ fn parse_finite_f32(value: &str) -> Result<f32, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Args, cli_command, conversion_jobs, loader_settings, output_paths};
+    use super::{Args, cli_command, conversion_jobs, loader_settings};
     use clap::Parser;
     use std::{
         fs,
-        path::{Path, PathBuf},
         time::{SystemTime, UNIX_EPOCH},
     };
     use vox_bake::{TextureMipPolicy, VoxBakeSettings, VoxelTextureMode};
-
-    #[test]
-    fn animation_paths_are_one_based_and_padded() {
-        assert_eq!(
-            output_paths(Path::new("walk.glb"), 3),
-            ["walk-001.glb", "walk-002.glb", "walk-003.glb"].map(PathBuf::from)
-        );
-    }
 
     #[test]
     fn ambient_occlusion_arguments_are_parsed() {

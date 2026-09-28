@@ -11,6 +11,6 @@ use crate::VoxLoaderSettings;
 pub fn export_vox_to_glb(
     bytes: &[u8],
     settings: &VoxLoaderSettings,
-) -> Result<Vec<ExportedGlb>, ExportError> {
+) -> Result<ExportedGlb, ExportError> {
     vox_bake::export_vox_to_glb(bytes, &VoxBakeSettings::from(settings))
 }
