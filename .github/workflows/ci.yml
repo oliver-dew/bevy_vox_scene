@@ -35,6 +35,12 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
@@ -44,6 +50,23 @@ jobs:
 
       - name: Run tests
         run: cargo tarpaulin --ignore-tests --out Xml
+
+      - name: Run exporter tests
+        run: cargo test -p bevy_vox_scene --lib --features export export::tests
+
+      - name: Install glTF Validator
+        run: npm ci
+
+      - name: Export glTF validation fixtures
+        run: |
+          mkdir -p target/gltf-validation
+          cargo run -p vox-to-gltf -- assets/deer.vox --output target/gltf-validation/deer.glb
+          cargo run -p vox-to-gltf -- assets/deer.vox --output target/gltf-validation/deer-palette.glb --texture-mode palette
+          cargo run -p vox-to-gltf -- assets/deer.vox --output target/gltf-validation/deer-ao.glb --ao-depth 4
+          cargo run -p vox-to-gltf -- assets/study.vox --output target/gltf-validation/study.glb
+
+      - name: Validate exported GLBs
+        run: npm run validate-gltf -- target/gltf-validation/*.glb
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4

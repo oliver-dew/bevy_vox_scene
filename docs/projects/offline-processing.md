@@ -67,7 +67,7 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 - [x] Define animation export as one complete scene snapshot per frame, using one-based `-001`, `-002`, ... filename suffixes.
 - [x] Define how scene animations with tracks of different lengths select a frame after a shorter track ends, matching the current runtime repeat/hold behavior where possible. Shorter tracks hold their last frame.
 - [x] Make unsupported or lossy conversion visible through structured warnings and errors; do not silently discard content by default.
-- [ ] Define deterministic output requirements so identical input and settings produce byte-identical GLB files where practical.
+- [x] Require identical input and settings to produce byte-identical GLB files and cover this with an exporter regression test.
 - [x] Add the public `export_vox_to_glb(bytes, settings) -> Result<Vec<ExportedGlb>, ExportError>` library entry point.
 
 #### Shared bake representation
@@ -122,9 +122,10 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 - [x] Export a multi-model scene and verify hierarchy, transforms, names, hidden-node policy, and shared mesh references.
 - [x] Export an animation and verify frame count, zero-based API indices, valid per-frame GLBs, and one-based zero-padded CLI filenames.
 - [ ] Verify an animated export can be loaded as an ordered `Handle<Gltf>` collection and played without `bevy_vox_scene`.
-- [ ] Add coverage for packed and palette texture modes, constant material properties, AO UV1, emission, metalness/roughness, alpha, and glass.
+- [x] Add exporter coverage for packed and palette texture modes, embedded PNG decoding, AO UV1, emission, transmission, IOR, volume, hierarchy, instancing, cloud rejection, and static animation snapshots.
+- [ ] Add field-level pixel assertions for base color, metalness/roughness, alpha, emission, transmission, and AO textures.
 - [ ] Compare exported mesh attributes and decoded texture pixels with the runtime loader's baked output.
-- [ ] Validate every test export with the Khronos glTF Validator and treat specification errors as test failures.
+- [x] Validate representative packed, palette, AO, animated, hierarchical, emissive, and transmissive exports with the pinned Khronos glTF Validator in CI, treating specification errors as failures.
 - [x] Add initial round-trip inspection using the `gltf` reader, including meshes and the embedded binary buffer. Extend this with field-level assertions as more fixtures are added.
 - [ ] Render representative runtime-loaded and GLB-loaded scenes in Bevy and compare them visually, allowing only documented differences.
 - [ ] Verify conversion on native platforms and loading on native, WebGPU, WebGL2, and WebAssembly targets supported by the project.

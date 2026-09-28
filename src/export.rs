@@ -434,6 +434,11 @@ impl GltfWriter {
                         model.data._size().min_element().max(0) as f32
                             * model.data.settings.voxel_size,
                     ),
+                    // `gltf-json` represents the specification's default infinite
+                    // attenuation distance as `f32::INFINITY`, which serde_json
+                    // serializes as `null`. Use the largest finite value so the
+                    // generated extension remains valid JSON with equivalent intent.
+                    attenuation_distance: json::extensions::material::AttenuationDistance(f32::MAX),
                     ..Default::default()
                 });
                 extension_names.extend(["KHR_materials_ior", "KHR_materials_volume"]);
@@ -744,8 +749,77 @@ fn align_four(bytes: &mut Vec<u8>, value: u8) {
 
 #[cfg(test)]
 mod tests {
-    use super::export_vox_to_glb;
-    use crate::{AmbientOcclusionSettings, VoxLoaderSettings};
+    use std::{collections::HashMap, io::Cursor};
+
+    use super::{ExportError, export_vox_to_glb};
+    use crate::{AmbientOcclusionSettings, VoxLoaderSettings, VoxelTextureMode};
+
+    fn validate_glb(bytes: &[u8]) -> gltf::Gltf {
+        let gltf = gltf::Gltf::from_slice(bytes).expect("generated GLB should parse and validate");
+        let blob = gltf
+            .blob
+            .as_deref()
+            .expect("GLB should contain a binary chunk");
+        let buffer = gltf
+            .document
+            .buffers()
+            .next()
+            .expect("GLB should declare its binary buffer");
+        assert_eq!(buffer.length(), blob.len());
+        assert_eq!(gltf.document.buffers().count(), 1);
+        assert!(gltf.document.default_scene().is_some());
+
+        for view in gltf.document.views() {
+            assert_eq!(view.offset() % 4, 0, "buffer view should be aligned");
+            assert!(view.offset() + view.length() <= blob.len());
+        }
+        for accessor in gltf.document.accessors() {
+            let view = accessor
+                .view()
+                .expect("exported accessors should have views");
+            assert!(accessor.offset() + accessor.count() * accessor.size() <= view.length());
+        }
+        for image in gltf.document.images() {
+            let gltf::image::Source::View { view, mime_type } = image.source() else {
+                panic!("exported images should be embedded buffer views")
+            };
+            assert_eq!(mime_type, "image/png");
+            let encoded = &blob[view.offset()..view.offset() + view.length()];
+            let mut reader = png::Decoder::new(Cursor::new(encoded))
+                .read_info()
+                .expect("embedded image should have a valid PNG header");
+            let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+            reader
+                .next_frame(&mut pixels)
+                .expect("embedded PNG should decode");
+        }
+        for mesh in gltf.document.meshes() {
+            for primitive in mesh.primitives() {
+                assert_eq!(primitive.mode(), gltf::mesh::Mode::Triangles);
+                assert!(primitive.indices().is_some());
+                assert!(primitive.get(&gltf::Semantic::Positions).is_some());
+                assert!(primitive.get(&gltf::Semantic::Normals).is_some());
+                assert!(primitive.get(&gltf::Semantic::TexCoords(0)).is_some());
+                assert!(primitive.material().index().is_some());
+            }
+        }
+        gltf
+    }
+
+    fn png_dimensions(gltf: &gltf::Gltf) -> Vec<(u32, u32)> {
+        let blob = gltf.blob.as_deref().unwrap();
+        gltf.document
+            .images()
+            .map(|image| {
+                let gltf::image::Source::View { view, .. } = image.source() else {
+                    panic!("expected embedded image")
+                };
+                let encoded = &blob[view.offset()..view.offset() + view.length()];
+                let reader = png::Decoder::new(Cursor::new(encoded)).read_info().unwrap();
+                (reader.info().width, reader.info().height)
+            })
+            .collect()
+    }
 
     #[test]
     fn exports_valid_glb() {
@@ -760,10 +834,131 @@ mod tests {
             [0, 1, 2, 3]
         );
         for export in exports {
-            let gltf = gltf::Gltf::from_slice(&export.bytes).expect("generated GLB should load");
+            let gltf = validate_glb(&export.bytes);
             assert!(gltf.document.meshes().next().is_some());
-            assert!(gltf.blob.is_some());
         }
+    }
+
+    #[test]
+    fn export_is_byte_deterministic() {
+        let bytes = include_bytes!("../assets/deer.vox");
+        let first = export_vox_to_glb(bytes, &VoxLoaderSettings::default()).unwrap();
+        let second = export_vox_to_glb(bytes, &VoxLoaderSettings::default()).unwrap();
+        assert_eq!(
+            first.iter().map(|export| &export.bytes).collect::<Vec<_>>(),
+            second
+                .iter()
+                .map(|export| &export.bytes)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn animation_frames_are_distinct_static_snapshots() {
+        let exports = export_vox_to_glb(
+            include_bytes!("../assets/deer.vox"),
+            &VoxLoaderSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(exports.len(), 4);
+        assert!(
+            exports
+                .windows(2)
+                .all(|pair| pair[0].bytes != pair[1].bytes)
+        );
+        for (index, export) in exports.iter().enumerate() {
+            let gltf = validate_glb(&export.bytes);
+            assert_eq!(gltf.document.animations().count(), 0);
+            let scene_name = gltf.document.default_scene().unwrap().name().unwrap();
+            if index == 0 {
+                assert_eq!(scene_name, "Voxel scene");
+            } else {
+                assert_eq!(scene_name, format!("Voxel scene frame {}", index + 1));
+            }
+        }
+    }
+
+    #[test]
+    fn palette_mode_embeds_16_by_16_material_textures() {
+        let settings = VoxLoaderSettings {
+            texture_mode: VoxelTextureMode::Palette,
+            ..Default::default()
+        };
+        let exports = export_vox_to_glb(include_bytes!("../assets/deer.vox"), &settings).unwrap();
+        let gltf = validate_glb(&exports[0].bytes);
+        let dimensions = png_dimensions(&gltf);
+        assert!(!dimensions.is_empty());
+        assert!(dimensions.iter().all(|dimensions| *dimensions == (16, 16)));
+        assert!(gltf.document.materials().all(|material| {
+            let pbr = material.pbr_metallic_roughness();
+            pbr.base_color_texture().is_some() && pbr.metallic_roughness_texture().is_some()
+        }));
+    }
+
+    #[test]
+    fn exports_emissive_and_transmissive_material_extensions() {
+        let exports = export_vox_to_glb(
+            include_bytes!("../assets/study.vox"),
+            &VoxLoaderSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(exports.len(), 1);
+        let gltf = validate_glb(&exports[0].bytes);
+        let used = gltf.document.extensions_used().collect::<Vec<_>>();
+        for extension in [
+            "KHR_materials_emissive_strength",
+            "KHR_materials_transmission",
+            "KHR_materials_ior",
+            "KHR_materials_volume",
+        ] {
+            assert!(used.contains(&extension), "missing {extension}");
+        }
+        assert!(gltf.document.materials().any(|material| {
+            material.emissive_texture().is_some()
+                && material
+                    .emissive_strength()
+                    .is_some_and(|strength| strength > 1.0)
+        }));
+        assert!(gltf.document.materials().any(|material| {
+            material.transmission().is_some()
+                && material.ior().is_some()
+                && material.volume().is_some()
+        }));
+    }
+
+    #[test]
+    fn preserves_named_hierarchy_and_shared_mesh_references() {
+        let exports = export_vox_to_glb(
+            include_bytes!("../assets/study.vox"),
+            &VoxLoaderSettings::default(),
+        )
+        .unwrap();
+        let gltf = validate_glb(&exports[0].bytes);
+        let names = gltf
+            .document
+            .nodes()
+            .filter_map(|node| node.name())
+            .collect::<Vec<_>>();
+        assert!(names.contains(&"workstation"));
+        assert!(names.contains(&"workstation/desk"));
+        assert!(names.contains(&"tank/wall"));
+
+        let mut reference_counts = HashMap::new();
+        for mesh in gltf.document.nodes().filter_map(|node| node.mesh()) {
+            *reference_counts.entry(mesh.index()).or_insert(0usize) += 1;
+        }
+        assert!(reference_counts.values().any(|count| *count > 1));
+    }
+
+    #[test]
+    fn rejects_cloud_volumes_with_the_model_name() {
+        let error = export_vox_to_glb(
+            include_bytes!("../assets/cloud.vox"),
+            &VoxLoaderSettings::default(),
+        )
+        .unwrap_err();
+        assert!(matches!(error, ExportError::UnsupportedCloud(_)));
+        assert!(error.to_string().contains("cloud"));
     }
 
     #[test]
@@ -777,7 +972,7 @@ mod tests {
             ..Default::default()
         };
         let exports = export_vox_to_glb(bytes, &settings).unwrap();
-        let gltf = gltf::Gltf::from_slice(&exports[0].bytes).unwrap();
+        let gltf = validate_glb(&exports[0].bytes);
         assert!(gltf.document.materials().any(|material| {
             material
                 .occlusion_texture()
