@@ -1,4 +1,9 @@
 use bevy::{
+    animation::{
+        AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
+        animation_curves::{AnimatableCurve, AnimatableKeyframeCurve},
+        graph::{AnimationGraph, AnimationGraphHandle},
+    },
     asset::{Handle, LoadContext},
     ecs::{error::BevyError, hierarchy::ChildSpawner, name::Name},
     image::Image,
@@ -11,7 +16,7 @@ use bevy::{
     prelude::{EntityWorldMut, Transform, Visibility, World},
     world_serialization::WorldAsset,
 };
-use vox_bake::{BakedLayer, BakedSceneGraphNode};
+use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
 use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, model::queryable::VoxelQueryable};
 
@@ -24,9 +29,17 @@ pub(super) fn parse_scene_graph(
     vox_models: &[VoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
+    animation_frames_per_second: f32,
 ) -> WorldAsset {
     parse_scene_graph_with_parent(
-        context, graph, root_index, None, vox_models, subassets, layers,
+        context,
+        graph,
+        root_index,
+        None,
+        vox_models,
+        subassets,
+        layers,
+        animation_frames_per_second,
     )
 }
 
@@ -39,6 +52,7 @@ fn parse_scene_graph_with_parent(
     vox_models: &[VoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
+    animation_frames_per_second: f32,
 ) -> WorldAsset {
     let mut world = World::default();
     let Some(BakedSceneGraphNode::Transform {
@@ -54,7 +68,9 @@ fn parse_scene_graph_with_parent(
     };
 
     let (accumulated, node_name) = accumulated_name(parent_name, name.as_ref());
+    let mut clip = AnimationClip::default();
     let mut entity = world.spawn(Transform::IDENTITY);
+    let player = entity.id();
     let layer = layers.get(*layer_index);
     entity.insert(node_visibility(*hidden, layer));
     if let Some(layer) = layer {
@@ -75,7 +91,18 @@ fn parse_scene_graph_with_parent(
         vox_models,
         subassets,
         layers,
+        &mut clip,
+        player,
+        animation_frames_per_second,
     );
+    if !clip.curves().is_empty() {
+        let clip = context.add_labeled_asset("Animation0".to_string(), clip);
+        let (graph, _) = AnimationGraph::from_clip(clip);
+        let graph = context.add_labeled_asset("AnimationGraph".to_string(), graph);
+        world
+            .entity_mut(player)
+            .insert((AnimationPlayer::default(), AnimationGraphHandle(graph)));
+    }
     WorldAsset::new(world)
 }
 
@@ -89,6 +116,9 @@ fn spawn_node(
     vox_models: &[VoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
+    clip: &mut AnimationClip,
+    player: bevy::prelude::Entity,
+    animation_frames_per_second: f32,
 ) {
     let Some(node) = graph.get(node_index) else {
         warn!("Scene node index {node_index} is out of bounds");
@@ -113,6 +143,9 @@ fn spawn_node(
             vox_models,
             subassets,
             layers,
+            clip,
+            player,
+            animation_frames_per_second,
         );
         return;
     };
@@ -130,6 +163,13 @@ fn spawn_node(
     if let Some(node_name) = node_name.clone() {
         entity.insert(Name::new(node_name));
     }
+    if frames.len() > 1
+        && let Some(node_name) = node_name.as_ref()
+    {
+        let target = AnimationTargetId::from_name(&Name::new(node_name.clone()));
+        entity.insert((target, AnimatedBy(player)));
+        add_transform_curves(clip, target, frames, animation_frames_per_second);
+    }
     load_child(
         context,
         graph,
@@ -139,11 +179,14 @@ fn spawn_node(
         vox_models,
         subassets,
         layers,
+        clip,
+        player,
+        animation_frames_per_second,
     );
     entity.insert(
         frames
             .first()
-            .map(|matrix| Transform::from_matrix(Mat4::from_cols_array(matrix)))
+            .map(|frame| Transform::from_matrix(Mat4::from_cols_array(&frame.transform)))
             .unwrap_or(Transform::IDENTITY),
     );
 
@@ -159,8 +202,54 @@ fn spawn_node(
                 vox_models,
                 subassets,
                 layers,
+                animation_frames_per_second,
             ))
         });
+    }
+}
+
+fn add_transform_curves(
+    clip: &mut AnimationClip,
+    target: AnimationTargetId,
+    frames: &[BakedTransformFrame],
+    frames_per_second: f32,
+) {
+    let fps = if frames_per_second.is_finite() && frames_per_second > 0.0 {
+        frames_per_second
+    } else {
+        vox_bake::default_animation_frames_per_second()
+    };
+    let transforms = frames
+        .iter()
+        .map(|frame| {
+            let (scale, rotation, translation) =
+                Mat4::from_cols_array(&frame.transform).to_scale_rotation_translation();
+            (frame.frame_index as f32 / fps, translation, rotation, scale)
+        })
+        .collect::<Vec<_>>();
+    let translation =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, value, _, _)| (*time, *value)));
+    let rotation =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, _, value, _)| (*time, *value)));
+    let scale =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, _, _, value)| (*time, *value)));
+    if let Ok(curve) = translation {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::translation), curve),
+        );
+    }
+    if let Ok(curve) = rotation {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::rotation), curve),
+        );
+    }
+    if let Ok(curve) = scale {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::scale), curve),
+        );
     }
 }
 
@@ -174,6 +263,9 @@ fn load_child(
     vox_models: &[VoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
+    clip: &mut AnimationClip,
+    player: bevy::prelude::Entity,
+    animation_frames_per_second: f32,
 ) {
     let Some(node) = graph.get(node_index) else {
         warn!("Scene child index {node_index} is out of bounds");
@@ -193,6 +285,9 @@ fn load_child(
                     vox_models,
                     subassets,
                     layers,
+                    clip,
+                    player,
+                    animation_frames_per_second,
                 );
             });
         }
@@ -209,6 +304,9 @@ fn load_child(
                         vox_models,
                         subassets,
                         layers,
+                        clip,
+                        player,
+                        animation_frames_per_second,
                     );
                 }
             });

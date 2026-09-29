@@ -52,7 +52,8 @@ mod tests {
     };
 
     use crate::{
-        VoxelAnimationPlayer, load::AnimationRepeatMode, test_support::setup_and_load_voxel_scene,
+        VoxelAnimationPlayer, VoxelInstanceReady, load::AnimationRepeatMode,
+        test_support::setup_and_load_voxel_scene,
     };
 
     #[derive(Component)]
@@ -77,22 +78,27 @@ mod tests {
                     });
             },
         );
-        let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
+        app.add_observer(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
+            if trigger.model_name.as_deref() == Some("deer") {
+                commands
+                    .entity(trigger.instance)
+                    .insert(TaggedAnimationRoot);
+            }
+        });
+        let _scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         app.update();
-        let top_entity = app
-            .world()
-            .get::<Children>(scene_root)
-            .expect("children")
-            .first()
-            .expect("scene root");
         let entity = app
             .world()
-            .get::<Children>(*top_entity)
-            .expect("children")
-            .first()
-            .expect("model entity");
-        let frame_entities = app.world().get::<Children>(*entity).expect("children");
+            .iter_entities()
+            .find(|entity| entity.contains::<VoxelAnimationPlayer>())
+            .map(|entity| entity.id())
+            .expect("animation entity");
+        assert!(
+            app.world().get::<TaggedAnimationRoot>(entity).is_some(),
+            "VoxelInstanceReady should identify the unsuffixed animated-model parent"
+        );
+        let frame_entities = app.world().get::<Children>(entity).expect("children");
         assert_eq!(frame_entities.len(), frame_count);
         let first_frame_visibility = app
             .world()

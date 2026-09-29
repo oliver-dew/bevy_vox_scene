@@ -23,7 +23,7 @@ use vox_bake::{AmbientOcclusionSettings, UnitOffset, VoxBakeSettings, VoxelTextu
 
 use crate::{
     VoxelContext, VoxelData,
-    model::{VoxelModel, VoxelPalette, queryable::VoxelQueryable},
+    model::{VoxelModel, VoxelPalette},
 };
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::world_serialization::WorldAsset`]s.
@@ -40,6 +40,9 @@ pub(super) struct VoxSceneLoader {
 /// Settings for the VoxSceneLoader.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VoxLoaderSettings {
+    /// Timeline rate used for MagicaVoxel transform frame indices. Defaults to 8 fps.
+    #[serde(default = "vox_bake::default_animation_frames_per_second")]
+    pub animation_frames_per_second: f32,
     /// The length of each side of a single voxel. Defaults to 1.0.
     pub voxel_size: f32,
     /// Whether the outer-most faces of the model should be meshed. Defaults to true. Set this to false if the outer faces of a
@@ -69,6 +72,7 @@ impl Default for VoxLoaderSettings {
     fn default() -> Self {
         let bake = VoxBakeSettings::default();
         Self {
+            animation_frames_per_second: bake.animation_frames_per_second,
             voxel_size: bake.voxel_size,
             mesh_outer_faces: bake.mesh_outer_faces,
             mesh_offset: bake.mesh_offset,
@@ -85,6 +89,7 @@ impl Default for VoxLoaderSettings {
 impl From<&VoxLoaderSettings> for VoxBakeSettings {
     fn from(settings: &VoxLoaderSettings) -> Self {
         Self {
+            animation_frames_per_second: settings.animation_frames_per_second,
             voxel_size: settings.voxel_size,
             mesh_outer_faces: settings.mesh_outer_faces,
             mesh_offset: settings.mesh_offset.clone(),
@@ -161,16 +166,7 @@ impl VoxSceneLoader {
                     let mut material = palette.create_atlas_material(&atlas, |label, image| {
                         load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
-                    if let Some(ior) = baked.average_ior {
-                        material.ior = ior;
-                        material.thickness = data.size().min_element() as f32;
-                    } else {
-                        #[cfg(feature = "pbr_transmission_textures")]
-                        {
-                            material.specular_transmission_texture = None;
-                        }
-                        material.specular_transmission = 0.0;
-                    }
+                    crate::model::configure_material(&mut material, baked.average_ior, &data);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
                         crate::model::mesh::to_bevy_mesh(
@@ -207,6 +203,7 @@ impl VoxSceneLoader {
             &models,
             &mut subassets,
             &baked_scene.layers,
+            settings.animation_frames_per_second,
         );
 
         Ok(scene)

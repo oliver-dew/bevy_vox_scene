@@ -70,7 +70,7 @@ Applications with fixed voxel assets can preprocess `.vox` files into GLB and lo
 cargo run -p vox-to-gltf -- model.vox --output model.glb
 ```
 
-Every input produces one GLB. For each animated shape, its voxel frames are sibling mesh nodes beneath their shared transform, named `model-001`, `model-002`, and so on. Frame one is initially visible and later frames use the ratified `KHR_node_visibility` extension with `visible: false`; versioned, engine-neutral `vox_bake` animation metadata is also stored in node extras for engines that need custom setup. Existing output is protected unless `--force` is passed. Cloud volumes are currently rejected because glTF has no equivalent representation for Bevy's voxel density texture.
+Every input produces one GLB. For each animated shape, its voxel frames are sibling mesh nodes beneath their shared transform, named `model-001`, `model-002`, and so on. Frame one is initially visible and later frames use the ratified `KHR_node_visibility` extension with `visible: false`; versioned, engine-neutral `vox_bake` animation metadata is also stored in node extras for engines that need custom setup. Scene-node transform tracks become a standard glTF animation with smooth translation, rotation, and scale channels. Existing output is protected unless `--force` is passed. Cloud volumes are currently rejected because glTF has no equivalent representation for Bevy's voxel density texture.
 
 An input directory is processed recursively. In this mode, `--output` names the destination directory and source-relative paths are preserved. Without `--output`, generated files are written beside their `.vox` sources.
 

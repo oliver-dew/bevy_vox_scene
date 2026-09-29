@@ -161,11 +161,10 @@ mod tests {
     #[cfg(feature = "generate_voxels")]
     #[test]
     fn test_voxel_queryable() {
-        let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(
-            UVec3::splat(4),
-            VoxLoaderSettings::default(),
-            Voxel(1),
-        );
+        let mut settings = VoxLoaderSettings::default();
+        settings.voxel_size = 0.25;
+        let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), settings, Voxel(1));
+        assert_eq!(data.model_size(), Vec3::splat(1.0));
         assert!(data.point_in_model(IVec3::new(3, 0, 0)).is_ok());
         assert!(data.point_in_model(IVec3::new(4, 0, 0)).is_err());
         assert_eq!(

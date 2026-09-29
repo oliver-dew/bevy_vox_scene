@@ -49,6 +49,7 @@
 //!```
 
 use bevy::{
+    animation::AnimationPlugin,
     app::{App, Plugin, Update},
     asset::AssetApp,
 };
@@ -97,6 +98,9 @@ pub struct VoxScenePlugin {
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<AnimationPlugin>() {
+            app.add_plugins(AnimationPlugin);
+        }
         app.init_asset::<VoxelModel>()
             .init_asset::<VoxelContext>()
             .register_type::<VoxelLayer>()

@@ -31,12 +31,13 @@ pub use mesh::{BakedQuad, BakedQuadGeometry, bake_quad_geometry, greedy_mesh_qua
 pub use output::{BakedImage, BakedMesh, BakedMeshAtlas, BakedPixelFormat, BakedVolume};
 pub use paint::paint_palette_island;
 pub use scene::{
-    BakedLayer, BakedScene, BakedSceneGraphNode, BakedSceneModel, BakedSceneNode, SceneBakeError,
-    bake_scene, baked_scene_frame_count, evaluate_baked_scene_frame, frame_transform, model_names,
+    BakedLayer, BakedScene, BakedSceneGraphNode, BakedSceneModel, BakedSceneNode,
+    BakedTransformFrame, SceneBakeError, bake_scene, baked_scene_frame_count,
+    evaluate_baked_scene_frame, frame_transform, model_names,
 };
 pub use settings::{
     AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings,
-    VoxelTextureMode,
+    VoxelTextureMode, default_animation_frames_per_second,
 };
 pub use voxel::{
     ClassifiedVoxels, RawVoxel, VisibleVoxel, VoxelVisibility, classify_voxels,

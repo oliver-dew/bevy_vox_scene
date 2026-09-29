@@ -26,7 +26,7 @@ Convert a directory recursively while preserving relative paths:
 vox-to-gltf assets/vox --output assets/generated
 ```
 
-Animated voxel input remains one GLB. Each animated shape contains sibling mesh nodes named with `-001`, `-002`, and subsequent suffixes beneath a common transform. Frame one is visible and later frames carry `KHR_node_visibility: false` plus equivalent `vox_bake` node extras for custom engine setup. Existing files are protected unless `--force` is supplied.
+Animated voxel input remains one GLB. Each animated shape contains sibling mesh nodes named with `-001`, `-002`, and subsequent suffixes beneath a common transform. Frame one is visible and later frames carry `KHR_node_visibility: false` plus equivalent `vox_bake` node extras for custom engine setup. Scene-node motion is exported as a standard glTF animation with smooth translation, rotation, and scale channels; `--animation-fps` controls how MagicaVoxel frame indices map to seconds. Existing files are protected unless `--force` is supplied.
 
 Bake settings that affect the output are available as command-line options, including voxel scale, mesh offset, texture layout, material settings, packed-atlas settings, and ambient occlusion. Their defaults come directly from `VoxBakeSettings::default()`.
 

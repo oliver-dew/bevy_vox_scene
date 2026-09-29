@@ -34,13 +34,16 @@ struct Args {
     input: PathBuf,
 
     /// Output GLB path for a file, or output directory for a directory.
-    /// Animated input adds -001, -002, … suffixes.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
     /// Replace existing output files.
     #[arg(long)]
     force: bool,
+
+    /// Frames per second used for MagicaVoxel transform animation keyframes.
+    #[arg(long, value_name = "FPS", value_parser = parse_positive_f32)]
+    animation_fps: Option<f32>,
 
     /// Length of each side of a voxel.
     #[arg(long, value_name = "SIZE", value_parser = parse_positive_f32)]
@@ -211,7 +214,8 @@ fn defaults_help() -> String {
     };
 
     format!(
-        "Defaults (from VoxBakeSettings):\n  voxel size: {}\n  mesh outer faces: {}\n  mesh offset: {}\n  emission strength: {}\n  sRGB colors: {}\n  diffuse roughness: {}\n  texture mode: {}\n  ambient occlusion: {}",
+        "Defaults (from VoxBakeSettings):\n  animation fps: {}\n  voxel size: {}\n  mesh outer faces: {}\n  mesh offset: {}\n  emission strength: {}\n  sRGB colors: {}\n  diffuse roughness: {}\n  texture mode: {}\n  ambient occlusion: {}",
+        settings.animation_frames_per_second,
         settings.voxel_size,
         settings.mesh_outer_faces,
         mesh_offset,
@@ -225,6 +229,9 @@ fn defaults_help() -> String {
 
 fn loader_settings(args: &Args) -> Result<VoxBakeSettings, String> {
     let mut settings = VoxBakeSettings::default();
+    if let Some(fps) = args.animation_fps {
+        settings.animation_frames_per_second = fps;
+    }
     if let Some(voxel_size) = args.voxel_size {
         settings.voxel_size = voxel_size;
     }
@@ -455,6 +462,10 @@ mod tests {
         let args = Args::try_parse_from(["vox-to-gltf", "model.vox"]).unwrap();
         let actual = loader_settings(&args).unwrap();
         let expected = VoxBakeSettings::default();
+        assert_eq!(
+            actual.animation_frames_per_second,
+            expected.animation_frames_per_second
+        );
         assert_eq!(actual.voxel_size, expected.voxel_size);
         assert_eq!(actual.mesh_outer_faces, expected.mesh_outer_faces);
         assert_eq!(actual.emission_strength, expected.emission_strength);
@@ -472,6 +483,10 @@ mod tests {
             .to_string();
         let defaults = VoxBakeSettings::default();
         assert!(help.contains("Defaults (from VoxBakeSettings):"));
+        assert!(help.contains(&format!(
+            "animation fps: {}",
+            defaults.animation_frames_per_second
+        )));
         assert!(help.contains(&format!("voxel size: {}", defaults.voxel_size)));
         assert!(help.contains(&format!(
             "emission strength: {}",
@@ -488,6 +503,8 @@ mod tests {
         let args = Args::try_parse_from([
             "vox-to-gltf",
             "model.vox",
+            "--animation-fps",
+            "12",
             "--voxel-size",
             "0.25",
             "--no-mesh-outer-faces",
@@ -512,6 +529,7 @@ mod tests {
         ])
         .unwrap();
         let settings = loader_settings(&args).unwrap();
+        assert_eq!(settings.animation_frames_per_second, 12.0);
         assert_eq!(settings.voxel_size, 0.25);
         assert!(!settings.mesh_outer_faces);
         assert_eq!(settings.emission_strength, 3.0);

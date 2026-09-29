@@ -208,11 +208,14 @@ pub fn create_voxel_context(
     contexts.add(VoxelContext { palette })
 }
 
-#[cfg(feature = "generate_voxels")]
-fn configure_material(material: &mut StandardMaterial, average_ior: Option<f32>, data: &VoxelData) {
+pub(crate) fn configure_material(
+    material: &mut StandardMaterial,
+    average_ior: Option<f32>,
+    data: &VoxelData,
+) {
     if let Some(ior) = average_ior {
         material.ior = ior;
-        material.thickness = data.size().min_element() as f32;
+        material.thickness = data._size().min_element() as f32 * data.settings.voxel_size;
     } else {
         #[cfg(feature = "pbr_transmission_textures")]
         {

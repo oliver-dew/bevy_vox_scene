@@ -130,16 +130,7 @@ pub fn modify_voxel_model(
         let mut material = context
             .palette
             .create_atlas_material(&atlas, |_, image| images.add(image));
-        if let Some(ior) = average_ior {
-            material.ior = ior;
-            material.thickness = model.size().min_element() as f32;
-        } else {
-            #[cfg(feature = "pbr_transmission_textures")]
-            {
-                material.specular_transmission_texture = None;
-            }
-            material.specular_transmission = 0.0;
-        }
+        super::configure_material(&mut material, average_ior, &model.data);
         let _ = meshes.insert(
             &modifier.mesh,
             super::mesh::to_bevy_mesh(&atlas.mesh, model.data.settings.supports_remeshing),

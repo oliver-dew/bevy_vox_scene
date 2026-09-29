@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 /// Settings that affect engine-independent voxel baking output.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct VoxBakeSettings {
+    /// Timeline rate used for MagicaVoxel transform frame indices.
+    #[serde(default = "default_animation_frames_per_second")]
+    pub animation_frames_per_second: f32,
     /// Length of each side of a voxel.
     pub voxel_size: f32,
     /// Whether faces on the outside boundary of a model are generated.
@@ -26,6 +29,7 @@ pub struct VoxBakeSettings {
 impl Default for VoxBakeSettings {
     fn default() -> Self {
         Self {
+            animation_frames_per_second: default_animation_frames_per_second(),
             voxel_size: 1.0,
             mesh_outer_faces: true,
             mesh_offset: UnitOffset::CENTER,
@@ -36,6 +40,11 @@ impl Default for VoxBakeSettings {
             ambient_occlusion: None,
         }
     }
+}
+
+/// Default rate used to convert MagicaVoxel frame indices to seconds.
+pub const fn default_animation_frames_per_second() -> f32 {
+    8.0
 }
 
 /// Controls voxel-residency ambient occlusion baked into packed texture atlases.

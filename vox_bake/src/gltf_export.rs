@@ -11,7 +11,7 @@ use thiserror::Error;
 
 use crate::{
     BakeError, BakedMeshAtlas as MeshAtlas, BakedPalette, BakedScene, BakedSceneGraphNode,
-    BakedSceneModel, SceneBakeError, VoxBakeSettings, bake_scene,
+    BakedSceneModel, BakedTransformFrame, SceneBakeError, VoxBakeSettings, bake_scene,
 };
 
 /// One GLB produced by [`export_vox_to_glb`].
@@ -48,11 +48,6 @@ pub enum ExportWarning {
         /// Highest mip level requested by the atlas settings.
         requested_max_lod: u8,
     },
-    /// Animated transform tracks were reduced to their first transform.
-    TransformAnimationFirstFrame {
-        /// Number of transform nodes containing more than one frame.
-        node_count: usize,
-    },
 }
 
 impl std::fmt::Display for ExportWarning {
@@ -61,10 +56,6 @@ impl std::fmt::Display for ExportWarning {
             Self::BaseMipOnly { requested_max_lod } => write!(
                 formatter,
                 "requested atlas mip levels through LOD {requested_max_lod}, but GLB PNG images contain only the base level; generate mipmaps when loading"
-            ),
-            Self::TransformAnimationFirstFrame { node_count } => write!(
-                formatter,
-                "{node_count} animated transform track(s) were reduced to their first transform; voxel model frames remain available as sibling nodes"
             ),
         }
     }
@@ -130,7 +121,11 @@ pub fn export_vox_to_glb(
     }
 
     let warnings = export_warnings(&scene, settings);
-    let bytes = write_scene(&scene, settings.voxel_size)?;
+    let bytes = write_scene(
+        &scene,
+        settings.voxel_size,
+        settings.animation_frames_per_second,
+    )?;
     let statistics = export_statistics(&scene, bytes.len());
     Ok(ExportedGlb {
         bytes,
@@ -139,8 +134,8 @@ pub fn export_vox_to_glb(
     })
 }
 
-fn export_warnings(scene: &BakedScene, settings: &VoxBakeSettings) -> Vec<ExportWarning> {
-    let mut warnings = match settings.texture_mode {
+fn export_warnings(_scene: &BakedScene, settings: &VoxBakeSettings) -> Vec<ExportWarning> {
+    match settings.texture_mode {
         crate::VoxelTextureMode::Packed(crate::TexturePackSettings {
             mip_policy: crate::TextureMipPolicy::Limited { max_lod },
             ..
@@ -148,23 +143,7 @@ fn export_warnings(scene: &BakedScene, settings: &VoxBakeSettings) -> Vec<Export
             requested_max_lod: max_lod,
         }],
         _ => Vec::new(),
-    };
-    let animated_transforms = scene
-        .nodes
-        .iter()
-        .filter(|node| {
-            matches!(
-                node,
-                BakedSceneGraphNode::Transform { frames, .. } if frames.len() > 1
-            )
-        })
-        .count();
-    if animated_transforms > 0 {
-        warnings.push(ExportWarning::TransformAnimationFirstFrame {
-            node_count: animated_transforms,
-        });
     }
-    warnings
 }
 
 fn export_statistics(scene: &BakedScene, output_bytes: usize) -> ExportStatistics {
@@ -197,7 +176,11 @@ fn export_statistics(scene: &BakedScene, output_bytes: usize) -> ExportStatistic
     }
 }
 
-fn write_scene(scene: &BakedScene, voxel_size: f32) -> Result<Vec<u8>, ExportError> {
+fn write_scene(
+    scene: &BakedScene,
+    voxel_size: f32,
+    animation_frames_per_second: f32,
+) -> Result<Vec<u8>, ExportError> {
     let mut writer = GltfWriter::new();
     let mut gltf_meshes = Vec::with_capacity(scene.models.len());
     for model in &scene.models {
@@ -212,6 +195,7 @@ fn write_scene(scene: &BakedScene, voxel_size: f32) -> Result<Vec<u8>, ExportErr
         .iter()
         .filter_map(|node| writer.add_scene_node(node, &gltf_meshes))
         .collect();
+    writer.add_transform_animation(animation_frames_per_second);
     let scene = writer.root.push(json::Scene {
         name: Some("Voxel scene".into()),
         nodes: roots,
@@ -226,6 +210,7 @@ fn write_scene(scene: &BakedScene, voxel_size: f32) -> Result<Vec<u8>, ExportErr
 struct ExportSceneNode {
     name: Option<String>,
     transform: [f32; 16],
+    transform_frames: Vec<BakedTransformFrame>,
     model_index: Option<usize>,
     children: Vec<ExportSceneNode>,
     animation_frame: Option<usize>,
@@ -265,6 +250,7 @@ fn export_scene_node(
                         model.name.clone()
                     }),
                     transform: glam_identity(),
+                    transform_frames: Vec::new(),
                     model_index: Some(*model_index),
                     children: Vec::new(),
                     animation_frame: animated.then_some(frame_index),
@@ -298,8 +284,12 @@ fn export_scene_node(
                 transform: if is_root {
                     glam_identity()
                 } else {
-                    frames.first().copied().unwrap_or_else(glam_identity)
+                    frames
+                        .first()
+                        .map(|frame| frame.transform)
+                        .unwrap_or_else(glam_identity)
                 },
+                transform_frames: if is_root { Vec::new() } else { frames.clone() },
                 model_index: None,
                 children,
                 animation_frame: None,
@@ -316,6 +306,7 @@ struct GltfWriter {
     buffer: Index<json::Buffer>,
     nearest_sampler: Index<json::texture::Sampler>,
     linear_sampler: Index<json::texture::Sampler>,
+    transform_tracks: Vec<(Index<json::Node>, Vec<BakedTransformFrame>)>,
 }
 
 impl GltfWriter {
@@ -353,6 +344,7 @@ impl GltfWriter {
             buffer,
             nearest_sampler,
             linear_sampler,
+            transform_tracks: Vec::new(),
         }
     }
 
@@ -371,9 +363,9 @@ impl GltfWriter {
 
         let (min, max) = bounds(positions);
         let position_accessor =
-            self.add_f32_accessor(&positions, json::accessor::Type::Vec3, Some((min, max)));
-        let normal_accessor = self.add_f32_accessor(&normals, json::accessor::Type::Vec3, None);
-        let uv_accessor = self.add_f32_accessor(&uvs, json::accessor::Type::Vec2, None);
+            self.add_f32_accessor(positions, json::accessor::Type::Vec3, Some((min, max)));
+        let normal_accessor = self.add_f32_accessor(normals, json::accessor::Type::Vec3, None);
+        let uv_accessor = self.add_f32_accessor(uvs, json::accessor::Type::Vec2, None);
         let ao_accessor = ao_uvs
             .as_ref()
             .map(|values| self.add_f32_accessor(values, json::accessor::Type::Vec2, None));
@@ -422,7 +414,7 @@ impl GltfWriter {
             atlas.height,
             &rgba,
             png::ColorType::Rgba,
-            self.nearest_sampler.clone(),
+            self.nearest_sampler,
         )?;
         let mr = atlas
             .palette_indices
@@ -443,7 +435,7 @@ impl GltfWriter {
             atlas.height,
             &mr,
             png::ColorType::Rgba,
-            self.nearest_sampler.clone(),
+            self.nearest_sampler,
         )?;
         let info = |index, tex_coord| json::texture::Info {
             index,
@@ -476,7 +468,7 @@ impl GltfWriter {
                 atlas.height,
                 &pixels,
                 png::ColorType::Rgba,
-                self.nearest_sampler.clone(),
+                self.nearest_sampler,
             )?)
         } else {
             None
@@ -504,7 +496,7 @@ impl GltfWriter {
                 atlas.height,
                 &pixels,
                 png::ColorType::Grayscale,
-                self.nearest_sampler.clone(),
+                self.nearest_sampler,
             )?)
         } else {
             None
@@ -516,7 +508,7 @@ impl GltfWriter {
                 ao.height,
                 &ao.pixels,
                 png::ColorType::Grayscale,
-                self.linear_sampler.clone(),
+                self.linear_sampler,
             )?)
         } else {
             None
@@ -648,6 +640,105 @@ impl GltfWriter {
         })
     }
 
+    fn add_scalar_f32_accessor(&mut self, values: &[f32]) -> Index<json::Accessor> {
+        let arrays = values.iter().map(|value| [*value]).collect::<Vec<_>>();
+        let accessor = self.add_f32_accessor(&arrays, json::accessor::Type::Scalar, None);
+        let item = &mut self.root.accessors[accessor.value()];
+        item.min = values
+            .iter()
+            .copied()
+            .reduce(f32::min)
+            .map(|v| json::Value::from(vec![v]));
+        item.max = values
+            .iter()
+            .copied()
+            .reduce(f32::max)
+            .map(|v| json::Value::from(vec![v]));
+        accessor
+    }
+
+    fn add_transform_animation(&mut self, frames_per_second: f32) {
+        let tracks = std::mem::take(&mut self.transform_tracks);
+        if tracks.is_empty() {
+            return;
+        }
+        let fps = if frames_per_second.is_finite() && frames_per_second > 0.0 {
+            frames_per_second
+        } else {
+            crate::default_animation_frames_per_second()
+        };
+        let mut animation = json::animation::Animation {
+            name: Some("Voxel transforms".into()),
+            channels: Vec::new(),
+            samplers: Vec::new(),
+            extensions: None,
+            extras: None,
+        };
+        for (node, frames) in tracks {
+            if frames.len() < 2 {
+                continue;
+            }
+            let times = frames
+                .iter()
+                .map(|frame| frame.frame_index as f32 / fps)
+                .collect::<Vec<_>>();
+            let input = self.add_scalar_f32_accessor(&times);
+            let mut translations = Vec::with_capacity(frames.len());
+            let mut rotations = Vec::with_capacity(frames.len());
+            let mut scales = Vec::with_capacity(frames.len());
+            for frame in frames {
+                let (scale, rotation, translation) =
+                    glam::Mat4::from_cols_array(&frame.transform).to_scale_rotation_translation();
+                translations.push(translation.to_array());
+                let mut rotation = rotation.to_array();
+                if rotations.last().is_some_and(|last: &[f32; 4]| {
+                    last.iter().zip(rotation).map(|(a, b)| a * b).sum::<f32>() < 0.0
+                }) {
+                    rotation = rotation.map(|value| -value);
+                }
+                rotations.push(rotation);
+                scales.push(scale.to_array());
+            }
+            for (output, property) in [
+                (
+                    self.add_f32_accessor(&translations, json::accessor::Type::Vec3, None),
+                    json::animation::Property::Translation,
+                ),
+                (
+                    self.add_f32_accessor(&rotations, json::accessor::Type::Vec4, None),
+                    json::animation::Property::Rotation,
+                ),
+                (
+                    self.add_f32_accessor(&scales, json::accessor::Type::Vec3, None),
+                    json::animation::Property::Scale,
+                ),
+            ] {
+                let sampler = animation.samplers.len();
+                animation.samplers.push(json::animation::Sampler {
+                    input,
+                    output,
+                    interpolation: Valid(json::animation::Interpolation::Linear),
+                    extensions: None,
+                    extras: None,
+                });
+                animation.channels.push(json::animation::Channel {
+                    sampler: Index::new(sampler as u32),
+                    target: json::animation::Target {
+                        node,
+                        path: Valid(property),
+                        extensions: None,
+                        extras: None,
+                    },
+                    extensions: None,
+                    extras: None,
+                });
+            }
+        }
+        if !animation.channels.is_empty() {
+            self.root.push(animation);
+        }
+    }
+
     fn add_png_texture(
         &mut self,
         name: &str,
@@ -694,7 +785,7 @@ impl GltfWriter {
         let length = bytes.len();
         align_four(&mut self.bin, 0);
         self.root.push(json::buffer::View {
-            buffer: self.buffer.clone(),
+            buffer: self.buffer,
             byte_length: USize64::from(length),
             byte_offset: Some(USize64::from(offset)),
             byte_stride: None,
@@ -711,7 +802,7 @@ impl GltfWriter {
         meshes: &[Option<Index<json::Mesh>>],
     ) -> Option<Index<json::Node>> {
         let mesh = match node.model_index {
-            Some(model_index) => Some(meshes.get(model_index)?.as_ref()?.clone()),
+            Some(model_index) => Some(*meshes.get(model_index)?.as_ref()?),
             None => None,
         };
         let children = node
@@ -758,20 +849,28 @@ impl GltfWriter {
         } else {
             (None, None)
         };
-        Some(self.root.push(json::Node {
+        let animated = node.transform_frames.len() > 1;
+        let matrix = glam::Mat4::from_cols_array(&node.transform);
+        let (scale, rotation, translation) = matrix.to_scale_rotation_translation();
+        let index = self.root.push(json::Node {
             children: (!children.is_empty()).then_some(children),
             extensions,
             extras,
-            matrix: (node.transform != glam_identity()).then_some(node.transform),
+            matrix: (!animated && node.transform != glam_identity()).then_some(node.transform),
             mesh,
             name: node.name.clone(),
             camera: None,
-            rotation: None,
-            scale: None,
+            rotation: animated.then_some(json::scene::UnitQuaternion(rotation.to_array())),
+            scale: animated.then_some(scale.to_array()),
             skin: None,
-            translation: None,
+            translation: animated.then_some(translation.to_array()),
             weights: None,
-        }))
+        });
+        if animated {
+            self.transform_tracks
+                .push((index, node.transform_frames.clone()));
+        }
+        Some(index)
     }
 
     fn finish(mut self) -> Result<Vec<u8>, ExportError> {
@@ -828,7 +927,8 @@ mod tests {
     use super::{ExportError, export_scene_nodes, export_vox_to_glb, glam_identity};
     use crate::{
         AmbientOcclusionSettings, BakedLayer, BakedMaterial, BakedScene, BakedSceneGraphNode,
-        BakedSceneModel, VoxBakeSettings, VoxelGrid, VoxelTextureMode, bake_model,
+        BakedSceneModel, BakedTransformFrame, VoxBakeSettings, VoxelGrid, VoxelTextureMode,
+        bake_model,
     };
 
     fn fixture(name: &str) -> Vec<u8> {
@@ -987,7 +1087,13 @@ mod tests {
             .sum::<usize>();
         let export = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
         let gltf = validate_glb(&export.bytes);
-        assert_eq!(gltf.document.animations().count(), 0);
+        let animation = gltf
+            .document
+            .animations()
+            .next()
+            .expect("transform tracks should produce a glTF animation");
+        assert_eq!(animation.name(), Some("Voxel transforms"));
+        assert!(animation.channels().count() >= 3);
         assert_eq!(
             gltf.document.default_scene().unwrap().name(),
             Some("Voxel scene")
@@ -1099,7 +1205,10 @@ mod tests {
                     hidden: false,
                     layer_index: 0,
                     child: 3,
-                    frames: vec![glam_identity()],
+                    frames: vec![BakedTransformFrame {
+                        frame_index: 0,
+                        transform: glam_identity(),
+                    }],
                 },
                 BakedSceneGraphNode::Shape { models: vec![0, 1] },
                 BakedSceneGraphNode::Transform {
@@ -1107,7 +1216,10 @@ mod tests {
                     hidden: false,
                     layer_index: 0,
                     child: 5,
-                    frames: vec![glam_identity()],
+                    frames: vec![BakedTransformFrame {
+                        frame_index: 0,
+                        transform: glam_identity(),
+                    }],
                 },
                 BakedSceneGraphNode::Shape {
                     models: vec![2, 3, 4],

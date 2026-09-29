@@ -43,6 +43,7 @@ bevy = {
         "bevy_render",
         "bevy_world_serialization",
         "bevy_asset",
+        "bevy_animation",
         "bevy_pbr",
         "bevy_log",
         "png",

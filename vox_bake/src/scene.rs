@@ -14,6 +14,15 @@ pub struct BakedLayer {
     pub hidden: bool,
 }
 
+/// One transform keyframe retained from a MagicaVoxel scene node.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BakedTransformFrame {
+    /// Source timeline frame. Missing `_f` attributes are assigned in source order.
+    pub frame_index: u32,
+    /// Column-major local transform in right-handed Y-up coordinates.
+    pub transform: [f32; 16],
+}
+
 /// One node in an owned scene graph, including unevaluated animation tracks.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BakedSceneGraphNode {
@@ -27,8 +36,8 @@ pub enum BakedSceneGraphNode {
         layer_index: usize,
         /// Child node index.
         child: usize,
-        /// Column-major local transforms in right-handed Y-up coordinates.
-        frames: Vec<[f32; 16]>,
+        /// Local transform animation keyframes.
+        frames: Vec<BakedTransformFrame>,
     },
     /// A group containing child node indices.
     Group {
@@ -143,7 +152,11 @@ pub fn bake_scene(
                 child: *child as usize,
                 frames: frames
                     .iter()
-                    .map(|frame| frame_transform(frame, settings.voxel_size))
+                    .enumerate()
+                    .map(|(index, frame)| BakedTransformFrame {
+                        frame_index: frame.frame_index().unwrap_or(index as u32),
+                        transform: frame_transform(frame, settings.voxel_size),
+                    })
                     .collect(),
             },
             SceneNode::Group { children, .. } => BakedSceneGraphNode::Group {
@@ -262,7 +275,7 @@ fn evaluate_baked_node(
             } else {
                 frames
                     .get(frame_index.min(frames.len().saturating_sub(1)))
-                    .copied()
+                    .map(|frame| frame.transform)
                     .unwrap_or(Mat4::IDENTITY.to_cols_array())
             };
             vec![BakedSceneNode {
@@ -367,6 +380,13 @@ mod tests {
         }
     }
 
+    fn frame(frame_index: u32, transform: [f32; 16]) -> BakedTransformFrame {
+        BakedTransformFrame {
+            frame_index,
+            transform,
+        }
+    }
+
     #[test]
     fn owned_scene_evaluation_holds_transforms_and_filters_hidden_nodes() {
         let first = Mat4::from_translation(Vec3::new(1.0, 2.0, 3.0)).to_cols_array();
@@ -380,7 +400,7 @@ mod tests {
                     hidden: false,
                     layer_index: 0,
                     child: 1,
-                    frames: vec![second],
+                    frames: vec![frame(0, second)],
                 },
                 BakedSceneGraphNode::Group {
                     children: vec![2, 3],
@@ -390,14 +410,14 @@ mod tests {
                     hidden: false,
                     layer_index: 0,
                     child: 4,
-                    frames: vec![first, second],
+                    frames: vec![frame(0, first), frame(1, second)],
                 },
                 BakedSceneGraphNode::Transform {
                     name: Some("hidden-node".into()),
                     hidden: true,
                     layer_index: 0,
                     child: 4,
-                    frames: vec![first],
+                    frames: vec![frame(0, first)],
                 },
                 BakedSceneGraphNode::Shape { models: vec![0] },
             ],
