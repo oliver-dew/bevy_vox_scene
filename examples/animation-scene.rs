@@ -18,7 +18,8 @@ use bevy::{
     render::view::Tonemapping,
     transform::TransformSystems,
 };
-use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin, VoxelAnimationPlayer, VoxelInstanceReady};
+use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin, VoxelInstanceReady};
+use flipbook::FlipbookPlayer;
 use vox_bake::AmbientOcclusionSettings;
 
 const VOXEL_SIZE: f32 = 0.1;
@@ -144,17 +145,17 @@ fn play_deer_transform(
 /// Press any key to toggle the pause state of the animation
 fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut VoxelAnimationPlayer, &AnimatedBy), With<Deer>>,
+    mut query: Query<(&mut FlipbookPlayer, &AnimatedBy), With<Deer>>,
     mut players: Query<&mut AnimationPlayer>,
 ) {
-    let Ok((mut voxel_animation_player, AnimatedBy(animated_by))) = query.single_mut() else {
+    let Ok((mut flipbook, AnimatedBy(animated_by))) = query.single_mut() else {
         return;
     };
     let Ok(mut animation_player) = players.get_mut(*animated_by) else {
         return;
     };
     if keys.get_just_pressed().next().is_some() {
-        voxel_animation_player.is_paused = !voxel_animation_player.is_paused;
+        flipbook.is_paused = !flipbook.is_paused;
         if animation_player.all_paused() {
             animation_player.resume_all();
         } else {

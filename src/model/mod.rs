@@ -19,7 +19,7 @@ use bevy::{
 };
 
 pub use self::{data::VoxelData, voxel::Voxel};
-use crate::{VoxelAnimationPlayer, load::VoxelAnimationFrame};
+use flipbook::{FlipbookFrame, FlipbookPlayer};
 pub(crate) use voxel::RawVoxel;
 pub(super) mod data;
 pub(super) mod mesh;
@@ -158,7 +158,7 @@ pub fn create_voxel_animation(
                     model: model_handle,
                     context: context_handle.clone(),
                 },
-                VoxelAnimationFrame(index),
+                FlipbookFrame(index),
                 Transform::IDENTITY,
                 if index == 0 {
                     Visibility::Inherited
@@ -184,7 +184,7 @@ pub fn create_voxel_animation(
             }
         }
     });
-    root.insert((VoxelAnimationPlayer {
+    root.insert((FlipbookPlayer {
         frames: (0..frames.len()).collect(),
         ..Default::default()
     },));

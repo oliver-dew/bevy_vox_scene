@@ -50,26 +50,27 @@
 
 use bevy::{
     animation::AnimationPlugin,
-    app::{App, Plugin, Update},
+    app::{App, Plugin},
     asset::AssetApp,
 };
 
 #[cfg(feature = "export")]
 mod export;
+mod flipbook_tests;
 mod load;
 mod model;
 mod observers;
-mod systems;
 
 #[cfg(test)]
 pub(crate) mod test_support;
 
 #[cfg(feature = "export")]
 pub use export::{ExportError, ExportedGlb, export_vox_to_glb};
+use flipbook::FlipbookPlugin;
+pub use flipbook::{FlipbookFrame, FlipbookPlayer, FlipbookRepeatMode};
 #[doc(inline)]
 use load::VoxSceneLoader;
-use load::VoxelAnimationFrame;
-pub use load::{VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance};
+pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
@@ -101,16 +102,14 @@ impl Plugin for VoxScenePlugin {
         if !app.is_plugin_added::<AnimationPlugin>() {
             app.add_plugins(AnimationPlugin);
         }
-        app.init_asset::<VoxelModel>()
+        app.add_plugins(FlipbookPlugin)
+            .init_asset::<VoxelModel>()
             .init_asset::<VoxelContext>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
-            .register_type::<VoxelAnimationPlayer>()
-            .register_type::<VoxelAnimationFrame>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })
-            .add_observer(observers::on_voxel_scene_ready)
-            .add_systems(Update, systems::update_animations);
+            .add_observer(observers::on_voxel_scene_ready);
     }
 }

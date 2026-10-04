@@ -1,4 +1,4 @@
-use dot_vox::DotVoxData;
+use dot_vox::{Color, DotVoxData, Material};
 use serde::{Deserialize, Serialize};
 
 /// Engine-independent physical properties for one voxel palette entry.
@@ -143,46 +143,106 @@ pub fn analyze_vox_palette(
     emission_strength: f32,
     uses_srgb: bool,
 ) -> BakedPalette {
-    BakedPalette::new(
-        data.palette
-            .iter()
-            .zip(data.materials.iter())
-            .map(|(color, material)| BakedMaterial {
-                color: [
-                    color.r as f32 / 255.0,
-                    color.g as f32 / 255.0,
-                    color.b as f32 / 255.0,
-                    color.a as f32 / 255.0,
-                ],
-                emission: material.emission().unwrap_or(0.0)
-                    * (material.radiant_flux().unwrap_or(0.0) + 1.0)
-                    * emission_strength,
-                roughness: if material.material_type() == Some("_diffuse") {
-                    diffuse_roughness
-                } else {
-                    material.roughness().unwrap_or(0.0)
-                },
-                metalness: material.metalness().unwrap_or(0.0),
-                translucency: material.opacity().unwrap_or(0.0),
-                refraction_index: if material.material_type() == Some("_glass") {
-                    1.0 + material.refractive_index().unwrap_or(0.0)
-                } else {
-                    0.0
-                },
-                density: if material.material_type() == Some("_media") {
-                    material.density().unwrap_or(0.0) * 10.0
-                } else {
-                    0.0
-                },
+    let mut materials = data
+        .palette
+        .iter()
+        .map(|color| bake_vox_material(color, None, diffuse_roughness, emission_strength))
+        .collect::<Vec<_>>();
+
+    for material in &data.materials {
+        let Some(index) = material.id.checked_sub(1).map(|id| id as usize) else {
+            continue;
+        };
+        let Some(color) = data.palette.get(index) else {
+            continue;
+        };
+        materials[index] =
+            bake_vox_material(color, Some(material), diffuse_roughness, emission_strength);
+    }
+
+    BakedPalette::new(materials, uses_srgb)
+}
+
+fn bake_vox_material(
+    color: &Color,
+    material: Option<&Material>,
+    diffuse_roughness: f32,
+    emission_strength: f32,
+) -> BakedMaterial {
+    let material_type = material.and_then(Material::material_type);
+    BakedMaterial {
+        color: [
+            color.r as f32 / 255.0,
+            color.g as f32 / 255.0,
+            color.b as f32 / 255.0,
+            color.a as f32 / 255.0,
+        ],
+        emission: material
+            .and_then(|material| {
+                material.emission().or_else(|| {
+                    (material_type == Some("_emit")).then(|| material.weight().unwrap_or(1.0))
+                })
             })
-            .collect(),
-        uses_srgb,
-    )
+            .unwrap_or(0.0)
+            * (material.and_then(Material::radiant_flux).unwrap_or(0.0) + 1.0)
+            * emission_strength,
+        roughness: if material_type.is_none() || material_type == Some("_diffuse") {
+            diffuse_roughness
+        } else {
+            material.and_then(Material::roughness).unwrap_or(0.0)
+        },
+        metalness: material.and_then(Material::metalness).unwrap_or(0.0),
+        translucency: material
+            .and_then(|material| material.transparency().or_else(|| material.opacity()))
+            .unwrap_or(0.0),
+        refraction_index: if material_type == Some("_glass") {
+            material
+                .and_then(|material| property_f32(material, "_ri"))
+                .unwrap_or_else(|| {
+                    1.0 + material.and_then(Material::refractive_index).unwrap_or(0.0)
+                })
+        } else {
+            0.0
+        },
+        density: if material_type == Some("_media") {
+            material.and_then(Material::density).unwrap_or(0.0) * 10.0
+        } else {
+            0.0
+        },
+    }
+}
+
+fn property_f32(material: &Material, name: &str) -> Option<f32> {
+    material.properties.get(name)?.parse().ok()
 }
 
 #[cfg(test)]
 mod tests {
+    use dot_vox::{Color, Dict, DotVoxData, Material};
+
     use super::*;
+
+    fn source_with_materials(palette: Vec<Color>, materials: Vec<Material>) -> DotVoxData {
+        DotVoxData {
+            version: 200,
+            index_map: (0..=255).collect(),
+            models: Vec::new(),
+            palette,
+            materials,
+            scenes: Vec::new(),
+            layers: Vec::new(),
+        }
+    }
+
+    fn material(id: u32, properties: &[(&str, &str)]) -> Material {
+        Material {
+            id,
+            properties: properties
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                .collect::<Dict>(),
+        }
+    }
 
     #[test]
     fn palette_derives_surface_and_volume_lookup_tables() {
@@ -220,5 +280,71 @@ mod tests {
         };
         assert_eq!(srgb.srgba_u8(true), [128, 64, 0, 255]);
         assert!(srgb.linear_rgba(true)[0] < srgb.color[0]);
+    }
+
+    #[test]
+    fn sparse_material_ids_are_applied_to_their_palette_entries() {
+        let source = source_with_materials(
+            vec![
+                Color {
+                    r: 10,
+                    g: 20,
+                    b: 30,
+                    a: 255,
+                },
+                Color {
+                    r: 40,
+                    g: 50,
+                    b: 60,
+                    a: 255,
+                },
+                Color {
+                    r: 70,
+                    g: 80,
+                    b: 90,
+                    a: 255,
+                },
+            ],
+            vec![material(
+                3,
+                &[("_type", "_emit"), ("_weight", "0.5"), ("_flux", "1")],
+            )],
+        );
+
+        let palette = analyze_vox_palette(&source, 0.8, 20.0, true);
+
+        assert_eq!(palette.materials[0].srgba_u8(true), [10, 20, 30, 255]);
+        assert_eq!(palette.materials[1].srgba_u8(true), [40, 50, 60, 255]);
+        assert_eq!(palette.materials[2].srgba_u8(true), [70, 80, 90, 255]);
+        assert_eq!(palette.materials[0].roughness, 0.8);
+        assert_eq!(palette.materials[1].emission, 0.0);
+        assert_eq!(palette.materials[2].emission, 20.0);
+    }
+
+    #[test]
+    fn modern_glass_prefers_transmission_and_absolute_ior_properties() {
+        let source = source_with_materials(
+            vec![Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            }],
+            vec![material(
+                1,
+                &[
+                    ("_type", "_glass"),
+                    ("_trans", "0.7"),
+                    ("_alpha", "0.2"),
+                    ("_ri", "1.333"),
+                    ("_ior", "0.1"),
+                ],
+            )],
+        );
+
+        let palette = analyze_vox_palette(&source, 0.8, 20.0, true);
+
+        assert_eq!(palette.materials[0].translucency, 0.7);
+        assert_eq!(palette.materials[0].refraction_index, 1.333);
     }
 }

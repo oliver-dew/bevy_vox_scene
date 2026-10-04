@@ -1301,6 +1301,37 @@ mod tests {
     }
 
     #[test]
+    fn exports_emission_for_flipbook_frames_using_emit_material_weight() {
+        let bytes = fixture("torch.vox");
+        let settings = VoxBakeSettings::default();
+        let source = crate::source::parse_vox(&bytes).unwrap();
+        let scene = crate::bake_scene(&source, &settings).unwrap();
+
+        let emissive_models = scene
+            .models
+            .iter()
+            .filter(|model| {
+                model.baked.surface.as_ref().is_some_and(|atlas| {
+                    atlas
+                        .used_palette_indices
+                        .iter()
+                        .any(|index| scene.palette.materials[*index as usize].emission > 0.0)
+                })
+            })
+            .count();
+        assert_eq!(emissive_models, 4);
+
+        let export = export_vox_to_glb(&bytes, &settings).unwrap();
+        let gltf = validate_glb(&export.bytes);
+        assert_eq!(
+            gltf.materials()
+                .filter(|material| material.emissive_texture().is_some())
+                .count(),
+            4
+        );
+    }
+
+    #[test]
     fn preserves_named_hierarchy_and_shared_mesh_references() {
         let export = export_vox_to_glb(&fixture("study.vox"), &VoxBakeSettings::default()).unwrap();
         let gltf = validate_glb(&export.bytes);

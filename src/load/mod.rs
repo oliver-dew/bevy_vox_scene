@@ -11,11 +11,8 @@ use bevy::{
     reflect::TypePath,
     world_serialization::WorldAsset,
 };
-#[cfg(test)]
-pub(crate) use components::AnimationRepeatMode;
-pub use components::{
-    AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
-};
+
+pub use components::{VoxelLayer, VoxelModelInstance};
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

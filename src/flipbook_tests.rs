@@ -1,48 +1,8 @@
-use bevy::{
-    prelude::{Children, Commands, Entity, Query, Res, Visibility},
-    time::Time,
-};
-
-use crate::{
-    VoxelAnimationPlayer,
-    load::{AnimationUpdate, VoxelAnimationFrame},
-};
-
-pub(super) fn update_animations(
-    mut commands: Commands,
-    mut animation_query: Query<(Entity, &mut VoxelAnimationPlayer, &Children)>,
-    mut frame_query: Query<(&VoxelAnimationFrame, &mut Visibility)>,
-    time: Res<Time>,
-) {
-    for (entity, mut animation, children) in animation_query.iter_mut() {
-        let update = animation.did_advance_frame(time.delta());
-        match update {
-            AnimationUpdate::SameFrame => (),
-            AnimationUpdate::AdvanceFrame(new_frame) => {
-                for child in children {
-                    let Ok((frame, mut visibility)) = frame_query.get_mut(*child) else {
-                        continue;
-                    };
-                    *visibility = if frame.0 == new_frame {
-                        Visibility::Inherited
-                    } else {
-                        Visibility::Hidden
-                    };
-                }
-            }
-            AnimationUpdate::ReachedEnd => {
-                if animation.despawn_on_finish {
-                    commands.entity(entity).despawn();
-                }
-            }
-        };
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
+    use crate::{VoxelInstanceReady, test_support::setup_and_load_voxel_scene};
     use bevy::{
         app::App,
         ecs::hierarchy::Children,
@@ -50,11 +10,7 @@ mod tests {
         utils::default,
         world_serialization::WorldAssetRoot,
     };
-
-    use crate::{
-        VoxelAnimationPlayer, VoxelInstanceReady, load::AnimationRepeatMode,
-        test_support::setup_and_load_voxel_scene,
-    };
+    use flipbook::{FlipbookPlayer, FlipbookRepeatMode};
 
     #[derive(Component)]
     struct TaggedAnimationRoot;
@@ -68,14 +24,12 @@ mod tests {
         // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
         // so we can advance a frame on each call to `app.update`
         app.add_observer(
-            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
-                commands
-                    .entity(trigger.entity)
-                    .insert(VoxelAnimationPlayer {
-                        frames: (0..frame_count).collect(),
-                        frame_rate: Duration::from_millis(1),
-                        ..default()
-                    });
+            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
+                commands.entity(trigger.entity).insert(FlipbookPlayer {
+                    frames: (0..frame_count).collect(),
+                    frame_rate: Duration::from_millis(1),
+                    ..default()
+                });
             },
         );
         app.add_observer(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
@@ -91,7 +45,7 @@ mod tests {
         let entity = app
             .world()
             .iter_entities()
-            .find(|entity| entity.contains::<VoxelAnimationPlayer>())
+            .find(|entity| entity.contains::<FlipbookPlayer>())
             .map(|entity| entity.id())
             .expect("animation entity");
         assert!(
@@ -126,13 +80,13 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
         app.update();
         app.add_observer(
-            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
+            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
-                    VoxelAnimationPlayer {
+                    FlipbookPlayer {
                         frames: vec![0],
                         frame_rate: Duration::from_millis(1),
-                        repeat_mode: AnimationRepeatMode::Count(1),
+                        repeat_mode: FlipbookRepeatMode::Count(1),
                         despawn_on_finish: true,
                         ..default()
                     },
@@ -161,13 +115,13 @@ mod tests {
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
         app.update();
         app.add_observer(
-            move |trigger: On<Add<VoxelAnimationPlayer>>, mut commands: Commands| {
+            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
-                    VoxelAnimationPlayer {
+                    FlipbookPlayer {
                         frames: vec![0],
                         frame_rate: Duration::from_millis(1),
-                        repeat_mode: AnimationRepeatMode::Count(1),
+                        repeat_mode: FlipbookRepeatMode::Count(1),
                         despawn_on_finish: false,
                         ..default()
                     },

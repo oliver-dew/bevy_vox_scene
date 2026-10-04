@@ -68,6 +68,28 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug example 'animation-scene-gltf'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=animation-scene-gltf",
+                    "--package=flipbook",
+                    "--features=vox_gltf"
+                ],
+                "filter": {
+                    "name": "animation-scene-gltf",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug example 'basic-model'",
             "cargo": {
                 "args": [

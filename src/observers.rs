@@ -1,3 +1,4 @@
+use crate::{VoxelLayer, VoxelModelInstance};
 use bevy::{
     ecs::{
         event::EntityEvent,
@@ -8,13 +9,12 @@ use bevy::{
     prelude::{Commands, Component, Entity, On, Query, With},
     world_serialization::WorldInstanceReady,
 };
-
-use crate::{VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance};
+use flipbook::FlipbookPlayer;
 
 /// An event triggered once for each logical voxel model after the scene is spawned and ready,
 /// targeted at the entity containing the [`bevy::prelude::WorldAssetRoot`]. Static models report
 /// their [`VoxelModelInstance`] entity. Flipbook models report the parent entity containing their
-/// [`VoxelAnimationPlayer`], rather than each individual frame entity.
+/// [`FlipbookPlayer`], rather than each individual frame entity.
 ///
 /// The advantage of observing [`VoxelInstanceReady`] over using `Trigger<OnAdd, VoxelModelInstance>`,
 /// is that [`VoxelInstanceReady`] is targeted at the [`bevy::prelude::WorldAssetRoot`],
@@ -80,7 +80,7 @@ pub(crate) fn on_voxel_scene_ready(
     vox_scene: On<WorldInstanceReady>,
     children: Query<&Children>,
     instance: Query<&VoxelModelInstance>,
-    animation: Query<(), With<VoxelAnimationPlayer>>,
+    animation: Query<(), With<FlipbookPlayer>>,
     parents: Query<&ChildOf>,
     name_layer: Query<(Option<&Name>, Option<&VoxelLayer>)>,
     mut commands: Commands,
@@ -109,7 +109,7 @@ pub(crate) fn on_voxel_scene_ready(
 fn animation_ancestor(
     mut entity: Entity,
     scene_root: Entity,
-    animation: &Query<(), With<VoxelAnimationPlayer>>,
+    animation: &Query<(), With<FlipbookPlayer>>,
     parents: &Query<&ChildOf>,
 ) -> Option<Entity> {
     while entity != scene_root {

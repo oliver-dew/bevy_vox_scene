@@ -1,0 +1,28 @@
+[package]
+name = "flipbook"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Utsira/bevy_vox_scene"
+readme = "README.md"
+authors = ["Oliver Dew <olidew@gmail.com>"]
+keywords = ["bevy", "flipbook", "animation"]
+categories = ["game-development", "graphics", "rendering::data-formats"]
+
+[features]
+default = []
+vox_gltf = ["bevy/bevy_gltf", "dep:serde", "dep:serde_json"]
+
+[[example]]
+name = "animation-scene-gltf"
+required-features = ["vox_gltf"]
+
+[dependencies]
+bevy = { version = "0.20.0-rc.1", default-features = false, features = ["bevy_camera"] }
+serde = { version = "1.0.219", optional = true }
+serde_json = { version = "1.0.151", optional = true }
+
+[dev-dependencies]
+bevy = { version = "0.20.0-rc.1", default-features = false, features = ["3d", "dev"] }
+async-std = { version = "1.12.0", features = ["attributes"] }
+gltf = { version = "1.4.0", default-features = false, features = ["extensions", "extras", "names"] }

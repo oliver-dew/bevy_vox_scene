@@ -20,7 +20,7 @@ use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
 use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, model::queryable::VoxelQueryable};
 
-use super::{VoxelAnimationFrame, components::VoxelAnimationPlayer};
+use flipbook::{FlipbookFrame, FlipbookPlayer};
 
 pub(super) fn parse_scene_graph(
     context: &mut LoadContext,
@@ -316,7 +316,7 @@ fn load_child(
                 attach_model(context, entity, vox_models, models[0]);
             } else if !models.is_empty() {
                 entity.insert((
-                    VoxelAnimationPlayer {
+                    FlipbookPlayer {
                         frames: (0..models.len()).collect(),
                         ..Default::default()
                     },
@@ -325,7 +325,7 @@ fn load_child(
                 entity.with_children(|spawner| {
                     for (frame_index, model_index) in models.iter().copied().enumerate() {
                         let mut frame = spawner.spawn((
-                            VoxelAnimationFrame(frame_index),
+                            FlipbookFrame(frame_index),
                             if frame_index == 0 {
                                 Visibility::Inherited
                             } else {

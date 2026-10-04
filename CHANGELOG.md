@@ -11,6 +11,7 @@
 - Add opt-in packed-atlas utilization and geometry-reduction logging through `TexturePackSettings::log_diagnostics`.
 - Stop generating duplicate `@material-no-emission` sub-assets; emissive properties can be toggled directly on each model's material.
 - Add the optional GLB exporter and the independently installable `vox-to-gltf` command-line tool for single-file and recursive directory conversion.
+- Rename `VoxelAnimationPlayer`, `VoxelAnimationFrame` etc to `FlipbookPlayer`, `FlipbookFrame`, and move them to `flipbook` crate.
 
 ## 0.22
 
