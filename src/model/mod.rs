@@ -89,24 +89,30 @@ impl VoxelSceneAssets<'_> {
                 (Some(mesh_handle), Some(self.materials.add(material)))
             });
         let cloud_image = maybe_cloud.map(|image| self.images.add(image));
-
-        let model = VoxelModel {
-            name: name.clone(),
-            data: data.clone(),
-            has_mesh: maybe_mesh_handle.is_some(),
-            has_cloud: cloud_image.is_some(),
-            material: maybe_material_handle.clone(),
-        };
-        let model_source = match data.model_source {
+        let model_size = data._size().as_vec3() * data.bake_settings.voxel_size;
+        let model_source_policy = data.model_source;
+        let model_source = match model_source_policy {
             VoxelModelSourcePolicy::Discard => None,
-            VoxelModelSourcePolicy::Queryable => Some(VoxelModelSource::Queryable {
-                model: self.models.add(model.clone()),
-                palette: palette_handle.clone(),
-            }),
-            VoxelModelSourcePolicy::Remeshable => Some(VoxelModelSource::Remeshable {
-                model: self.models.add(model.clone()),
-                palette: palette_handle.clone(),
-            }),
+            model_source_policy => {
+                let model = self.models.add(VoxelModel {
+                    name: name.clone(),
+                    data,
+                    has_mesh: maybe_mesh_handle.is_some(),
+                    has_cloud: cloud_image.is_some(),
+                    material: maybe_material_handle.clone(),
+                });
+                Some(match model_source_policy {
+                    VoxelModelSourcePolicy::Queryable => VoxelModelSource::Queryable {
+                        model,
+                        palette: palette_handle.clone(),
+                    },
+                    VoxelModelSourcePolicy::Remeshable => VoxelModelSource::Remeshable {
+                        model,
+                        palette: palette_handle.clone(),
+                    },
+                    VoxelModelSourcePolicy::Discard => unreachable!(),
+                })
+            }
         };
 
         let mut world = World::new();
@@ -127,7 +133,7 @@ impl VoxelSceneAssets<'_> {
                     absorption: 0.1,
                     ..Default::default()
                 },
-                Transform::from_scale(model.model_size()),
+                Transform::from_scale(model_size),
             ));
         }
         let scene = WorldAsset::new(world);
