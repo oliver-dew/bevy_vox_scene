@@ -12,7 +12,7 @@ use bevy::{
     world_serialization::WorldAsset,
 };
 
-pub use components::{VoxelLayer, VoxelModelInstance};
+pub use components::{VoxelLayer, VoxelModelInstance, VoxelModelSource};
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -54,8 +54,9 @@ pub struct VoxLoaderSettings {
     pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
-    /// Set to `true` if you want to modify the voxel model after it has been spawned, `false` if the voxels will be immutable
-    pub supports_remeshing: bool,
+    /// Controls whether source voxel data is retained after the render assets are baked.
+    #[serde(default)]
+    pub model_source: VoxelModelSourcePolicy,
     /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
     /// palette atlases use less texture memory. Both modes create per-model materials.
     #[serde(default)]
@@ -76,11 +77,23 @@ impl Default for VoxLoaderSettings {
             emission_strength: bake.emission_strength,
             uses_srgb: bake.uses_srgb,
             diffuse_roughness: bake.diffuse_roughness,
-            supports_remeshing: false,
+            model_source: VoxelModelSourcePolicy::default(),
             texture_mode: bake.texture_mode,
             ambient_occlusion: bake.ambient_occlusion,
         }
     }
+}
+
+/// Controls which operations remain available after a voxel model's render assets are baked.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VoxelModelSourcePolicy {
+    /// Discard the source voxel grid after baking.
+    #[default]
+    Discard,
+    /// Retain the voxel grid for spatial queries.
+    Queryable,
+    /// Retain the voxel grid, palette, and CPU-side mesh data for runtime remeshing.
+    Remeshable,
 }
 
 impl From<&VoxLoaderSettings> for VoxBakeSettings {
@@ -166,7 +179,10 @@ impl VoxSceneLoader {
                     crate::model::configure_material(&mut material, baked.average_ior, &data);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
-                        crate::model::mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing),
+                        crate::model::mesh::to_bevy_mesh(
+                            atlas.mesh,
+                            data.model_source == VoxelModelSourcePolicy::Remeshable,
+                        ),
                     );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
@@ -175,6 +191,7 @@ impl VoxSceneLoader {
                         Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(cloud))
                     });
                 }
+                let model_source = data.model_source;
                 let model = VoxelModel {
                     name: name.clone(),
                     data,
@@ -182,9 +199,11 @@ impl VoxSceneLoader {
                     has_cloud,
                     material,
                 };
-                _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
-                    Ok::<_, BevyError>(model.clone())
-                });
+                if model_source != VoxelModelSourcePolicy::Discard {
+                    _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
+                        Ok::<_, BevyError>(model.clone())
+                    });
+                }
                 model
             })
             .collect();
@@ -218,7 +237,8 @@ mod tests {
     };
 
     use crate::{
-        VoxelLayer, VoxelModel, VoxelModelInstance, test_support::setup_and_load_voxel_scene,
+        VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource,
+        test_support::setup_and_load_voxel_scene,
     };
 
     #[async_std::test]
@@ -253,15 +273,15 @@ mod tests {
             .expect("children")
             .first()
             .expect("scene root");
-        let model_instance = app
+        let model_source = app
             .world()
-            .get::<VoxelModelInstance>(*entity)
-            .expect("voxel model instance")
+            .get::<VoxelModelSource>(*entity)
+            .expect("voxel model source")
             .clone();
         let model = app
             .world()
             .resource::<Assets<VoxelModel>>()
-            .get(model_instance.model.id())
+            .get(model_source.model().id())
             .expect("retrieve model from Res<Assets>");
         let fog_entity = app
             .world()
@@ -297,11 +317,11 @@ mod tests {
             .first()
             .expect("scene root");
 
-        let model_id = &app
+        let model_id = app
             .world()
-            .get::<VoxelModelInstance>(*entity)
-            .expect("Voxel model instance")
-            .model;
+            .get::<VoxelModelSource>(*entity)
+            .expect("Voxel model source")
+            .model();
 
         let model = app
             .world()
@@ -408,9 +428,10 @@ mod tests {
             5,
             "5 model instances spawned in this scene slice"
         );
-        let models: HashSet<String> = instance_query
+        let mut source_query = app.world_mut().query::<&VoxelModelSource>();
+        let models: HashSet<String> = source_query
             .iter(&app.world())
-            .map(|c| c.model.id().to_string().clone())
+            .map(|source| source.model().id().to_string())
             .collect();
         assert_eq!(models.len(), 3, "Instances point to 3 unique models");
         let entity = app

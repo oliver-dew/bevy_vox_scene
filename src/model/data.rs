@@ -5,7 +5,7 @@ use bevy::{
 use std::fmt::Debug;
 use vox_bake::{BakedModel, BakedPalette, VoxBakeSettings, VoxelGrid, bake_model};
 
-use crate::VoxLoaderSettings;
+use crate::{VoxLoaderSettings, VoxelModelSourcePolicy};
 
 use super::mesh::MeshAtlas;
 
@@ -14,7 +14,7 @@ use super::mesh::MeshAtlas;
 pub struct VoxelData {
     pub(crate) grid: VoxelGrid,
     pub(crate) bake_settings: VoxBakeSettings,
-    pub(crate) supports_remeshing: bool,
+    pub(crate) model_source: VoxelModelSourcePolicy,
 }
 
 impl Default for VoxelData {
@@ -29,7 +29,7 @@ impl Default for VoxelData {
                 padding: if settings.mesh_outer_faces { 2 } else { 0 },
             },
             bake_settings,
-            supports_remeshing: settings.supports_remeshing,
+            model_source: settings.model_source,
         }
     }
 }
@@ -40,7 +40,7 @@ impl Debug for VoxelData {
             .field("dimensions", &self.grid.dimensions)
             .field("voxels", &self.grid.voxels.len())
             .field("bake_settings", &self.bake_settings)
-            .field("supports_remeshing", &self.supports_remeshing)
+            .field("model_source", &self.model_source)
             .finish()
     }
 }
@@ -53,7 +53,7 @@ impl VoxelData {
         Self {
             grid,
             bake_settings,
-            supports_remeshing: settings.supports_remeshing,
+            model_source: settings.model_source,
         }
     }
     /// The size of the voxel model, not including the padding that may have been added if the outer faces are being meshed.

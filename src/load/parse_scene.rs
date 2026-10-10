@@ -18,7 +18,10 @@ use bevy::{
 };
 use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
-use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, model::queryable::VoxelQueryable};
+use crate::{
+    VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy,
+    model::queryable::VoxelQueryable,
+};
 
 use flipbook::{FlipbookFrame, FlipbookPlayer};
 
@@ -347,10 +350,23 @@ fn attach_model(
         warn!("Shape model index {model_index} is out of bounds");
         return;
     };
-    entity.insert(VoxelModelInstance {
-        model: context.get_label_handle(format!("{}@model", model.name)),
-        palette: context.get_label_handle("voxel-palette"),
-    });
+    entity.insert(VoxelModelInstance);
+    let mut model_handle = || context.get_label_handle(format!("{}@model", model.name));
+    match model.data.model_source {
+        VoxelModelSourcePolicy::Discard => {}
+        VoxelModelSourcePolicy::Queryable => {
+            entity.insert(VoxelModelSource::Queryable {
+                model: model_handle(),
+                palette: context.get_label_handle("voxel-palette"),
+            });
+        }
+        VoxelModelSourcePolicy::Remeshable => {
+            entity.insert(VoxelModelSource::Remeshable {
+                model: model_handle(),
+                palette: context.get_label_handle("voxel-palette"),
+            });
+        }
+    }
     if model.has_mesh {
         let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name));
         let material: Handle<StandardMaterial> =

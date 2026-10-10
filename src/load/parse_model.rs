@@ -8,7 +8,7 @@ impl VoxelData {
         VoxelData {
             grid,
             bake_settings,
-            supports_remeshing: settings.supports_remeshing,
+            model_source: settings.model_source,
         }
     }
 }

@@ -13,8 +13,9 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
-    VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode, modify_voxel_model,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelSource,
+    VoxelModelSourcePolicy, VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    modify_voxel_model,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -41,7 +42,7 @@ fn main() {
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
                     // Retain voxel data so that we can do voxel collision detection and add snow splats to the table
-                    supports_remeshing: true,
+                    model_source: VoxelModelSourcePolicy::Remeshable,
                     // Use legacy texturing so that we don't need to retexture every time a snowflake lands
                     texture_mode: VoxelTextureMode::Palette,
                     ..default()
@@ -212,7 +213,7 @@ fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<
-        (Entity, &GlobalTransform, &VoxelModelInstance),
+        (Entity, &GlobalTransform, &VoxelModelSource),
         (With<Scenery>, Without<Snowflake>),
     >,
     models: Res<Assets<VoxelModel>>,
@@ -226,7 +227,7 @@ fn update_snow(
             continue;
         }
         for (item, item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(&item_instance.model) else {
+            let Some(model) = models.get(item_instance.model()) else {
                 continue;
             };
             let vox_pos =
@@ -251,7 +252,7 @@ fn update_snow(
 
 fn on_flake_collision(
     collision: On<SnowflakeCollision>,
-    query: Query<(&VoxelModelInstance, &Mesh3d)>,
+    query: Query<(&VoxelModelSource, &Mesh3d)>,
     mut commands: Commands,
 ) -> Option<VoxelModifier> {
     let Ok((instance, Mesh3d(mesh))) = query.get(collision.colidee) else {

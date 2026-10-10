@@ -7,10 +7,10 @@ use vox_bake::{BakedMesh, BakedMeshAtlas};
 
 pub(crate) type MeshAtlas = BakedMeshAtlas;
 
-pub(crate) fn to_bevy_mesh(mesh: BakedMesh, supports_remeshing: bool) -> Mesh {
+pub(crate) fn to_bevy_mesh(mesh: BakedMesh, retain_main_world: bool) -> Mesh {
     let mut bevy_mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
-        if supports_remeshing {
+        if retain_main_world {
             RenderAssetUsages::default()
         } else {
             RenderAssetUsages::RENDER_WORLD

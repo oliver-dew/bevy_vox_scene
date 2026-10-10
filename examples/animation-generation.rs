@@ -7,8 +7,8 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelModelInstance, VoxelPalette,
-    VoxelSceneAssets,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelModelSource,
+    VoxelModelSourcePolicy, VoxelPalette, VoxelSceneAssets,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -48,18 +48,25 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands
-        .spawn(WorldAssetRoot(assets.load("study.vox#tank")))
+        .spawn(WorldAssetRoot(
+            assets
+                .load_builder()
+                .with_settings(|settings: &mut VoxLoaderSettings| {
+                    settings.model_source = VoxelModelSourcePolicy::Queryable;
+                })
+                .load("study.vox#tank"),
+        ))
         .observe(
             |trigger: On<WorldInstanceReady>,
              children: Query<&Children>,
-             vox_instance: Query<&VoxelModelInstance>,
+             voxel_source: Query<&VoxelModelSource>,
              mut commands: Commands,
              mut voxel_assets: VoxelSceneAssets| {
                 for child in children.iter_descendants(trigger.entity) {
-                    if let Ok(instance) = vox_instance.get(child) {
+                    if let Ok(source) = voxel_source.get(child) {
                         // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same palette as the scene loaded from disk
                         generate_ripples(
-                            instance.palette.clone(),
+                            source.palette().clone(),
                             &mut commands,
                             &mut voxel_assets,
                         );

@@ -70,7 +70,9 @@ use flipbook::FlipbookPlugin;
 pub use flipbook::{FlipbookFrame, FlipbookPlayer, FlipbookRepeatMode};
 #[doc(inline)]
 use load::VoxSceneLoader;
-pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
+pub use load::{
+    VoxLoaderSettings, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy,
+};
 #[cfg(feature = "generate_voxels")]
 pub use model::VoxelSceneAssets;
 #[cfg(feature = "generate_voxels")]
@@ -107,6 +109,7 @@ impl Plugin for VoxScenePlugin {
             .init_asset::<VoxelPalette>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
+            .register_type::<VoxelModelSource>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })

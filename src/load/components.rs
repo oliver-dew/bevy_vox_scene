@@ -7,21 +7,47 @@ use bevy::{
 
 use crate::{VoxelModel, VoxelPalette};
 
-/// An instance of a [`VoxelModel`].
-#[derive(Component, Clone, Reflect)]
+/// Marks an entity as an instance of a voxel model.
+#[derive(Component, Clone, Reflect, Default)]
 #[reflect(Component)]
 #[require(Transform, Visibility)]
-pub struct VoxelModelInstance {
-    /// Handles to the model.
-    pub model: Handle<VoxelModel>,
-    /// Handle to the palette shared by this model's scene.
-    pub palette: Handle<VoxelPalette>,
+pub struct VoxelModelInstance;
+
+/// Retained source data for a voxel model instance.
+///
+/// This component is absent when the source voxels were discarded after baking.
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
+pub enum VoxelModelSource {
+    /// The voxel grid can be queried, but the rendered mesh cannot be regenerated.
+    Queryable {
+        /// Handle to the retained voxel model.
+        model: Handle<VoxelModel>,
+        /// Handle to the palette from which the model was baked.
+        palette: Handle<VoxelPalette>,
+    },
+    /// The voxel grid can be queried and used to regenerate the rendered mesh.
+    Remeshable {
+        /// Handle to the retained voxel model.
+        model: Handle<VoxelModel>,
+        /// Handle to the palette required when regenerating the model.
+        palette: Handle<VoxelPalette>,
+    },
 }
 
-impl VoxelModelInstance {
-    /// Create a new instance
-    pub fn new(model: Handle<VoxelModel>, palette: Handle<VoxelPalette>) -> Self {
-        Self { model, palette }
+impl VoxelModelSource {
+    /// Return the retained voxel model handle.
+    pub fn model(&self) -> &Handle<VoxelModel> {
+        match self {
+            Self::Queryable { model, .. } | Self::Remeshable { model, .. } => model,
+        }
+    }
+
+    /// Return the palette used to bake the voxel model.
+    pub fn palette(&self) -> &Handle<VoxelPalette> {
+        match self {
+            Self::Queryable { palette, .. } | Self::Remeshable { palette, .. } => palette,
+        }
     }
 }
 

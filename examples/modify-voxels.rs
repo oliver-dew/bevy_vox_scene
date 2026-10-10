@@ -6,8 +6,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
-    VoxelRegionMode, modify_voxel_model,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelSource, VoxelModelSourcePolicy,
+    VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             assets
                 .load_builder()
                 .with_settings(|settings: &mut VoxLoaderSettings| {
-                    settings.supports_remeshing = true;
+                    settings.model_source = VoxelModelSourcePolicy::Remeshable;
                     settings.texture_mode = VoxelTextureMode::Palette;
                 })
                 .load("study.vox"),
@@ -95,9 +95,9 @@ fn on_spawn_voxel_instance(
     }
 }
 
-fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Option<VoxelModifier> {
+fn grow_grass(query: Query<(&VoxelModelSource, &Mesh3d), With<Floor>>) -> Option<VoxelModifier> {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some((instance, mesh)) = query.iter().next() else {
+    let Some((source, mesh)) = query.iter().next() else {
         return None;
     };
     let region = VoxelRegion {
@@ -105,7 +105,7 @@ fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Opti
         size: IVec3::new(64, 8, 64),
     };
     Some(VoxelModifier::new(
-        instance.clone(),
+        source.clone(),
         mesh.0.clone(),
         VoxelRegionMode::Box(region),
         |pos, voxel, model| {

@@ -1,4 +1,4 @@
-use crate::VoxelModelInstance;
+use crate::{VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy};
 use bevy::{
     asset::{Asset, Assets, Handle},
     camera::visibility::Visibility,
@@ -81,9 +81,10 @@ impl VoxelSceneAssets<'_> {
             maybe_atlas.map_or((None, None), |atlas| {
                 let mut material =
                     palette.create_atlas_material(&atlas, |_, image| self.images.add(image));
-                let mesh_handle = self
-                    .meshes
-                    .add(mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing));
+                let mesh_handle = self.meshes.add(mesh::to_bevy_mesh(
+                    atlas.mesh,
+                    data.model_source == VoxelModelSourcePolicy::Remeshable,
+                ));
                 configure_material(&mut material, average_ior, &data);
                 (Some(mesh_handle), Some(self.materials.add(material)))
             });
@@ -96,18 +97,23 @@ impl VoxelSceneAssets<'_> {
             has_cloud: cloud_image.is_some(),
             material: maybe_material_handle.clone(),
         };
-        let model_handle = self.models.add(model.clone());
+        let model_source = match data.model_source {
+            VoxelModelSourcePolicy::Discard => None,
+            VoxelModelSourcePolicy::Queryable => Some(VoxelModelSource::Queryable {
+                model: self.models.add(model.clone()),
+                palette: palette_handle.clone(),
+            }),
+            VoxelModelSourcePolicy::Remeshable => Some(VoxelModelSource::Remeshable {
+                model: self.models.add(model.clone()),
+                palette: palette_handle.clone(),
+            }),
+        };
 
         let mut world = World::new();
-        let mut root = world.spawn((
-            Transform::IDENTITY,
-            Visibility::Visible,
-            VoxelModelInstance {
-                model: model_handle,
-                palette: palette_handle,
-            },
-        ));
-        // TODO boolean for "retain model data"
+        let mut root = world.spawn((Transform::IDENTITY, Visibility::Visible, VoxelModelInstance));
+        if let Some(model_source) = model_source {
+            root.insert(model_source);
+        }
         if let Some(mesh_handle) = maybe_mesh_handle {
             root.insert(Mesh3d(mesh_handle));
             if let Some(material_handle) = maybe_material_handle {
@@ -150,9 +156,10 @@ impl VoxelSceneAssets<'_> {
                     maybe_atlas.map_or((None, None), |atlas| {
                         let mut material = palette
                             .create_atlas_material(&atlas, |_, image| self.images.add(image));
-                        let mesh_handle = self
-                            .meshes
-                            .add(mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing));
+                        let mesh_handle = self.meshes.add(mesh::to_bevy_mesh(
+                            atlas.mesh,
+                            data.model_source == VoxelModelSourcePolicy::Remeshable,
+                        ));
                         configure_material(&mut material, average_ior, &data);
                         (Some(mesh_handle), Some(self.materials.add(material)))
                     });
@@ -166,12 +173,19 @@ impl VoxelSceneAssets<'_> {
                     material: maybe_material_handle.clone(),
                 };
                 let model_size = model.model_size();
-                let model_handle = self.models.add(model);
-                let mut frame = spawner.spawn((
-                    VoxelModelInstance {
-                        model: model_handle,
+                let model_source = match model.data.model_source {
+                    VoxelModelSourcePolicy::Discard => None,
+                    VoxelModelSourcePolicy::Queryable => Some(VoxelModelSource::Queryable {
+                        model: self.models.add(model),
                         palette: palette_handle.clone(),
-                    },
+                    }),
+                    VoxelModelSourcePolicy::Remeshable => Some(VoxelModelSource::Remeshable {
+                        model: self.models.add(model),
+                        palette: palette_handle.clone(),
+                    }),
+                };
+                let mut frame = spawner.spawn((
+                    VoxelModelInstance,
                     FlipbookFrame(index),
                     Transform::IDENTITY,
                     if index == 0 {
@@ -180,6 +194,9 @@ impl VoxelSceneAssets<'_> {
                         Visibility::Hidden
                     },
                 ));
+                if let Some(model_source) = model_source {
+                    frame.insert(model_source);
+                }
                 if let Some(mesh_handle) = maybe_mesh_handle {
                     frame.insert(Mesh3d(mesh_handle));
                     if let Some(material_handle) = maybe_material_handle {
@@ -236,7 +253,8 @@ mod tests {
     };
 
     use crate::{
-        SDF, VoxLoaderSettings, Voxel, VoxelPalette, VoxelSceneAssets, test_support::setup_app,
+        SDF, VoxLoaderSettings, Voxel, VoxelModel, VoxelModelInstance, VoxelModelSource,
+        VoxelPalette, VoxelSceneAssets, test_support::setup_app,
     };
 
     #[cfg(feature = "generate_voxels")]
@@ -267,6 +285,13 @@ mod tests {
             .expect("children")
             .first()
             .expect("model entity");
+
+        assert!(app.world().get::<VoxelModelInstance>(*entity).is_some());
+        assert!(
+            app.world().get::<VoxelModelSource>(*entity).is_none(),
+            "default settings discard the source voxel grid"
+        );
+        assert_eq!(app.world().resource::<Assets<VoxelModel>>().len(), 0);
 
         let mesh_handle = &app.world().get::<Mesh3d>(*entity).expect("voxel mesh").0;
         let mesh = app

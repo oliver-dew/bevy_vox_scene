@@ -2,7 +2,7 @@ use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
-use rand::random;
+use libnoise::prelude::*;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
@@ -66,16 +66,18 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         &[(0, stop_0), (85, stop_1), (170, stop_2), (255, stop_3)],
         true,
     ));
+    let noise = Source::simplex(67890).fbm(4, 0.008, 2.34, 0.6);
     let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))
         .subtract(SDF::sphere(size as f32 * 0.5))
         .map_inside_to_voxels(
             UVec3::splat(size as u32),
             VoxLoaderSettings::default(),
             |pos| {
-                // map y coord to 0..256 palette range, and add a bit of random noise to dither the gradient
-                let dither = random::<f32>() * 4.;
-                let y_normalized = (pos.y.round() / size as f32) + 0.5;
-                Voxel((y_normalized * 256. + dither) as u8)
+                let n_pos = (pos + Vec3::splat(256.0)) * 0.8;
+                let color = (noise.sample([n_pos.x.into(), n_pos.y.into(), n_pos.z.into()]) as f32
+                    * 0.8)
+                    + 0.5;
+                Voxel((color * 255.).clamp(1., 255.) as u8)
             },
         );
     let model_name = "my sdf model";

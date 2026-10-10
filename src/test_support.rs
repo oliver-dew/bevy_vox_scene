@@ -8,7 +8,7 @@ use bevy::{
     world_serialization::{WorldAsset, WorldSerializationPlugin},
 };
 
-use crate::VoxScenePlugin;
+use crate::{VoxLoaderSettings, VoxScenePlugin, VoxelModelSourcePolicy};
 
 pub(crate) async fn setup_and_load_voxel_scene(
     app: &mut App,
@@ -31,7 +31,12 @@ pub(crate) fn setup_app(app: &mut App) {
         WorldSerializationPlugin::default(),
         MeshPlugin,
         MaterialPlugin::<StandardMaterial>::default(),
-        VoxScenePlugin::default(),
+        VoxScenePlugin {
+            global_settings: Some(VoxLoaderSettings {
+                model_source: VoxelModelSourcePolicy::Remeshable,
+                ..Default::default()
+            }),
+        },
     ))
     .init_asset::<Image>();
 }

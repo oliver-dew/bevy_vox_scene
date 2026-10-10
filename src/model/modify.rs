@@ -8,13 +8,13 @@ use bevy::{
     prelude::Res,
 };
 
-use crate::VoxelModelInstance;
+use crate::VoxelModelSource;
 
 use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 
 /// Data object passed into [`modify_voxel_model`] system
 pub struct VoxelModifier {
-    instance: VoxelModelInstance,
+    source: VoxelModelSource,
     mesh: Handle<Mesh>,
     region: VoxelRegionMode,
     modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
@@ -36,13 +36,13 @@ impl VoxelModifier {
     /// ### Notes
     /// The smaller the `region` is, the more performant the operation will be.
     pub fn new<F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>(
-        instance: VoxelModelInstance,
+        source: VoxelModelSource,
         mesh: Handle<Mesh>,
         region: VoxelRegionMode,
         modify: F,
     ) -> Self {
         VoxelModifier {
-            instance,
+            source,
             mesh,
             region,
             modify: Box::new(modify),
@@ -57,9 +57,9 @@ impl VoxelModifier {
 /// ### Example
 /// ```no_run
 /// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModelInstance, VoxelRegionMode, VoxelRegion, Voxel, VoxelModifier, modify_voxel_model};
+/// # use bevy_vox_scene::{VoxelModelSource, VoxelRegionMode, VoxelRegion, Voxel, VoxelModifier, modify_voxel_model};
 /// # let mut commands: Commands = panic!();
-/// # let model_instance: VoxelModelInstance = panic!();
+/// # let model_source: VoxelModelSource = panic!();
 /// # let mesh_handle: Handle<Mesh> = panic!();
 /// // cut a sphere-shaped hole out of the loaded model
 /// let sphere_center = IVec3::new(10, 10, 10);
@@ -70,7 +70,7 @@ impl VoxelModifier {
 ///     size: IVec3::splat(1 + (radius * 2)),
 /// };
 /// let modifier = VoxelModifier::new(
-///     model_instance.clone(),
+///     model_source.clone(),
 /// 	mesh_handle.clone(),
 ///     VoxelRegionMode::Box(region),
 ///     move | position, voxel, model | {
@@ -97,10 +97,13 @@ pub fn modify_voxel_model(
     let Some(modifier) = maybe_modifier else {
         return;
     };
-    let Some(palette) = palettes.get(modifier.instance.palette.id()) else {
+    let VoxelModelSource::Remeshable { model, palette } = modifier.source else {
         return;
     };
-    let Some(mut model) = models.get_mut(modifier.instance.model.id()) else {
+    let Some(palette) = palettes.get(palette.id()) else {
+        return;
+    };
+    let Some(mut model) = models.get_mut(model.id()) else {
         return;
     };
     let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
@@ -129,10 +132,7 @@ pub fn modify_voxel_model(
     if let Some(atlas) = maybe_atlas {
         let mut material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
         super::configure_material(&mut material, average_ior, &model.data);
-        let _ = meshes.insert(
-            &modifier.mesh,
-            super::mesh::to_bevy_mesh(atlas.mesh, model.data.supports_remeshing),
-        );
+        let _ = meshes.insert(&modifier.mesh, super::mesh::to_bevy_mesh(atlas.mesh, true));
 
         if let Some(material_handle) = &model.material {
             if let Some(old_material) = materials.get(material_handle) {
@@ -216,7 +216,7 @@ mod tests {
     };
 
     use crate::{
-        Voxel, VoxelModel, VoxelModelInstance, VoxelModifier, VoxelQueryable, VoxelRegion,
+        Voxel, VoxelModel, VoxelModelSource, VoxelModifier, VoxelQueryable, VoxelRegion,
         VoxelRegionMode, model::queryable::OutOfBoundsError, modify_voxel_model,
         test_support::setup_and_load_voxel_scene,
     };
@@ -235,10 +235,10 @@ mod tests {
             .expect("children")
             .first()
             .expect("scene root");
-        let model_instance = app
+        let model_source = app
             .world()
-            .get::<VoxelModelInstance>(*entity)
-            .expect("voxel model instance")
+            .get::<VoxelModelSource>(*entity)
+            .expect("voxel model source")
             .clone();
         let mesh = app
             .world()
@@ -250,7 +250,7 @@ mod tests {
             size: IVec3::ONE,
         };
         let modifier = VoxelModifier::new(
-            model_instance.clone(),
+            model_source.clone(),
             mesh.0.clone(),
             VoxelRegionMode::Box(region),
             |_pos, _voxel, _model| Voxel(7),
@@ -262,7 +262,7 @@ mod tests {
         let model = app
             .world()
             .resource::<Assets<VoxelModel>>()
-            .get(model_instance.model.id())
+            .get(model_source.model().id())
             .expect("retrieve model from Res<Assets>");
 
         assert_eq!(

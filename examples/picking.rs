@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelModifier,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelSource, VoxelModifier,
     VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
     modify_voxel_model,
 };
@@ -48,7 +48,7 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         UVec3::splat(48),
         VoxLoaderSettings {
             voxel_size: VOXEL_SIZE,
-            supports_remeshing: true, // we need to set this in order to update the mesh below
+            model_source: bevy_vox_scene::VoxelModelSourcePolicy::Remeshable,
             texture_mode: VoxelTextureMode::Palette, // makes remeshing quicker
             ..default()
         },
@@ -63,7 +63,7 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
 /// Tap with left button to add voxels, right button to erase
 fn on_tap_voxels(
     trigger: On<PointerPress>,
-    query: Query<(&VoxelModelInstance, &Mesh3d, &GlobalTransform)>,
+    query: Query<(&VoxelModelSource, &Mesh3d, &GlobalTransform)>,
     models: Res<Assets<VoxelModel>>,
 ) -> Option<VoxelModifier> {
     let Some(global_point) = trigger.hit.position else {
@@ -72,10 +72,10 @@ fn on_tap_voxels(
     let Some(global_normal) = trigger.hit.normal else {
         return None;
     };
-    let Ok((instance, mesh, global_xform)) = query.get(trigger.original_event_target()) else {
+    let Ok((source, mesh, global_xform)) = query.get(trigger.original_event_target()) else {
         return None;
     };
-    let Some(model) = models.get(&instance.model) else {
+    let Some(model) = models.get(source.model()) else {
         return None;
     };
     // pick a point close to the center of the voxel whose surface we tapped:
@@ -94,7 +94,7 @@ fn on_tap_voxels(
         IVec3::splat(brush_radius),
     ));
     let modifier = VoxelModifier::new(
-        instance.clone(),
+        source.clone(),
         mesh.0.clone(),
         region,
         move |pos, underlying_vox, _| {
