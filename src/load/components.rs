@@ -5,7 +5,7 @@ use bevy::{
     reflect::Reflect,
 };
 
-use crate::{VoxelContext, VoxelModel};
+use crate::{VoxelModel, VoxelPalette};
 
 /// An instance of a [`VoxelModel`].
 #[derive(Component, Clone, Reflect)]
@@ -14,14 +14,14 @@ use crate::{VoxelContext, VoxelModel};
 pub struct VoxelModelInstance {
     /// Handles to the model.
     pub model: Handle<VoxelModel>,
-    /// Handle to the context
-    pub context: Handle<VoxelContext>,
+    /// Handle to the palette shared by this model's scene.
+    pub palette: Handle<VoxelPalette>,
 }
 
 impl VoxelModelInstance {
     /// Create a new instance
-    pub fn new(model: Handle<VoxelModel>, context: Handle<VoxelContext>) -> Self {
-        Self { model, context }
+    pub fn new(model: Handle<VoxelModel>, palette: Handle<VoxelPalette>) -> Self {
+        Self { model, palette }
     }
 }
 

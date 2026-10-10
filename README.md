@@ -9,10 +9,11 @@
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
-A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files into bevy, including:
-- __Voxel models__, with support for almost all Magica Voxel's material types and properties, such as metalness, roughness, emission, transmission, and cloud.
-- __Voxel animations__
-- __Voxel scenes__, allowing efficient instancing of voxel models, organisation of models into layers, controlling visibility of layers and instances. Use Magica Voxel as your level editor!
+A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files into bevy:
+- __Voxel models__ are converted into efficient meshes 
+- __Materials__ and their properties, such as metalness, roughness, emission, and transmission, are rendered with bevy's `StandardMaterial`, while cloud materials are rendered with `FogVolume`.
+- __Animations__, including model-level flipbook animations and scene-level transform animations.
+- __Scenes__, allowing efficient instancing of voxel models, organisation of models into layers, and controlling visibility of layers and instances. Use Magica Voxel as your level editor!
 
 ## Why `bevy_vox_scene`?
 
@@ -26,7 +27,7 @@ And this is the same scene in Bevy:
 
 Almost all Magica Voxel material types are supported. Bevy's screen space transmission does a great job of rendering glass materials, while Magica Voxel cloud materials are imported into Bevy as volumetric fog.
 
-`bevy_vox_scene` achieves this by generating per-model texture atlases that capture the differing color, metalness, roughness, emission, and transparency of each visible voxel, and a volumetric texture for models containing cloud materials. Coplanar faces can therefore be merged even when their voxel colors differ.
+`bevy_vox_scene` achieves this by generating per-model texture atlases that capture the differing color, metalness, roughness, emission, and transparency of each visible voxel, and a volumetric texture for models containing cloud materials.
 
 ## Usage
 
@@ -103,18 +104,19 @@ cargo run --example <example name>
 
 ## Bevy and Magica Voxel compatibility
 
-| Bevy version | Magica Voxel version           | `bevy-vox-scene` version | 
-| ------------ | ------------------------------ | ------------------------ |
-| 0.12         | 0.99.6, 0.99.7                 | 0.9, 0.10, 0.11, 0.12    | 
-| 0.13         |                                | 0.13                     |
-| 0.14         |                                | 0.14, 0.15               |
-| 0.15         |                                | 0.16                     |
-|              | - support cloud materials      | 0.17                     |
-|              | - support animation            | 0.18                     |
-| 0.16         |                                | 0.19                     |
-| 0.17         |                                | 0.20                     |
-| 0.18         |                                | 0.21                     |
-| 0.19         |                                | 0.22                     |
+| Bevy version | Magica Voxel version                | `bevy-vox-scene` version | 
+| ------------ | ------------------------------      | ------------------------ |
+| 0.12         | 0.99.6, 0.99.7                      | 0.9, 0.10, 0.11, 0.12    | 
+| 0.13         |                                     | 0.13                     |
+| 0.14         |                                     | 0.14, 0.15               |
+| 0.15         |                                     | 0.16                     |
+|              | - support cloud materials           | 0.17                     |
+|              | - support flipbook model animation  | 0.18                     |
+| 0.16         |                                     | 0.19                     |
+| 0.17         |                                     | 0.20                     |
+| 0.18         |                                     | 0.21                     |
+| 0.19         |                                     | 0.22                     |
+| 0.20         | - support scene transform animation | 0.23                     |
 
 ## Limitations and workarounds
 

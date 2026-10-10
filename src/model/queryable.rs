@@ -99,25 +99,25 @@ impl VoxelQueryable for VoxelData {
     }
 
     fn model_size(&self) -> Vec3 {
-        self._size().as_vec3() * self.settings.voxel_size
+        self._size().as_vec3() * self.bake_settings.voxel_size
     }
 
     fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
         let half_extents = self.size().as_vec3() * 0.5;
-        let voxel_postition = (local_point / self.settings.voxel_size) + half_extents;
+        let voxel_postition = (local_point / self.bake_settings.voxel_size) + half_extents;
         voxel_postition.as_ivec3()
     }
 
     fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
         let half_extents = self.size().as_vec3() * 0.5;
-        (voxel_coord.as_vec3() - half_extents) * self.settings.voxel_size
+        (voxel_coord.as_vec3() - half_extents) * self.bake_settings.voxel_size
     }
 
     fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         let position = self.point_in_model(position)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
-        let index = vox_bake::linearize((position + leading_padding).into(), self.dimensions);
-        let raw_voxel = self.voxels.get(index).ok_or(OutOfBoundsError)?;
+        let index = vox_bake::linearize((position + leading_padding).into(), self.grid.dimensions);
+        let raw_voxel = self.grid.voxels.get(index).ok_or(OutOfBoundsError)?;
         let voxel: Voxel = raw_voxel.clone().into();
         Ok(voxel)
     }
@@ -131,9 +131,9 @@ impl VoxelData {
     /// * `point` - the position at which the voxel will be written, in voxel space
     pub fn set_voxel(&mut self, voxel: Voxel, point: UVec3) {
         let leading_padding = UVec3::splat(self.padding() / 2);
-        let index = vox_bake::linearize((point + leading_padding).into(), self.dimensions);
+        let index = vox_bake::linearize((point + leading_padding).into(), self.grid.dimensions);
         let raw_voxel: RawVoxel = voxel.into();
-        self.voxels[index] = raw_voxel;
+        self.grid.voxels[index] = raw_voxel;
     }
 }
 trait BitwiseComparable {

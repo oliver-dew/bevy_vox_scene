@@ -3,26 +3,33 @@ use bevy::{
     math::{IVec3, UVec3},
 };
 use std::fmt::Debug;
-use vox_bake::{BakedModel, BakedPalette, VoxelGrid, bake_model};
+use vox_bake::{BakedModel, BakedPalette, VoxBakeSettings, VoxelGrid, bake_model};
 
 use crate::VoxLoaderSettings;
 
-use super::{RawVoxel, mesh::MeshAtlas};
+use super::mesh::MeshAtlas;
 
 /// The voxel data used to create a mesh and a material.
 #[derive(Clone)]
 pub struct VoxelData {
-    pub(crate) dimensions: [u32; 3],
-    pub(crate) voxels: Vec<RawVoxel>,
-    pub(crate) settings: VoxLoaderSettings,
+    pub(crate) grid: VoxelGrid,
+    pub(crate) bake_settings: VoxBakeSettings,
+    pub(crate) supports_remeshing: bool,
 }
 
 impl Default for VoxelData {
     fn default() -> Self {
+        let settings = VoxLoaderSettings::default();
+        let bake_settings = VoxBakeSettings::from(&settings);
         Self {
-            dimensions: [0, 0, 0],
-            voxels: Default::default(),
-            settings: VoxLoaderSettings::default(),
+            grid: VoxelGrid {
+                dimensions: [0; 3],
+                model_dimensions: [0; 3],
+                voxels: Vec::new(),
+                padding: if settings.mesh_outer_faces { 2 } else { 0 },
+            },
+            bake_settings,
+            supports_remeshing: settings.supports_remeshing,
         }
     }
 }
@@ -30,9 +37,10 @@ impl Default for VoxelData {
 impl Debug for VoxelData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VoxelData")
-            .field("dimensions", &self.dimensions)
-            .field("voxels", &self.voxels.len())
-            .field("settings", &self.settings)
+            .field("dimensions", &self.grid.dimensions)
+            .field("voxels", &self.grid.voxels.len())
+            .field("bake_settings", &self.bake_settings)
+            .field("supports_remeshing", &self.supports_remeshing)
             .finish()
     }
 }
@@ -40,33 +48,27 @@ impl Debug for VoxelData {
 impl VoxelData {
     /// Returns a new, empty VoxelData model
     pub fn new(size: UVec3, settings: VoxLoaderSettings) -> Self {
-        let padding = if settings.mesh_outer_faces {
-            UVec3::splat(2)
-        } else {
-            UVec3::ZERO
-        };
-        let dimensions: [u32; 3] = (size + padding).into();
-        let size = dimensions.iter().product::<u32>() as usize;
+        let grid = VoxelGrid::empty(size.into(), settings.mesh_outer_faces);
+        let bake_settings = VoxBakeSettings::from(&settings);
         Self {
-            dimensions,
-            voxels: vec![RawVoxel::EMPTY; size],
-            settings,
+            grid,
+            bake_settings,
+            supports_remeshing: settings.supports_remeshing,
         }
     }
     /// The size of the voxel model, not including the padding that may have been added if the outer faces are being meshed.
     pub(crate) fn _size(&self) -> IVec3 {
-        let raw_size: UVec3 = self.dimensions.into();
-        let padded = raw_size - UVec3::splat(self.padding());
-        IVec3::try_from(padded).unwrap_or(IVec3::ZERO)
+        let size: UVec3 = self.grid.model_dimensions.into();
+        IVec3::try_from(size).unwrap_or(IVec3::ZERO)
     }
 
     /// If the outer faces are to be meshed, the mesher requires 1 voxel of padding around the edge of the model
     pub(crate) fn padding(&self) -> u32 {
-        if self.settings.mesh_outer_faces { 2 } else { 0 }
+        self.grid.padding
     }
 
     pub(crate) fn bake(&self, palette: &BakedPalette) -> BakedModel {
-        bake_model(&self.voxel_grid(), palette, &(&self.settings).into())
+        bake_model(&self.grid, palette, &self.bake_settings)
             .expect("voxel texture atlas exceeds the configured maximum size")
     }
 
@@ -77,16 +79,5 @@ impl VoxelData {
         let baked = self.bake(palette);
         let image = baked.volume.as_ref().map(super::cloud::create_cloud_image);
         (baked.surface, baked.average_ior, image)
-    }
-
-    fn voxel_grid(&self) -> VoxelGrid {
-        VoxelGrid {
-            dimensions: self.dimensions,
-            model_dimensions: self
-                .dimensions
-                .map(|dimension| dimension.saturating_sub(self.padding())),
-            voxels: self.voxels.clone(),
-            padding: self.padding(),
-        }
     }
 }

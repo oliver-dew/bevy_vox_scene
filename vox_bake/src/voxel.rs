@@ -67,6 +67,8 @@ pub struct ClassifiedVoxels {
     pub average_ior: Option<f32>,
     /// Whether at least one voxel contributes surface geometry.
     pub has_surface: bool,
+    /// Whether at least one voxel contributes cloud volume.
+    pub has_cloud: bool,
 }
 
 /// Classify raw voxels for surface meshing using per-palette material properties.
@@ -78,6 +80,7 @@ pub fn classify_voxels(
 ) -> ClassifiedVoxels {
     let mut refraction_sum = 0.0;
     let mut refraction_count = 0;
+    let mut has_cloud = false;
     let voxels = voxels
         .iter()
         .map(|voxel| {
@@ -93,6 +96,7 @@ pub fn classify_voxels(
                 refraction_count += 1;
                 VoxelVisibility::Translucent
             } else if density_for_voxel[index as usize].is_some() {
+                has_cloud = true;
                 VoxelVisibility::Empty
             } else {
                 VoxelVisibility::Opaque
@@ -112,6 +116,7 @@ pub fn classify_voxels(
         voxels,
         average_ior,
         has_surface,
+        has_cloud,
     }
 }
 
@@ -124,7 +129,6 @@ pub fn extract_cloud_volume(
     if dimensions.iter().any(|dimension| *dimension < 2) {
         return None;
     }
-    let mut has_cloud = false;
     let inner_dimensions = dimensions.map(|dimension| dimension - 2);
     let mut densities = Vec::with_capacity(inner_dimensions.iter().product::<u32>() as usize);
     for z in 1..dimensions[2] - 1 {
@@ -132,12 +136,11 @@ pub fn extract_cloud_volume(
             for x in 1..dimensions[0] - 1 {
                 let voxel = voxels[(x + dimensions[0] * (y + dimensions[1] * z)) as usize];
                 let density = density_for_voxel[voxel.0 as usize];
-                has_cloud |= density.is_some();
                 densities.push(density.unwrap_or(0.0));
             }
         }
     }
-    has_cloud.then_some(BakedVolume {
+    Some(BakedVolume {
         dimensions: inner_dimensions,
         densities,
     })

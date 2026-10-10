@@ -19,7 +19,7 @@ use thiserror::Error;
 use vox_bake::{AmbientOcclusionSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode};
 
 use crate::{
-    VoxelContext, VoxelData,
+    VoxelData,
     model::{VoxelModel, VoxelPalette},
 };
 
@@ -152,24 +152,21 @@ impl VoxSceneLoader {
 
         let models: Vec<VoxelModel> = baked_scene
             .models
-            .iter()
+            .into_iter()
             .map(|scene_model| {
-                let name = scene_model.name.clone();
-                let data = VoxelData::from_grid(scene_model.grid.clone(), settings.clone());
-                let baked = &scene_model.baked;
+                let name = scene_model.name;
+                let data = VoxelData::from_grid(scene_model.grid, settings.clone());
+                let baked = scene_model.baked;
                 let has_mesh = baked.surface.is_some();
                 let has_cloud = baked.volume.is_some();
-                let material = baked.surface.as_ref().map(|atlas| {
+                let material = baked.surface.map(|atlas| {
                     let mut material = palette.create_atlas_material(&atlas, |label, image| {
                         load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
                     crate::model::configure_material(&mut material, baked.average_ior, &data);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
-                        crate::model::mesh::to_bevy_mesh(
-                            &atlas.mesh,
-                            data.settings.supports_remeshing,
-                        ),
+                        crate::model::mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing),
                     );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
@@ -192,7 +189,7 @@ impl VoxSceneLoader {
             })
             .collect();
 
-        load_context.add_labeled_asset("voxel-context".to_string(), VoxelContext { palette });
+        load_context.add_labeled_asset("voxel-palette".to_string(), palette);
         let scene = parse_scene_graph(
             load_context,
             &baked_scene.nodes,

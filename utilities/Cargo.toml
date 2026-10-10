@@ -4,4 +4,4 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.20.0-rc.1", default-features = false, features = ["3d"] }
+bevy = { version = "0.20.0", default-features = false, features = ["3d"] }

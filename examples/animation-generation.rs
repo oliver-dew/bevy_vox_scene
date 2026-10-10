@@ -7,7 +7,7 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, VoxelModelInstance,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelModelInstance, VoxelPalette,
     create_voxel_animation,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -56,8 +56,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
              mut commands: Commands| {
                 for child in children.iter_descendants(trigger.entity) {
                     if let Ok(instance) = vox_instance.get(child) {
-                        // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
-                        commands.run_system_cached_with(generate_ripples, instance.context.clone());
+                        // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same palette as the scene loaded from disk
+                        commands.run_system_cached_with(generate_ripples, instance.palette.clone());
                         break;
                     }
                 }
@@ -66,7 +66,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 /// Spawn a 10 frame animation of concentric circles moving outwards
-fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
+fn generate_ripples(In(palette): In<Handle<VoxelPalette>>, world: &mut World) {
     let frequency = 10.0;
     let frame_count = frequency as usize;
     let blacklight_radius = 3.0;
@@ -94,7 +94,7 @@ fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
     let scene_root = world
         .run_system_cached_with(
             create_voxel_animation,
-            (models, "ripples".to_string(), context),
+            (models, "ripples".to_string(), palette),
         )
         .expect("animation created");
     world.spawn((

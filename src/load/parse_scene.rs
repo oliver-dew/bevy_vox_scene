@@ -316,10 +316,7 @@ fn load_child(
                 attach_model(context, entity, vox_models, models[0]);
             } else if !models.is_empty() {
                 entity.insert((
-                    FlipbookPlayer {
-                        frames: (0..models.len()).collect(),
-                        ..Default::default()
-                    },
+                    FlipbookPlayer::from_frame_count(models.len()),
                     Transform::IDENTITY,
                 ));
                 entity.with_children(|spawner| {
@@ -352,7 +349,7 @@ fn attach_model(
     };
     entity.insert(VoxelModelInstance {
         model: context.get_label_handle(format!("{}@model", model.name)),
-        context: context.get_label_handle("voxel-context"),
+        palette: context.get_label_handle("voxel-palette"),
     });
     if model.has_mesh {
         let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name));

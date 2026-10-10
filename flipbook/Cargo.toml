@@ -18,11 +18,11 @@ name = "animation-scene-gltf"
 required-features = ["vox_gltf"]
 
 [dependencies]
-bevy = { version = "0.20.0-rc.1", default-features = false, features = ["bevy_camera"] }
+bevy = { version = "0.20.0", default-features = false, features = ["bevy_camera"] }
 serde = { version = "1.0.219", optional = true }
 serde_json = { version = "1.0.151", optional = true }
 
 [dev-dependencies]
-bevy = { version = "0.20.0-rc.1", default-features = false, features = ["3d", "dev"] }
+bevy = { version = "0.20.0", default-features = false, features = ["3d", "dev"] }
 async-std = { version = "1.12.0", features = ["attributes"] }
 gltf = { version = "1.4.0", default-features = false, features = ["extensions", "extras", "names"] }

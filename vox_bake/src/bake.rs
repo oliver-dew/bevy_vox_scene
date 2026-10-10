@@ -56,7 +56,11 @@ pub fn bake_model(
         &palette.indices_of_refraction,
         &palette.density_for_voxel,
     );
-    let volume = extract_volume(grid, &palette.density_for_voxel);
+    let volume = if classified.has_cloud {
+        extract_volume(grid, &palette.density_for_voxel)
+    } else {
+        None
+    };
     let surface = classified
         .has_surface
         .then(|| bake_surface(grid, &classified.voxels, settings))
@@ -241,17 +245,15 @@ fn extract_volume(grid: &VoxelGrid, density: &[Option<f32>]) -> Option<BakedVolu
     if grid.padding == 2 {
         return crate::extract_cloud_volume(&grid.voxels, grid.dimensions, density);
     }
-    let mut has_cloud = false;
     let densities = grid
         .voxels
         .iter()
         .map(|voxel| {
             let value = density[voxel.0 as usize];
-            has_cloud |= value.is_some();
             value.unwrap_or(0.0)
         })
         .collect();
-    has_cloud.then_some(BakedVolume {
+    Some(BakedVolume {
         dimensions: grid.model_dimensions,
         densities,
     })

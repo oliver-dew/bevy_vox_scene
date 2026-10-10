@@ -4,8 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
-    create_voxel_context, create_voxel_scene,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, create_voxel_scene,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -110,14 +109,12 @@ fn spawn_cloud(world: &mut World) {
             },
         );
 
-    let context = world
-        .run_system_cached_with(create_voxel_context, palette)
-        .expect("Context has been generated");
+    let palette_handle = world.add_asset(palette);
     let model_name = "my sdf model";
     let scene_handle = world
         .run_system_cached_with(
             create_voxel_scene,
-            (data, model_name.to_string(), context.clone()),
+            (data, model_name.to_string(), palette_handle.clone()),
         )
         .expect("Model has been generated");
 

@@ -1,7 +1,6 @@
 use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
-    create_voxel_context, create_voxel_scene,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, create_voxel_scene,
 };
 use rand::random;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -63,10 +62,10 @@ fn setup(world: &mut World) {
         ..default()
     };
     let size = 64;
-    let palette = VoxelPalette::from_gradient(
+    let palette = world.add_asset(VoxelPalette::from_gradient(
         &[(0, stop_0), (85, stop_1), (170, stop_2), (255, stop_3)],
         true,
-    );
+    ));
     let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))
         .subtract(SDF::sphere(size as f32 * 0.5))
         .map_to_voxels(
@@ -82,14 +81,11 @@ fn setup(world: &mut World) {
                 Voxel((y_normalized * 256. + dither) as u8)
             },
         );
-    let context = world
-        .run_system_cached_with(create_voxel_context, palette)
-        .expect("Context has been generated");
     let model_name = "my sdf model";
     let scene_root = world
         .run_system_cached_with(
             create_voxel_scene,
-            (data, model_name.to_string(), context.clone()),
+            (data, model_name.to_string(), palette.clone()),
         )
         .expect("Voxel scene created");
     world.spawn(WorldAssetRoot(scene_root));

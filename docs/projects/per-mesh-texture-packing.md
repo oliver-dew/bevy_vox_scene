@@ -87,7 +87,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 - [x] Add loader/generation settings for enabling per-mesh atlases and configuring island padding.
 - [x] Define an intermediate `MeshedFace`/island representation containing the face orientation, voxel-space origin, width, height, and packed atlas rectangle.
 - [x] Define a mesh-build result that returns the Bevy `Mesh` together with the images and material values needed by that mesh.
-- [x] Support a per-model 16x16 palette atlas as the compatibility/low-memory mode; do not retain palette textures or materials in the shared `VoxelContext`.
+- [x] Support a per-model 16x16 palette atlas as the compatibility/low-memory mode; do not retain palette textures or materials in the shared `VoxelPalette` asset.
 
 #### Geometry and islands
 
@@ -132,7 +132,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 - [x] Refactor palette material creation into one per-model material pipeline that can bake either a packed face atlas or a 16x16 palette atlas.
 - [x] Update `.vox` loading to register mesh-local images and a mesh-local `StandardMaterial` as labeled sub-assets.
 - [x] Preserve the current opaque/transmissive material behavior, average IOR, and thickness.
-- [x] Update generated voxel scenes so every model receives its own material; keep only palette data and other genuinely shared state in `VoxelContext`.
+- [x] Update generated voxel scenes so every model receives its own material and shares a `VoxelPalette` asset.
 - [x] Update runtime remeshing so voxel edits rebuild the atlas, image assets, material constants, and UVs together without leaking stale assets.
 - [x] Verify animated models use the correct atlas and material for every frame.
 - [x] Check whether public APIs or labeled asset names change, and document the model-qualified material labels used by the example.

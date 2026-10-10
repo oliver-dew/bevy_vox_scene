@@ -7,7 +7,6 @@ use bevy::{
         system::{Commands, Query},
     },
     gltf::GltfExtras,
-    utils::default,
     world_serialization::WorldInstanceReady,
 };
 use serde::Deserialize;
@@ -75,10 +74,9 @@ pub fn on_flipbook_ready(
         }
 
         if let Some(animation) = vox_bake.animation {
-            commands.entity(entity).insert(FlipbookPlayer {
-                frames: (0..animation.frame_count).collect(),
-                ..default()
-            });
+            commands
+                .entity(entity)
+                .insert(FlipbookPlayer::from_frame_count(animation.frame_count));
         }
     }
 }
@@ -117,13 +115,13 @@ mod tests {
     use std::time::Duration;
 
     use super::parse_node_extras;
-    use crate::{FlipbookPlayer, FlipbookPlugin, on_flipbook_ready};
+    use crate::{FlipbookPlayer, FlipbookPlugin, FlipbookSpeed, on_flipbook_ready};
     use bevy::{
         MinimalPlugins,
         animation::AnimationPlugin,
         app::App,
         asset::{AssetApp, AssetPlugin, AssetServer, Handle},
-        ecs::{hierarchy::Children, name::Name, system::Query},
+        ecs::{hierarchy::Children, name::Name, system::Commands},
         gltf::{GltfAssetLabel, GltfPlugin},
         image::Image,
         mesh::MeshPlugin,
@@ -238,8 +236,10 @@ mod tests {
         // Use an observer to give the player a very fast frame rate so each
         // subsequent app update advances the animation.
         app.add_observer(
-            move |trigger: On<Add<FlipbookPlayer>>, mut query: Query<&mut FlipbookPlayer>| {
-                query.get_mut(trigger.entity).expect("msg").frame_rate = Duration::from_millis(1);
+            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
+                commands
+                    .entity(trigger.entity)
+                    .insert(FlipbookSpeed(Duration::from_millis(1)));
             },
         );
         let _scene_root = app

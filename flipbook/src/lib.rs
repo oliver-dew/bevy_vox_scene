@@ -24,48 +24,71 @@ pub struct FlipbookPlugin;
 impl Plugin for FlipbookPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<FlipbookPlayer>()
+            .register_type::<FlipbookRepeatMode>()
+            .register_type::<FlipbookSpeed>()
             .register_type::<FlipbookFrame>()
             .add_systems(Update, update_animations);
     }
 }
 
 /// Plays Flipbook Animations
-#[derive(Component, Clone, Reflect)]
+#[derive(Component, Clone, Reflect, Default)]
 #[reflect(Component)]
+#[require(FlipbookRepeatMode, FlipbookSpeed)]
 pub struct FlipbookPlayer {
     /// Frame indices
-    pub frames: Vec<usize>,
-    /// Duration that each frame remains on screen
-    pub frame_rate: Duration,
-    /// Whether the animation repeats
-    pub repeat_mode: FlipbookRepeatMode,
-    /// If true (default), and [`FlipbookPlayer::repeat_mode`] is not [`FlipbookRepeatMode::Forever`], entity will despawn upon completion
-    pub despawn_on_finish: bool,
+    frames: Vec<usize>,
     /// If true, playback is paused
     pub is_paused: bool,
     /// timer that determines when frame should advance
-    pub timer: FlipbookTimer,
+    timer: FlipbookTimer,
 }
 
-impl Default for FlipbookPlayer {
-    fn default() -> Self {
-        Self {
-            frames: vec![],
-            frame_rate: Duration::from_secs_f32(1.0 / 8.0),
-            repeat_mode: FlipbookRepeatMode::Forever,
-            despawn_on_finish: true,
+impl FlipbookPlayer {
+    /// New FlipbookPlayer from a collection of frame indices
+    pub fn new(frames: Vec<usize>) -> Self {
+        FlipbookPlayer {
+            frames,
             is_paused: false,
             timer: FlipbookTimer::default(),
         }
     }
+
+    /// New FlipbookPlayer with frame indices 0..count
+    pub fn from_frame_count(count: usize) -> Self {
+        FlipbookPlayer::new((0..count).collect())
+    }
 }
 
-#[derive(Clone, Reflect)]
+#[derive(Component, Clone, Reflect, Default)]
+#[reflect(Component)]
 pub enum FlipbookRepeatMode {
     /// The animation will finish after running "n" times.
     Count(u32),
-    /// The animation will never finish.
+    /// The animation will finish and the entity will depsawn after running "n" times.
+    DespawnAfterCount(u32),
+    /// The animation will loop forever.
+    #[default]
     Forever,
+}
+
+/// The speed at which the animation plays, defined as how long each frame in on screen.
+/// Defaults to 8 frames-per-second equivalent
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
+pub struct FlipbookSpeed(pub Duration);
+
+impl FlipbookSpeed {
+    /// Create FlipbookSpeed from frames-per-second
+    pub fn from_frames_per_second(fps: f32) -> Self {
+        FlipbookSpeed(Duration::from_secs_f32(1.0 / fps))
+    }
+}
+
+impl Default for FlipbookSpeed {
+    fn default() -> Self {
+        FlipbookSpeed::from_frames_per_second(8.0)
+    }
 }
 
 #[derive(Clone, Reflect)]
@@ -92,23 +115,29 @@ pub enum FlipbookUpdate {
 }
 
 impl FlipbookPlayer {
-    fn did_advance_frame(&mut self, delta: Duration) -> FlipbookUpdate {
+    fn did_advance_frame(
+        &mut self,
+        delta: Duration,
+        repeat_mode: &FlipbookRepeatMode,
+        speed: &FlipbookSpeed,
+    ) -> FlipbookUpdate {
         if self.is_paused || self.frames.is_empty() {
             return FlipbookUpdate::SameFrame;
         }
-        if let FlipbookRepeatMode::Count(end_count) = self.repeat_mode
-            && self.timer.play_count >= end_count
+        if let FlipbookRepeatMode::Count(end_count) = repeat_mode
+            && self.timer.play_count >= *end_count
         {
             return FlipbookUpdate::ReachedEnd;
         }
         self.timer.stopwatch.tick(delta);
-        if self.timer.stopwatch.elapsed() > self.frame_rate {
+        if self.timer.stopwatch.elapsed() > speed.0 {
             self.timer.current_frame_index += 1;
             if self.timer.current_frame_index == self.frames.len() {
-                match self.repeat_mode {
-                    FlipbookRepeatMode::Count(end_count) => {
+                match repeat_mode {
+                    FlipbookRepeatMode::Count(end_count)
+                    | FlipbookRepeatMode::DespawnAfterCount(end_count) => {
                         self.timer.play_count += 1;
-                        if self.timer.play_count >= end_count {
+                        if self.timer.play_count >= *end_count {
                             return FlipbookUpdate::ReachedEnd;
                         } else {
                             self.timer.current_frame_index = 0;
@@ -134,12 +163,18 @@ pub struct FlipbookFrame(pub usize);
 
 fn update_animations(
     mut commands: Commands,
-    mut animation_query: Query<(Entity, &mut FlipbookPlayer, &Children)>,
+    mut animation_query: Query<(
+        Entity,
+        &mut FlipbookPlayer,
+        &FlipbookRepeatMode,
+        &FlipbookSpeed,
+        &Children,
+    )>,
     mut frame_query: Query<(&FlipbookFrame, &mut Visibility)>,
     time: Res<Time>,
 ) {
-    for (entity, mut animation, children) in animation_query.iter_mut() {
-        let update = animation.did_advance_frame(time.delta());
+    for (entity, mut animation, repeat_mode, speed, children) in animation_query.iter_mut() {
+        let update = animation.did_advance_frame(time.delta(), repeat_mode, speed);
         match update {
             FlipbookUpdate::SameFrame => (),
             FlipbookUpdate::AdvanceFrame(new_frame) => {
@@ -155,7 +190,7 @@ fn update_animations(
                 }
             }
             FlipbookUpdate::ReachedEnd => {
-                if animation.despawn_on_finish {
+                if let FlipbookRepeatMode::DespawnAfterCount(_) = repeat_mode {
                     commands.entity(entity).despawn();
                 }
             }
@@ -167,42 +202,40 @@ fn update_animations(
 mod tests {
     use std::time::Duration;
 
-    use super::{FlipbookPlayer, FlipbookRepeatMode, FlipbookUpdate};
+    use super::{FlipbookPlayer, FlipbookRepeatMode, FlipbookSpeed, FlipbookUpdate};
 
     #[test]
     fn test_did_advance_frame_empty_frames_returns_same_frame() {
-        let mut player = FlipbookPlayer {
-            frames: vec![],
-            frame_rate: Duration::from_millis(1),
-            ..Default::default()
-        };
-        let update = player.did_advance_frame(Duration::from_millis(10));
+        let mut player = FlipbookPlayer::default();
+        let update = player.did_advance_frame(
+            Duration::from_millis(10),
+            &FlipbookRepeatMode::Forever,
+            &FlipbookSpeed(Duration::from_millis(1)),
+        );
         assert!(matches!(update, FlipbookUpdate::SameFrame));
     }
 
     #[test]
     fn test_did_advance_frame_count_mode_reaches_end() {
-        let mut player = FlipbookPlayer {
-            frames: vec![0],
-            frame_rate: Duration::from_millis(1),
-            repeat_mode: FlipbookRepeatMode::Count(1),
-            ..Default::default()
-        };
+        let mut player = FlipbookPlayer::from_frame_count(1);
 
-        let update = player.did_advance_frame(Duration::from_millis(10));
+        let update = player.did_advance_frame(
+            Duration::from_millis(10),
+            &FlipbookRepeatMode::Count(1),
+            &FlipbookSpeed(Duration::from_millis(1)),
+        );
         assert!(matches!(update, FlipbookUpdate::ReachedEnd));
     }
 
     #[test]
     fn test_did_advance_frame_count_mode_advances_before_end() {
-        let mut player = FlipbookPlayer {
-            frames: vec![3, 7],
-            frame_rate: Duration::from_millis(1),
-            repeat_mode: FlipbookRepeatMode::Count(2),
-            ..Default::default()
-        };
+        let mut player = FlipbookPlayer::new(vec![3, 7]);
 
-        let update = player.did_advance_frame(Duration::from_millis(10));
+        let update = player.did_advance_frame(
+            Duration::from_millis(10),
+            &FlipbookRepeatMode::Count(2),
+            &FlipbookSpeed(Duration::from_millis(1)),
+        );
         assert!(matches!(update, FlipbookUpdate::AdvanceFrame(7)));
     }
 }

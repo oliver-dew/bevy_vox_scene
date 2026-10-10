@@ -12,6 +12,7 @@ use bevy_vox_scene::{
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::VoxelTextureMode;
 
 fn main() {
     App::new()
@@ -72,7 +73,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             assets
                 .load_builder()
                 .with_settings(|settings: &mut VoxLoaderSettings| {
-                    settings.supports_remeshing = true
+                    settings.supports_remeshing = true;
+                    settings.texture_mode = VoxelTextureMode::Palette;
                 })
                 .load("study.vox"),
         ),

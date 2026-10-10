@@ -18,6 +18,7 @@ use bevy_vox_scene::{
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::VoxelTextureMode;
 
 #[derive(States, Debug, Clone, Default, Hash, Eq, PartialEq)]
 enum AppState {
@@ -39,7 +40,10 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
+                    // Retain voxel data so that we can do voxel collision detection and add snow splats to the table
                     supports_remeshing: true,
+                    // Use legacy texturing so that we don't need to retexture every time a snowflake lands
+                    texture_mode: VoxelTextureMode::Palette,
                     ..default()
                 }),
             },

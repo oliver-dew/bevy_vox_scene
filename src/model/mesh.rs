@@ -7,7 +7,7 @@ use vox_bake::{BakedMesh, BakedMeshAtlas};
 
 pub(crate) type MeshAtlas = BakedMeshAtlas;
 
-pub(crate) fn to_bevy_mesh(mesh: &BakedMesh, supports_remeshing: bool) -> Mesh {
+pub(crate) fn to_bevy_mesh(mesh: BakedMesh, supports_remeshing: bool) -> Mesh {
     let mut bevy_mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         if supports_remeshing {
@@ -18,23 +18,20 @@ pub(crate) fn to_bevy_mesh(mesh: &BakedMesh, supports_remeshing: bool) -> Mesh {
     );
     bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
-        VertexAttributeValues::Float32x3(mesh.positions.clone()),
+        VertexAttributeValues::Float32x3(mesh.positions),
     );
     bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_NORMAL,
-        VertexAttributeValues::Float32x3(mesh.normals.clone()),
+        VertexAttributeValues::Float32x3(mesh.normals),
     );
     bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_UV_0,
-        VertexAttributeValues::Float32x2(mesh.uv0.clone()),
+        VertexAttributeValues::Float32x2(mesh.uv0),
     );
-    if let Some(uvs) = &mesh.uv1 {
-        bevy_mesh.insert_attribute(
-            Mesh::ATTRIBUTE_UV_1,
-            VertexAttributeValues::Float32x2(uvs.clone()),
-        );
+    if let Some(uvs) = mesh.uv1 {
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, VertexAttributeValues::Float32x2(uvs));
     }
-    bevy_mesh.insert_indices(Indices::U32(mesh.indices.clone()));
+    bevy_mesh.insert_indices(Indices::U32(mesh.indices));
     bevy_mesh
 }
 
@@ -51,7 +48,7 @@ mod tests {
             uv1: Some(vec![[0.25, 0.25], [0.75, 0.25], [0.25, 0.75]]),
             indices: vec![0, 1, 2],
         };
-        let mesh = to_bevy_mesh(&baked, true);
+        let mesh = to_bevy_mesh(baked.clone(), true);
 
         assert_eq!(
             mesh.attribute(Mesh::ATTRIBUTE_POSITION),

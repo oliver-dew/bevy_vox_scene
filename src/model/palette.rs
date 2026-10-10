@@ -1,10 +1,11 @@
 use bevy::{
-    asset::{Handle, RenderAssetUsages},
+    asset::{Asset, Handle, RenderAssetUsages},
     color::{Color, ColorToComponents, ColorToPacked, LinearRgba},
     image::{Image, ImageFilterMode, ImageSampler, ImageSamplerDescriptor, TextureFormatPixelInfo},
     math::FloatExt,
     mesh::UvChannel,
     pbr::StandardMaterial,
+    reflect::TypePath,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 
@@ -13,7 +14,7 @@ use crate::TextureMipPolicy;
 use vox_bake::{BakedImage, BakedMaterial, BakedPalette};
 
 /// Container for all of the [`VoxelElement`]s that can be used in a [`super::VoxelModel`]
-#[derive(Clone, Debug)]
+#[derive(Asset, TypePath, Clone, Debug)]
 pub struct VoxelPalette {
     pub(crate) elements: Vec<VoxelElement>,
     pub(crate) baked: BakedPalette,

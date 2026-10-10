@@ -47,6 +47,27 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug example 'anim-gen'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=anim-gen",
+                    "--package=bevy_vox_scene"
+                ],
+                "filter": {
+                    "name": "anim-gen",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}"
+            },
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug example 'animation-scene'",
             "cargo": {
                 "args": [

@@ -1,10 +1,11 @@
 use bevy::prelude::*;
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelModifier,
-    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, create_voxel_context,
-    create_voxel_scene, modify_voxel_model,
+    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, create_voxel_scene,
+    modify_voxel_model,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::VoxelTextureMode;
 
 const VOXEL_SIZE: f32 = 0.1;
 
@@ -36,27 +37,25 @@ fn spawn_camera(mut commands: Commands) {
 
 /// Spawn a voxel sphere that will act as a canvas to draw on
 fn spawn_voxels(world: &mut World) {
-    let palette = VoxelPalette::from_colors(
+    let palette = world.add_asset(VoxelPalette::from_colors(
         vec![
             bevy::color::palettes::tailwind::TEAL_600.into(), // Voxel(1)
             bevy::color::palettes::tailwind::ROSE_600.into(), // Voxel(2)
         ],
         true,
-    );
-    let context = world
-        .run_system_cached_with(create_voxel_context, palette)
-        .unwrap();
+    ));
     let data = SDF::sphere(16.0).voxelize(
         UVec3::splat(48),
         VoxLoaderSettings {
             voxel_size: VOXEL_SIZE,
             supports_remeshing: true, // we need to set this in order to update the mesh below
+            texture_mode: VoxelTextureMode::Palette, // makes remeshing quicker
             ..default()
         },
         Voxel(1),
     );
     let scene = world
-        .run_system_cached_with(create_voxel_scene, (data, format!("canvas"), context))
+        .run_system_cached_with(create_voxel_scene, (data, format!("canvas"), palette))
         .unwrap();
     world
         .spawn(WorldAssetRoot(scene))

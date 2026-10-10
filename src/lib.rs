@@ -73,9 +73,9 @@ use load::VoxSceneLoader;
 pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
-pub use model::{Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
+pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 #[cfg(feature = "generate_voxels")]
-pub use model::{create_voxel_animation, create_voxel_context, create_voxel_scene};
+pub use model::{create_voxel_animation, create_voxel_scene};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
     modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},
@@ -104,7 +104,7 @@ impl Plugin for VoxScenePlugin {
         }
         app.add_plugins(FlipbookPlugin)
             .init_asset::<VoxelModel>()
-            .init_asset::<VoxelContext>()
+            .init_asset::<VoxelPalette>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
             .register_asset_loader(VoxSceneLoader {

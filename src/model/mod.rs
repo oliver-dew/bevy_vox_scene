@@ -52,24 +52,19 @@ pub struct VoxelModel {
 /// Create a voxel scene from some supplied voxel data
 #[cfg(feature = "generate_voxels")]
 pub fn create_voxel_scene(
-    In((data, name, context_handle)): In<(VoxelData, String, Handle<VoxelContext>)>,
+    In((data, name, palette_handle)): In<(VoxelData, String, Handle<VoxelPalette>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut models: ResMut<Assets<VoxelModel>>,
     mut scenes: ResMut<Assets<WorldAsset>>,
-    contexts: Res<Assets<VoxelContext>>,
+    palettes: Res<Assets<VoxelPalette>>,
 ) -> Handle<WorldAsset> {
-    let context = contexts.get(&context_handle).expect("Voxel Context exists");
-    let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&context.palette.baked);
+    let palette = palettes.get(&palette_handle).expect("Voxel palette exists");
+    let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked);
     let (maybe_mesh_handle, maybe_material_handle) = maybe_atlas.map_or((None, None), |atlas| {
-        let mesh_handle = meshes.add(mesh::to_bevy_mesh(
-            &atlas.mesh,
-            data.settings.supports_remeshing,
-        ));
-        let mut material = context
-            .palette
-            .create_atlas_material(&atlas, |_, image| images.add(image));
+        let mut material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
+        let mesh_handle = meshes.add(mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing));
         configure_material(&mut material, average_ior, &data);
         (Some(mesh_handle), Some(materials.add(material)))
     });
@@ -90,7 +85,7 @@ pub fn create_voxel_scene(
         Visibility::Visible,
         VoxelModelInstance {
             model: model_handle,
-            context: context_handle,
+            palette: palette_handle,
         },
     ));
     // TODO boolean for "retain model data"
@@ -117,46 +112,45 @@ pub fn create_voxel_scene(
 /// Create a voxel animation from some supplied voxel data
 #[cfg(feature = "generate_voxels")]
 pub fn create_voxel_animation(
-    In((frames, name, context_handle)): In<(Vec<VoxelData>, String, Handle<VoxelContext>)>,
+    In((frames, name, palette_handle)): In<(Vec<VoxelData>, String, Handle<VoxelPalette>)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut models: ResMut<Assets<VoxelModel>>,
     mut scenes: ResMut<Assets<WorldAsset>>,
-    contexts: Res<Assets<VoxelContext>>,
+    palettes: Res<Assets<VoxelPalette>>,
 ) -> Handle<WorldAsset> {
-    let context = contexts.get(&context_handle).expect("Voxel Context exists");
+    let palette = palettes.get(&palette_handle).expect("Voxel palette exists");
     let mut world = World::new();
     let mut root = world.spawn((Transform::IDENTITY, Visibility::Visible));
+    let frame_count = frames.len();
     root.with_children(|spawner| {
-        for (index, data) in frames.iter().enumerate() {
-            let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&context.palette.baked);
+        for (index, data) in frames.into_iter().enumerate() {
+            let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked);
             let (maybe_mesh_handle, maybe_material_handle) =
                 maybe_atlas.map_or((None, None), |atlas| {
-                    let mesh_handle = meshes.add(mesh::to_bevy_mesh(
-                        &atlas.mesh,
-                        data.settings.supports_remeshing,
-                    ));
-                    let mut material = context
-                        .palette
-                        .create_atlas_material(&atlas, |_, image| images.add(image));
-                    configure_material(&mut material, average_ior, data);
+                    let mut material =
+                        palette.create_atlas_material(&atlas, |_, image| images.add(image));
+                    let mesh_handle =
+                        meshes.add(mesh::to_bevy_mesh(atlas.mesh, data.supports_remeshing));
+                    configure_material(&mut material, average_ior, &data);
                     (Some(mesh_handle), Some(materials.add(material)))
                 });
             let cloud_image = maybe_cloud.map(|image| images.add(image));
 
             let model = VoxelModel {
                 name: format!("{}-{}", name, index),
-                data: data.clone(),
+                data,
                 has_mesh: maybe_mesh_handle.is_some(),
                 has_cloud: cloud_image.is_some(),
                 material: maybe_material_handle.clone(),
             };
-            let model_handle = models.add(model.clone());
+            let model_size = model.model_size();
+            let model_handle = models.add(model);
             let mut frame = spawner.spawn((
                 VoxelModelInstance {
                     model: model_handle,
-                    context: context_handle.clone(),
+                    palette: palette_handle.clone(),
                 },
                 FlipbookFrame(index),
                 Transform::IDENTITY,
@@ -179,33 +173,14 @@ pub fn create_voxel_animation(
                         absorption: 0.1,
                         ..Default::default()
                     },
-                    Transform::from_scale(model.model_size()),
+                    Transform::from_scale(model_size),
                 ));
             }
         }
     });
-    root.insert((FlipbookPlayer {
-        frames: (0..frames.len()).collect(),
-        ..Default::default()
-    },));
+    root.insert(FlipbookPlayer::from_frame_count(frame_count));
     let scene = WorldAsset::new(world);
     scenes.add(scene)
-}
-
-/// A [`VoxelPalette`] and other data shared by voxel models in the same scene.
-#[derive(Asset, TypePath, Clone, Debug)]
-pub struct VoxelContext {
-    /// The palette used by the models
-    pub palette: VoxelPalette,
-}
-
-/// Create a new context with the supplied palette
-#[cfg(feature = "generate_voxels")]
-pub fn create_voxel_context(
-    In(palette): In<VoxelPalette>,
-    mut contexts: ResMut<Assets<VoxelContext>>,
-) -> Handle<VoxelContext> {
-    contexts.add(VoxelContext { palette })
 }
 
 pub(crate) fn configure_material(
@@ -215,7 +190,7 @@ pub(crate) fn configure_material(
 ) {
     if let Some(ior) = average_ior {
         material.ior = ior;
-        material.thickness = data._size().min_element() as f32 * data.settings.voxel_size;
+        material.thickness = data._size().min_element() as f32 * data.bake_settings.voxel_size;
     } else {
         #[cfg(feature = "pbr_transmission_textures")]
         {
@@ -239,13 +214,14 @@ mod tests {
     };
 
     use crate::{
-        SDF, VoxLoaderSettings, Voxel, VoxelPalette, create_voxel_context, create_voxel_scene,
-        test_support::setup_app,
+        SDF, VoxLoaderSettings, Voxel, VoxelPalette, create_voxel_scene, test_support::setup_app,
     };
 
     #[cfg(feature = "generate_voxels")]
     #[test]
     fn test_generate_voxels() {
+        use bevy::asset::DirectAssetAccessExt;
+
         let mut app = App::new();
         setup_app(&mut app);
         let palette =
@@ -256,13 +232,11 @@ mod tests {
             Voxel(1),
         );
         let world = app.world_mut();
-        let context = world
-            .run_system_cached_with(create_voxel_context, palette)
-            .expect("Context has been created");
+        let palette_handle = world.add_asset(palette);
         let scene_handle = world
             .run_system_cached_with(
                 create_voxel_scene,
-                (tall_box, "tall box".to_string(), context),
+                (tall_box, "tall box".to_string(), palette_handle),
             )
             .expect("Add box model");
         let scene_root = world.spawn(WorldAssetRoot(scene_handle)).id();

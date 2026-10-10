@@ -10,7 +10,7 @@ use bevy::{
 
 use crate::VoxelModelInstance;
 
-use super::{RawVoxel, Voxel, VoxelContext, VoxelModel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
 
 /// Data object passed into [`modify_voxel_model`] system
 pub struct VoxelModifier {
@@ -92,12 +92,12 @@ pub fn modify_voxel_model(
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut models: ResMut<Assets<VoxelModel>>,
-    contexts: Res<Assets<VoxelContext>>,
+    palettes: Res<Assets<VoxelPalette>>,
 ) {
     let Some(modifier) = maybe_modifier else {
         return;
     };
-    let Some(context) = contexts.get(modifier.instance.context.id()) else {
+    let Some(palette) = palettes.get(modifier.instance.palette.id()) else {
         return;
     };
     let Some(mut model) = models.get_mut(modifier.instance.model.id()) else {
@@ -108,13 +108,13 @@ pub fn modify_voxel_model(
     let region = modifier.region.clamped(model_size);
     let start = leading_padding + region.origin;
     let end = start + region.size;
-    let mut updated: Vec<RawVoxel> = model.data.voxels.clone();
+    let mut updated: Vec<RawVoxel> = model.data.grid.voxels.clone();
     for x in start.x..end.x {
         for y in start.y..end.y {
             for z in start.z..end.z {
                 let index =
-                    vox_bake::linearize([x as u32, y as u32, z as u32], model.data.dimensions);
-                let source: Voxel = model.data.voxels[index].clone().into();
+                    vox_bake::linearize([x as u32, y as u32, z as u32], model.data.grid.dimensions);
+                let source: Voxel = model.data.grid.voxels[index].clone().into();
                 updated[index] = RawVoxel::from((modifier.modify)(
                     IVec3::new(x, y, z) - leading_padding,
                     &source,
@@ -123,17 +123,15 @@ pub fn modify_voxel_model(
             }
         }
     }
-    model.data.voxels = updated;
-    let (maybe_atlas, average_ior, _maybe_cloud) = model.data.remesh(&context.palette.baked);
+    model.data.grid.voxels = updated;
+    let (maybe_atlas, average_ior, _maybe_cloud) = model.data.remesh(&palette.baked);
 
     if let Some(atlas) = maybe_atlas {
-        let mut material = context
-            .palette
-            .create_atlas_material(&atlas, |_, image| images.add(image));
+        let mut material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
         super::configure_material(&mut material, average_ior, &model.data);
         let _ = meshes.insert(
             &modifier.mesh,
-            super::mesh::to_bevy_mesh(&atlas.mesh, model.data.settings.supports_remeshing),
+            super::mesh::to_bevy_mesh(atlas.mesh, model.data.supports_remeshing),
         );
 
         if let Some(material_handle) = &model.material {

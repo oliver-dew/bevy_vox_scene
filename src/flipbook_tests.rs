@@ -7,10 +7,9 @@ mod tests {
         app::App,
         ecs::hierarchy::Children,
         prelude::{Add, Commands, Component, On, Visibility},
-        utils::default,
         world_serialization::WorldAssetRoot,
     };
-    use flipbook::{FlipbookPlayer, FlipbookRepeatMode};
+    use flipbook::{FlipbookPlayer, FlipbookRepeatMode, FlipbookSpeed};
 
     #[derive(Component)]
     struct TaggedAnimationRoot;
@@ -25,18 +24,16 @@ mod tests {
         // so we can advance a frame on each call to `app.update`
         app.add_observer(
             move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
-                commands.entity(trigger.entity).insert(FlipbookPlayer {
-                    frames: (0..frame_count).collect(),
-                    frame_rate: Duration::from_millis(1),
-                    ..default()
-                });
+                commands
+                    .entity(trigger.entity)
+                    .insert(FlipbookPlayer::from_frame_count(frame_count));
             },
         );
         app.add_observer(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
             if trigger.model_name.as_deref() == Some("deer") {
                 commands
                     .entity(trigger.instance)
-                    .insert(TaggedAnimationRoot);
+                    .insert((TaggedAnimationRoot, FlipbookSpeed(Duration::from_millis(1))));
             }
         });
         let _scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
@@ -83,13 +80,9 @@ mod tests {
             move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
-                    FlipbookPlayer {
-                        frames: vec![0],
-                        frame_rate: Duration::from_millis(1),
-                        repeat_mode: FlipbookRepeatMode::Count(1),
-                        despawn_on_finish: true,
-                        ..default()
-                    },
+                    FlipbookPlayer::from_frame_count(1),
+                    FlipbookRepeatMode::DespawnAfterCount(1),
+                    FlipbookSpeed(Duration::from_millis(1)),
                 ));
             },
         );
@@ -118,13 +111,9 @@ mod tests {
             move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
                 commands.entity(trigger.entity).insert((
                     TaggedAnimationRoot,
-                    FlipbookPlayer {
-                        frames: vec![0],
-                        frame_rate: Duration::from_millis(1),
-                        repeat_mode: FlipbookRepeatMode::Count(1),
-                        despawn_on_finish: false,
-                        ..default()
-                    },
+                    FlipbookPlayer::from_frame_count(1),
+                    FlipbookRepeatMode::Count(1),
+                    FlipbookSpeed(Duration::from_millis(1)),
                 ));
             },
         );
