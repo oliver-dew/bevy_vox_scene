@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelInstance, VoxelModifier,
-    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, create_voxel_scene,
+    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
     modify_voxel_model,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -36,8 +36,8 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 /// Spawn a voxel sphere that will act as a canvas to draw on
-fn spawn_voxels(world: &mut World) {
-    let palette = world.add_asset(VoxelPalette::from_colors(
+fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
+    let palette = voxel_assets.add_palette(VoxelPalette::from_colors(
         vec![
             bevy::color::palettes::tailwind::TEAL_600.into(), // Voxel(1)
             bevy::color::palettes::tailwind::ROSE_600.into(), // Voxel(2)
@@ -54,10 +54,8 @@ fn spawn_voxels(world: &mut World) {
         },
         Voxel(1),
     );
-    let scene = world
-        .run_system_cached_with(create_voxel_scene, (data, format!("canvas"), palette))
-        .unwrap();
-    world
+    let scene = voxel_assets.create_scene(data, "canvas", palette);
+    commands
         .spawn(WorldAssetRoot(scene))
         .observe(on_tap_voxels.pipe(modify_voxel_model));
 }

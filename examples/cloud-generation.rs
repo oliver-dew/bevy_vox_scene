@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, create_voxel_scene,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -57,7 +57,7 @@ fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 }
 
-fn spawn_cloud(world: &mut World) {
+fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
     // create a palette of varying densities
     let densities: Vec<f32> = vec![0.3, 1.0, 3.0, 5.0];
     let palette = VoxelPalette::new(
@@ -109,16 +109,11 @@ fn spawn_cloud(world: &mut World) {
             },
         );
 
-    let palette_handle = world.add_asset(palette);
+    let palette_handle = voxel_assets.add_palette(palette);
     let model_name = "my sdf model";
-    let scene_handle = world
-        .run_system_cached_with(
-            create_voxel_scene,
-            (data, model_name.to_string(), palette_handle.clone()),
-        )
-        .expect("Model has been generated");
+    let scene_handle = voxel_assets.create_scene(data, model_name, palette_handle);
 
-    world.spawn(WorldAssetRoot(scene_handle));
+    commands.spawn(WorldAssetRoot(scene_handle));
 }
 
 /// Moves fog density texture offset every frame.

@@ -1,6 +1,6 @@
 use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, create_voxel_scene,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use rand::random;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -34,7 +34,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 }
 
-fn setup(world: &mut World) {
+fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
     let stop_0 = VoxelElement {
         color: tailwind::SKY_600.into(),
         roughness: 0.1,
@@ -62,19 +62,16 @@ fn setup(world: &mut World) {
         ..default()
     };
     let size = 64;
-    let palette = world.add_asset(VoxelPalette::from_gradient(
+    let palette = voxel_assets.add_palette(VoxelPalette::from_gradient(
         &[(0, stop_0), (85, stop_1), (170, stop_2), (255, stop_3)],
         true,
     ));
     let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))
         .subtract(SDF::sphere(size as f32 * 0.5))
-        .map_to_voxels(
+        .map_inside_to_voxels(
             UVec3::splat(size as u32),
             VoxLoaderSettings::default(),
-            |distance, pos| {
-                if distance >= 0.0 {
-                    return Voxel::EMPTY;
-                };
+            |pos| {
                 // map y coord to 0..256 palette range, and add a bit of random noise to dither the gradient
                 let dither = random::<f32>() * 4.;
                 let y_normalized = (pos.y.round() / size as f32) + 0.5;
@@ -82,11 +79,6 @@ fn setup(world: &mut World) {
             },
         );
     let model_name = "my sdf model";
-    let scene_root = world
-        .run_system_cached_with(
-            create_voxel_scene,
-            (data, model_name.to_string(), palette.clone()),
-        )
-        .expect("Voxel scene created");
-    world.spawn(WorldAssetRoot(scene_root));
+    let scene_root = voxel_assets.create_scene(data, model_name, palette);
+    commands.spawn(WorldAssetRoot(scene_root));
 }

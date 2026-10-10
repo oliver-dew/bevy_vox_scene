@@ -9,7 +9,7 @@ use bevy::{
 };
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelElement, VoxelInstanceReady,
-    VoxelPalette, create_voxel_animation,
+    VoxelPalette, VoxelSceneAssets,
 };
 use flipbook::{FlipbookRepeatMode, FlipbookSpeed};
 use libnoise::prelude::*;
@@ -36,7 +36,7 @@ fn main() {
         .run();
 }
 
-fn generate_animation(world: &mut World) {
+fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
     const EMISSION_STRENGTH: f32 = 5.0;
     let stops: Vec<(u8, VoxelElement)> = vec![
         (
@@ -87,7 +87,7 @@ fn generate_animation(world: &mut World) {
             },
         ),
     ];
-    let palette = world.add_asset(VoxelPalette::from_gradient(&stops, false));
+    let palette = voxel_assets.add_palette(VoxelPalette::from_gradient(&stops, false));
     let frame_count = 15;
     let max_diameter = 64.;
     let noise_scale: f32 = 0.75;
@@ -153,14 +153,9 @@ fn generate_animation(world: &mut World) {
         .collect();
     info!("voxel generation: {:?}", started.elapsed());
     let started = Instant::now();
-    let root = world
-        .run_system_cached_with(
-            create_voxel_animation,
-            (frames, "Explosion".to_string(), palette),
-        )
-        .expect("animation created");
+    let root = voxel_assets.create_animation(frames, "Explosion", palette);
     info!("mesh generation: {:?}", started.elapsed());
-    world.insert_resource(ExplosionAsset(root));
+    commands.insert_resource(ExplosionAsset(root));
 }
 
 fn spawn_camera(mut commands: Commands) {

@@ -4,7 +4,7 @@
 
 - Update to Bevy 0.20
 - Generate texture atlases and `StandardMaterial`s per model instead of storing shared material assets with the palette. This means that a flat surface containing multiple colors will now just be a single plane. Painting colors (keeping the surface flat) doesn't generate more geometry. This change opens the door to features like baked volumetric Ambient Occlusion and mip-mapping.
-- Make `VoxelPalette` an asset directly, replacing the `VoxelContext` wrapper and `create_voxel_context` with `create_voxel_palette`.
+- Make `VoxelPalette` an asset directly, replacing the `VoxelContext` wrapper. Generated palettes, scenes, and animations are now created through the `VoxelSceneAssets` system parameter.
 - Add `VoxelTextureMode::Packed(TexturePackSettings)`, which merges coplanar faces across palette indices and bakes their PBR properties into configurable packed face islands.
 - Add `VoxelTextureMode::Palette` as a lower-texture-memory compatibility mode using per-model 16x16 palette atlases.
 - Add optional distance-weighted voxel ambient occlusion for packed atlases through `AmbientOcclusionSettings`.

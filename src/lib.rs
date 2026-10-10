@@ -72,10 +72,10 @@ pub use flipbook::{FlipbookFrame, FlipbookPlayer, FlipbookRepeatMode};
 use load::VoxSceneLoader;
 pub use load::{VoxLoaderSettings, VoxelLayer, VoxelModelInstance};
 #[cfg(feature = "generate_voxels")]
+pub use model::VoxelSceneAssets;
+#[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
-#[cfg(feature = "generate_voxels")]
-pub use model::{create_voxel_animation, create_voxel_scene};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
     modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},
