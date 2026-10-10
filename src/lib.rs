@@ -73,6 +73,8 @@ use load::VoxSceneLoader;
 pub use load::{
     VoxLoaderSettings, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy,
 };
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+pub use model::VoxelModelAssets;
 #[cfg(feature = "generate_voxels")]
 pub use model::VoxelSceneAssets;
 #[cfg(feature = "generate_voxels")]
@@ -80,7 +82,7 @@ pub use model::sdf::SDF;
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
-    modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},
+    modify::{ModifyVoxelError, VoxelRegion, VoxelRegionMode},
     queryable::VoxelQueryable,
 };
 pub use observers::VoxelInstanceReady;

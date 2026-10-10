@@ -1,30 +1,30 @@
-use bevy::{
-    asset::{Assets, Handle},
-    ecs::system::{In, ResMut},
-    image::Image,
-    math::{IVec3, Vec3},
-    mesh::Mesh,
-    pbr::StandardMaterial,
-    prelude::Res,
-};
+use bevy::math::{IVec3, Vec3};
+use thiserror::Error;
 
-use crate::VoxelModelSource;
+use crate::{VoxelModelAssets, VoxelModelSource};
 
-use super::{RawVoxel, Voxel, VoxelModel, VoxelPalette, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelQueryable};
 
-/// Data object passed into [`modify_voxel_model`] system
-pub struct VoxelModifier {
-    source: VoxelModelSource,
-    mesh: Handle<Mesh>,
-    region: VoxelRegionMode,
-    modify: Box<dyn Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>,
+/// An error encountered while modifying a voxel model.
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum ModifyVoxelError {
+    /// The model was retained for queries but not runtime remeshing.
+    #[error("voxel model source is not remeshable")]
+    NotRemeshable,
+    /// The retained model asset is no longer available.
+    #[error("retained voxel model asset is unavailable")]
+    ModelUnavailable,
+    /// The palette needed to remesh the model is no longer available.
+    #[error("voxel palette asset is unavailable")]
+    PaletteUnavailable,
 }
 
-impl VoxelModifier {
-    /// Run the `modify` closure against every voxel within the `region` of the `model`.
+impl VoxelModelAssets<'_> {
+    /// Modify voxels in a retained model and regenerate its mesh and material.
     ///
     /// ### Arguments
-    /// * `model` - the id of the [`VoxelModel`] to be modified (you can obtain this by from the [`bevy::asset::Handle::id()`] method).
+    /// * `source` - the remeshable source component attached to the model entity.
+    /// * `mesh` - the model entity's mesh handle.
     /// * `region` - a [`VoxelRegion`] defining the area of the voxel model that the modifier will operate on.
     /// * `modify` - a closure that will run against every voxel within the `region`.
     ///
@@ -34,124 +34,85 @@ impl VoxelModifier {
     /// * `model` - a reference to the model, allowing, for instance, querying neighbouring voxels via the methods in [`crate::VoxelQueryable`]
     ///
     /// ### Notes
+    /// Every closure invocation observes the original model. Changes made earlier in the region
+    /// are not visible to later invocations.
+    ///
     /// The smaller the `region` is, the more performant the operation will be.
-    pub fn new<F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel + Send + Sync + 'static>(
-        source: VoxelModelSource,
-        mesh: Handle<Mesh>,
+    pub fn modify<F>(
+        &mut self,
+        source: &VoxelModelSource,
+        mesh: &bevy::asset::Handle<bevy::mesh::Mesh>,
         region: VoxelRegionMode,
         modify: F,
-    ) -> Self {
-        VoxelModifier {
-            source,
-            mesh,
-            region,
-            modify: Box::new(modify),
-        }
-    }
-}
-
-/// System that programmatically modifies the voxels in a model.
-///
-/// Takes a [`VoxelModifier`] as its input
-///
-/// ### Example
-/// ```no_run
-/// # use bevy::prelude::*;
-/// # use bevy_vox_scene::{VoxelModelSource, VoxelRegionMode, VoxelRegion, Voxel, VoxelModifier, modify_voxel_model};
-/// # let mut commands: Commands = panic!();
-/// # let model_source: VoxelModelSource = panic!();
-/// # let mesh_handle: Handle<Mesh> = panic!();
-/// // cut a sphere-shaped hole out of the loaded model
-/// let sphere_center = IVec3::new(10, 10, 10);
-/// let radius = 10;
-/// let radius_squared = radius * radius;
-/// let region = VoxelRegion {
-///     origin: sphere_center - IVec3::splat(radius),
-///     size: IVec3::splat(1 + (radius * 2)),
-/// };
-/// let modifier = VoxelModifier::new(
-///     model_source.clone(),
-/// 	mesh_handle.clone(),
-///     VoxelRegionMode::Box(region),
-///     move | position, voxel, model | {
-///         // a signed-distance function for a sphere:
-///         if position.distance_squared(sphere_center) <= radius_squared {
-///             // inside of the sphere, return an empty cell
-///             Voxel::EMPTY
-///         } else {
-///             // outside the sphere, return the underlying voxel value from the model
-///             voxel.clone()
-///         }
-///     },
-/// );
-/// commands.run_system_cached_with(modify_voxel_model, Some(modifier));
-/// ```
-pub fn modify_voxel_model(
-    In(maybe_modifier): In<Option<VoxelModifier>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut models: ResMut<Assets<VoxelModel>>,
-    palettes: Res<Assets<VoxelPalette>>,
-) {
-    let Some(modifier) = maybe_modifier else {
-        return;
-    };
-    let VoxelModelSource::Remeshable { model, palette } = modifier.source else {
-        return;
-    };
-    let Some(palette) = palettes.get(palette.id()) else {
-        return;
-    };
-    let Some(mut model) = models.get_mut(model.id()) else {
-        return;
-    };
-    let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
-    let model_size = model.size();
-    let region = modifier.region.clamped(model_size);
-    let start = leading_padding + region.origin;
-    let end = start + region.size;
-    let mut updated: Vec<RawVoxel> = model.data.grid.voxels.clone();
-    for x in start.x..end.x {
-        for y in start.y..end.y {
-            for z in start.z..end.z {
-                let index =
-                    vox_bake::linearize([x as u32, y as u32, z as u32], model.data.grid.dimensions);
-                let source: Voxel = model.data.grid.voxels[index].clone().into();
-                updated[index] = RawVoxel::from((modifier.modify)(
-                    IVec3::new(x, y, z) - leading_padding,
-                    &source,
-                    &*model,
-                ));
-            }
-        }
-    }
-    model.data.grid.voxels = updated;
-    let (maybe_atlas, average_ior, _maybe_cloud) = model.data.remesh(&palette.baked);
-
-    if let Some(atlas) = maybe_atlas {
-        let mut material = palette.create_atlas_material(&atlas, |_, image| images.add(image));
-        super::configure_material(&mut material, average_ior, &model.data);
-        let _ = meshes.insert(&modifier.mesh, super::mesh::to_bevy_mesh(atlas.mesh, true));
-
-        if let Some(material_handle) = &model.material {
-            if let Some(old_material) = materials.get(material_handle) {
-                let mut old_images = vec![
-                    old_material.base_color_texture.clone(),
-                    old_material.emissive_texture.clone(),
-                    old_material.metallic_roughness_texture.clone(),
-                    old_material.occlusion_texture.clone(),
-                ];
-                #[cfg(feature = "pbr_transmission_textures")]
-                old_images.push(old_material.specular_transmission_texture.clone());
-                for image_handle in old_images.into_iter().flatten() {
-                    images.remove(image_handle.id());
+    ) -> Result<(), ModifyVoxelError>
+    where
+        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel,
+    {
+        let VoxelModelSource::Remeshable { model, palette } = source else {
+            return Err(ModifyVoxelError::NotRemeshable);
+        };
+        let palette = self
+            .palettes
+            .get(palette.id())
+            .ok_or(ModifyVoxelError::PaletteUnavailable)?;
+        let mut model = self
+            .models
+            .get_mut(model.id())
+            .ok_or(ModifyVoxelError::ModelUnavailable)?;
+        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+        let model_size = model.size();
+        let region = region.clamped(model_size);
+        let start = leading_padding + region.origin;
+        let end = start + region.size;
+        let mut updated: Vec<RawVoxel> = model.data.grid.voxels.clone();
+        for x in start.x..end.x {
+            for y in start.y..end.y {
+                for z in start.z..end.z {
+                    let index = vox_bake::linearize(
+                        [x as u32, y as u32, z as u32],
+                        model.data.grid.dimensions,
+                    );
+                    let source: Voxel = model.data.grid.voxels[index].clone().into();
+                    updated[index] = RawVoxel::from(modify(
+                        IVec3::new(x, y, z) - leading_padding,
+                        &source,
+                        &*model,
+                    ));
                 }
             }
-            let _ = materials.insert(material_handle, material);
-        } else {
-            model.material = Some(materials.add(material));
         }
+        model.data.grid.voxels = updated;
+        let (maybe_atlas, average_ior, _maybe_cloud) = model.data.remesh(&palette.baked);
+
+        if let Some(atlas) = maybe_atlas {
+            let mut material =
+                palette.create_atlas_material(&atlas, |_, image| self.images.add(image));
+            super::configure_material(&mut material, average_ior, &model.data);
+            let _ = self
+                .meshes
+                .insert(mesh, super::mesh::to_bevy_mesh(atlas.mesh, true));
+
+            if let Some(material_handle) = &model.material {
+                if let Some(old_material) = self.materials.get(material_handle) {
+                    #[allow(unused_mut)]
+                    let mut old_images = vec![
+                        old_material.base_color_texture.clone(),
+                        old_material.emissive_texture.clone(),
+                        old_material.metallic_roughness_texture.clone(),
+                        old_material.occlusion_texture.clone(),
+                    ];
+                    #[cfg(feature = "pbr_transmission_textures")]
+                    old_images.push(old_material.specular_transmission_texture.clone());
+                    for image_handle in old_images.into_iter().flatten() {
+                        self.images.remove(image_handle.id());
+                    }
+                }
+                let _ = self.materials.insert(material_handle, material);
+            } else {
+                model.material = Some(self.materials.add(material));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -211,13 +172,17 @@ impl VoxelRegion {
 #[cfg(test)]
 mod tests {
     use bevy::{
-        app::App, asset::Assets, ecs::hierarchy::Children, math::IVec3, prelude::Mesh3d,
+        app::App,
+        asset::Assets,
+        ecs::{hierarchy::Children, system::SystemState},
+        math::IVec3,
+        prelude::Mesh3d,
         world_serialization::WorldAssetRoot,
     };
 
     use crate::{
-        Voxel, VoxelModel, VoxelModelSource, VoxelModifier, VoxelQueryable, VoxelRegion,
-        VoxelRegionMode, model::queryable::OutOfBoundsError, modify_voxel_model,
+        Voxel, VoxelModel, VoxelModelAssets, VoxelModelSource, VoxelQueryable, VoxelRegion,
+        VoxelRegionMode, model::queryable::OutOfBoundsError,
         test_support::setup_and_load_voxel_scene,
     };
 
@@ -249,15 +214,19 @@ mod tests {
             origin: IVec3::splat(2),
             size: IVec3::ONE,
         };
-        let modifier = VoxelModifier::new(
-            model_source.clone(),
-            mesh.0.clone(),
-            VoxelRegionMode::Box(region),
-            |_pos, _voxel, _model| Voxel(7),
-        );
-        app.world_mut()
-            .run_system_cached_with(modify_voxel_model, Some(modifier))
+        let world = app.world_mut();
+        let mut state = SystemState::<VoxelModelAssets>::new(world);
+        state
+            .get_mut(world)
+            .expect("voxel asset resources exist")
+            .modify(
+                &model_source,
+                &mesh.0,
+                VoxelRegionMode::Box(region),
+                |_pos, _voxel, _model| Voxel(7),
+            )
             .expect("model modified");
+        state.apply(world);
         app.update();
         let model = app
             .world()

@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelModelSource, VoxelModifier,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelSource,
     VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
-    modify_voxel_model,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
@@ -55,28 +54,26 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         Voxel(1),
     );
     let scene = voxel_assets.create_scene(data, "canvas", palette);
-    commands
-        .spawn(WorldAssetRoot(scene))
-        .observe(on_tap_voxels.pipe(modify_voxel_model));
+    commands.spawn(WorldAssetRoot(scene)).observe(on_tap_voxels);
 }
 
 /// Tap with left button to add voxels, right button to erase
 fn on_tap_voxels(
     trigger: On<PointerPress>,
     query: Query<(&VoxelModelSource, &Mesh3d, &GlobalTransform)>,
-    models: Res<Assets<VoxelModel>>,
-) -> Option<VoxelModifier> {
+    mut voxel_assets: VoxelModelAssets,
+) {
     let Some(global_point) = trigger.hit.position else {
-        return None;
+        return;
     };
     let Some(global_normal) = trigger.hit.normal else {
-        return None;
+        return;
     };
     let Ok((source, mesh, global_xform)) = query.get(trigger.original_event_target()) else {
-        return None;
+        return;
     };
-    let Some(model) = models.get(source.model()) else {
-        return None;
+    let Some(model) = voxel_assets.get_model(source) else {
+        return;
     };
     // pick a point close to the center of the voxel whose surface we tapped:
     let global_voxel_center = global_point - (global_normal * (VOXEL_SIZE * 0.5));
@@ -93,17 +90,13 @@ fn on_tap_voxels(
         voxel_point,
         IVec3::splat(brush_radius),
     ));
-    let modifier = VoxelModifier::new(
-        source.clone(),
-        mesh.0.clone(),
-        region,
-        move |pos, underlying_vox, _| {
+    voxel_assets
+        .modify(source, &mesh.0, region, move |pos, underlying_vox, _| {
             if pos.distance_squared(voxel_point) < brush_radius_squared {
                 brush.clone()
             } else {
                 underlying_vox.clone()
             }
-        },
-    );
-    Some(modifier)
+        })
+        .expect("canvas model is remeshable");
 }

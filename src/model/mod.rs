@@ -1,20 +1,26 @@
-use crate::{VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy};
+pub use self::{data::VoxelData, voxel::Voxel};
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+use crate::VoxelModelSource;
+#[cfg(feature = "generate_voxels")]
+use crate::{VoxelModelInstance, VoxelModelSourcePolicy};
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 use bevy::{
-    asset::{Asset, Assets, Handle},
-    camera::visibility::Visibility,
-    ecs::{system::ResMut, world::World},
+    asset::Assets,
+    ecs::system::{ResMut, SystemParam},
     image::Image,
-    light::FogVolume,
-    mesh::Mesh3d,
-    pbr::{MeshMaterial3d, StandardMaterial},
+    mesh::Mesh,
+};
+use bevy::{
+    asset::{Asset, Handle},
+    pbr::StandardMaterial,
     reflect::TypePath,
-    transform::components::Transform,
-    world_serialization::WorldAsset,
 };
 #[cfg(feature = "generate_voxels")]
-use bevy::{ecs::system::SystemParam, mesh::Mesh};
-
-pub use self::{data::VoxelData, voxel::Voxel};
+use bevy::{
+    camera::visibility::Visibility, ecs::world::World, light::FogVolume, mesh::Mesh3d,
+    pbr::MeshMaterial3d, transform::components::Transform, world_serialization::WorldAsset,
+};
+#[cfg(feature = "generate_voxels")]
 use flipbook::{FlipbookFrame, FlipbookPlayer};
 pub(crate) use voxel::RawVoxel;
 pub(super) mod data;
@@ -45,23 +51,43 @@ pub struct VoxelModel {
     pub(crate) material: Option<Handle<StandardMaterial>>,
 }
 
-/// Asset collections used to create runtime voxel scenes and animations.
-#[cfg(feature = "generate_voxels")]
+/// Asset collections used to inspect and modify retained voxel models.
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 #[derive(SystemParam)]
-pub struct VoxelSceneAssets<'w> {
+pub struct VoxelModelAssets<'w> {
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<StandardMaterial>>,
     images: ResMut<'w, Assets<Image>>,
     models: ResMut<'w, Assets<VoxelModel>>,
-    scenes: ResMut<'w, Assets<WorldAsset>>,
     palettes: ResMut<'w, Assets<VoxelPalette>>,
 }
 
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+impl VoxelModelAssets<'_> {
+    /// Get the retained voxel model referenced by a model source component.
+    pub fn get_model(&self, source: &VoxelModelSource) -> Option<&VoxelModel> {
+        self.models.get(source.model())
+    }
+}
+
+/// Asset collections used to create runtime voxel scenes and animations.
 #[cfg(feature = "generate_voxels")]
-impl VoxelSceneAssets<'_> {
+#[derive(SystemParam)]
+pub struct VoxelSceneAssets<'w> {
+    model_assets: VoxelModelAssets<'w>,
+    scenes: ResMut<'w, Assets<WorldAsset>>,
+}
+
+#[cfg(feature = "generate_voxels")]
+impl<'w> VoxelSceneAssets<'w> {
+    /// Access the underlying voxel model assets.
+    pub fn model_assets(&mut self) -> &mut VoxelModelAssets<'w> {
+        &mut self.model_assets
+    }
+
     /// Add a generated voxel palette to the asset collection.
     pub fn add_palette(&mut self, palette: VoxelPalette) -> Handle<VoxelPalette> {
-        self.palettes.add(palette)
+        self.model_assets.palettes.add(palette)
     }
 
     /// Create a voxel scene from supplied voxel data.
@@ -73,28 +99,32 @@ impl VoxelSceneAssets<'_> {
     ) -> Handle<WorldAsset> {
         let name = name.into();
         let palette = self
+            .model_assets
             .palettes
             .get(&palette_handle)
             .expect("Voxel palette exists");
         let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked);
         let (maybe_mesh_handle, maybe_material_handle) =
             maybe_atlas.map_or((None, None), |atlas| {
-                let mut material =
-                    palette.create_atlas_material(&atlas, |_, image| self.images.add(image));
-                let mesh_handle = self.meshes.add(mesh::to_bevy_mesh(
+                let mut material = palette
+                    .create_atlas_material(&atlas, |_, image| self.model_assets.images.add(image));
+                let mesh_handle = self.model_assets.meshes.add(mesh::to_bevy_mesh(
                     atlas.mesh,
                     data.model_source == VoxelModelSourcePolicy::Remeshable,
                 ));
                 configure_material(&mut material, average_ior, &data);
-                (Some(mesh_handle), Some(self.materials.add(material)))
+                (
+                    Some(mesh_handle),
+                    Some(self.model_assets.materials.add(material)),
+                )
             });
-        let cloud_image = maybe_cloud.map(|image| self.images.add(image));
+        let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
         let model_size = data._size().as_vec3() * data.bake_settings.voxel_size;
         let model_source_policy = data.model_source;
         let model_source = match model_source_policy {
             VoxelModelSourcePolicy::Discard => None,
             model_source_policy => {
-                let model = self.models.add(VoxelModel {
+                let model = self.model_assets.models.add(VoxelModel {
                     name: name.clone(),
                     data,
                     has_mesh: maybe_mesh_handle.is_some(),
@@ -149,6 +179,7 @@ impl VoxelSceneAssets<'_> {
     ) -> Handle<WorldAsset> {
         let name = name.into();
         let palette = self
+            .model_assets
             .palettes
             .get(&palette_handle)
             .expect("Voxel palette exists");
@@ -160,17 +191,22 @@ impl VoxelSceneAssets<'_> {
                 let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked);
                 let (maybe_mesh_handle, maybe_material_handle) =
                     maybe_atlas.map_or((None, None), |atlas| {
-                        let mut material = palette
-                            .create_atlas_material(&atlas, |_, image| self.images.add(image));
-                        let mesh_handle = self.meshes.add(mesh::to_bevy_mesh(
+                        let mut material = palette.create_atlas_material(&atlas, |_, image| {
+                            self.model_assets.images.add(image)
+                        });
+                        let mesh_handle = self.model_assets.meshes.add(mesh::to_bevy_mesh(
                             atlas.mesh,
                             data.model_source == VoxelModelSourcePolicy::Remeshable,
                         ));
                         configure_material(&mut material, average_ior, &data);
-                        (Some(mesh_handle), Some(self.materials.add(material)))
+                        (
+                            Some(mesh_handle),
+                            Some(self.model_assets.materials.add(material)),
+                        )
                     });
-                let cloud_image = maybe_cloud.map(|image| self.images.add(image));
+                let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
 
+                let model_size = data._size().as_vec3() * data.bake_settings.voxel_size;
                 let model = VoxelModel {
                     name: format!("{}-{}", name, index),
                     data,
@@ -178,15 +214,14 @@ impl VoxelSceneAssets<'_> {
                     has_cloud: cloud_image.is_some(),
                     material: maybe_material_handle.clone(),
                 };
-                let model_size = model.model_size();
                 let model_source = match model.data.model_source {
                     VoxelModelSourcePolicy::Discard => None,
                     VoxelModelSourcePolicy::Queryable => Some(VoxelModelSource::Queryable {
-                        model: self.models.add(model),
+                        model: self.model_assets.models.add(model),
                         palette: palette_handle.clone(),
                     }),
                     VoxelModelSourcePolicy::Remeshable => Some(VoxelModelSource::Remeshable {
-                        model: self.models.add(model),
+                        model: self.model_assets.models.add(model),
                         palette: palette_handle.clone(),
                     }),
                 };

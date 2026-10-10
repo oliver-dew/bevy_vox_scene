@@ -13,9 +13,8 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelSource,
-    VoxelModelSourcePolicy, VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode,
-    modify_voxel_model,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelAssets,
+    VoxelModelSource, VoxelModelSourcePolicy, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -206,7 +205,7 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
             MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
             Transform::from_translation(position),
         ))
-        .observe(on_flake_collision.pipe(modify_voxel_model));
+        .observe(on_flake_collision);
 }
 
 fn update_snow(
@@ -254,9 +253,10 @@ fn on_flake_collision(
     collision: On<SnowflakeCollision>,
     query: Query<(&VoxelModelSource, &Mesh3d)>,
     mut commands: Commands,
-) -> Option<VoxelModifier> {
+    mut voxel_assets: VoxelModelAssets,
+) {
     let Ok((instance, Mesh3d(mesh))) = query.get(collision.colidee) else {
-        return None;
+        return;
     };
     commands.entity(collision.snowflake).despawn();
     let point = collision.point;
@@ -266,25 +266,26 @@ fn on_flake_collision(
         origin: point - IVec3::splat(flake_radius),
         size: IVec3::splat(1 + (flake_radius * 2)),
     };
-    let modifier = VoxelModifier::new(
-        instance.clone(),
-        mesh.clone(),
-        VoxelRegionMode::Box(flake_region),
-        move |pos, voxel, model| {
-            // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
-            if *voxel == Voxel::EMPTY && pos.distance_squared(point) <= radius_squared {
-                if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
-                    if voxel_below != Voxel::EMPTY {
-                        // draw our snow material
-                        return Voxel(234);
+    voxel_assets
+        .modify(
+            instance,
+            mesh,
+            VoxelRegionMode::Box(flake_region),
+            move |pos, voxel, model| {
+                // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
+                if *voxel == Voxel::EMPTY && pos.distance_squared(point) <= radius_squared {
+                    if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
+                        if voxel_below != Voxel::EMPTY {
+                            // draw our snow material
+                            return Voxel(234);
+                        }
                     }
                 }
-            }
-            // else we return the underlying voxel, unmodified
-            voxel.clone()
-        },
-    );
-    Some(modifier)
+                // else we return the underlying voxel, unmodified
+                voxel.clone()
+            },
+        )
+        .expect("scenery model is remeshable");
 }
 
 // Focus the camera on the focal point when the camera is first added and when it moves
