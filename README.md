@@ -87,7 +87,7 @@ cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-inten
 
 The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `retain_voxel_data` and `mesh_asset_usage` are intentionally omitted because exported GLBs contain neither retained voxel data nor Bevy mesh asset residency settings.
 
-Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. The export dependencies are not compiled for ordinary runtime-loading users.
+Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. Runtime-generated models can be exported with `export_voxel_model_to_glb(&model, &palette)`, and generated frame sequences with `export_voxel_animation_to_glb(&frames, &palette)`. The export dependencies are not compiled for ordinary runtime-loading users.
 
 See the [offline processing guide](docs/offline-processing.md) for local installation, recursive conversion, CI consistency checks, `build.rs` integration, and loading generated assets without `bevy_vox_scene`.
 

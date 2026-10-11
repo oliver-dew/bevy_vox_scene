@@ -11,10 +11,11 @@ use thiserror::Error;
 
 use crate::{
     BakeError, BakedMeshAtlas as MeshAtlas, BakedPalette, BakedScene, BakedSceneGraphNode,
-    BakedSceneModel, BakedTransformFrame, SceneBakeError, VoxBakeSettings, bake_scene,
+    BakedSceneModel, BakedTransformFrame, SceneBakeError, VoxBakeSettings, VoxelGrid, bake_model,
+    bake_scene,
 };
 
-/// One GLB produced by [`export_vox_to_glb`].
+/// A complete exported GLB file.
 #[derive(Clone, Debug)]
 pub struct ExportedGlb {
     /// Complete binary glTF file contents.
@@ -61,7 +62,7 @@ impl std::fmt::Display for ExportWarning {
     }
 }
 
-/// An error encountered while converting a `.vox` file to GLB.
+/// An error encountered while exporting voxels to GLB.
 #[derive(Debug, Error)]
 pub enum ExportError {
     /// The source bytes were not a valid MagicaVoxel file.
@@ -70,6 +71,15 @@ pub enum ExportError {
     /// The source file has no scene graph root.
     #[error("VOX file contains no scene graph root")]
     MissingScene,
+    /// A generated animation contained no frames.
+    #[error("voxel animation requires at least one frame")]
+    EmptyAnimation,
+    /// Every frame in a generated animation must use the same bake settings.
+    #[error("voxel animation frame {frame} uses different bake settings")]
+    AnimationSettingsMismatch {
+        /// Zero-based index of the incompatible frame.
+        frame: usize,
+    },
     /// Cloud volumes have no portable glTF representation.
     #[error("model {0:?} contains cloud voxels, which cannot currently be exported to glTF")]
     UnsupportedCloud(String),
@@ -120,6 +130,84 @@ pub fn export_vox_to_glb(
         return Err(ExportError::UnsupportedCloud(model.name.clone()));
     }
 
+    export_scene(scene, settings)
+}
+
+/// Bake one voxel grid and export it as a complete GLB file.
+pub fn export_model_to_glb(
+    grid: &VoxelGrid,
+    palette: &BakedPalette,
+    settings: &VoxBakeSettings,
+) -> Result<ExportedGlb, ExportError> {
+    let baked = bake_model(grid, palette, settings)?;
+    if baked.volume.is_some() {
+        return Err(ExportError::UnsupportedCloud("Voxel model".into()));
+    }
+    let scene = BakedScene {
+        palette: palette.clone(),
+        models: vec![BakedSceneModel {
+            name: "Voxel model".into(),
+            grid: grid.clone(),
+            baked,
+        }],
+        nodes: vec![BakedSceneGraphNode::Shape { models: vec![0] }],
+        root: 0,
+        layers: Vec::new(),
+    };
+    export_scene(scene, settings)
+}
+
+/// Bake a sequence of voxel grids and export them as one GLB flipbook animation.
+pub fn export_animation_to_glb<'a>(
+    grids: impl IntoIterator<Item = &'a VoxelGrid>,
+    palette: &BakedPalette,
+    settings: &VoxBakeSettings,
+) -> Result<ExportedGlb, ExportError> {
+    let grids = grids.into_iter().collect::<Vec<_>>();
+    if grids.is_empty() {
+        return Err(ExportError::EmptyAnimation);
+    }
+    let models = grids
+        .into_iter()
+        .enumerate()
+        .map(|(index, grid)| {
+            let baked = bake_model(grid, palette, settings)?;
+            let name = format!("Voxel animation-{:03}", index + 1);
+            if baked.volume.is_some() {
+                return Err(ExportError::UnsupportedCloud(name));
+            }
+            Ok(BakedSceneModel {
+                name,
+                grid: grid.clone(),
+                baked,
+            })
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    let scene = BakedScene {
+        palette: palette.clone(),
+        nodes: vec![
+            BakedSceneGraphNode::Transform {
+                name: Some("Voxel animation".into()),
+                hidden: false,
+                layer_index: 0,
+                child: 1,
+                frames: Vec::new(),
+            },
+            BakedSceneGraphNode::Shape {
+                models: (0..models.len()).collect(),
+            },
+        ],
+        models,
+        root: 0,
+        layers: vec![crate::BakedLayer {
+            name: None,
+            hidden: false,
+        }],
+    };
+    export_scene(scene, settings)
+}
+
+fn export_scene(scene: BakedScene, settings: &VoxBakeSettings) -> Result<ExportedGlb, ExportError> {
     let warnings = export_warnings(&scene, settings);
     let bytes = write_scene(
         &scene,
@@ -924,7 +1012,10 @@ fn align_four(bytes: &mut Vec<u8>, value: u8) {
 mod tests {
     use std::{collections::HashMap, io::Cursor, path::Path};
 
-    use super::{ExportError, export_scene_nodes, export_vox_to_glb, glam_identity};
+    use super::{
+        ExportError, export_animation_to_glb, export_model_to_glb, export_scene_nodes,
+        export_vox_to_glb, glam_identity,
+    };
     use crate::{
         AmbientOcclusionSettings, BakedLayer, BakedMaterial, BakedScene, BakedSceneGraphNode,
         BakedSceneModel, BakedTransformFrame, VoxBakeSettings, VoxelGrid, VoxelTextureMode,
@@ -1063,6 +1154,59 @@ mod tests {
         let export = export_vox_to_glb(&bytes, &VoxBakeSettings::default()).unwrap();
         let gltf = validate_glb(&export.bytes);
         assert!(gltf.document.meshes().next().is_some());
+    }
+
+    #[test]
+    fn exports_generated_voxel_model() {
+        let mut grid = VoxelGrid::empty([1; 3], true);
+        let voxel = grid.linearize([1; 3]);
+        grid.voxels[voxel] = crate::RawVoxel(0);
+        let palette = crate::BakedPalette::new(vec![BakedMaterial::default(); 256], true);
+        let export = export_model_to_glb(&grid, &palette, &VoxBakeSettings::default()).unwrap();
+        let gltf = validate_glb(&export.bytes);
+
+        assert_eq!(export.statistics.models, 1);
+        assert_eq!(export.statistics.meshes, 1);
+        assert_eq!(gltf.document.meshes().count(), 1);
+    }
+
+    #[test]
+    fn exports_generated_voxel_animation() {
+        let mut first = VoxelGrid::empty([1; 3], true);
+        let first_voxel = first.linearize([1; 3]);
+        first.voxels[first_voxel] = crate::RawVoxel(0);
+        let mut second = VoxelGrid::empty([2, 1, 1], true);
+        let second_voxel = second.linearize([1; 3]);
+        second.voxels[second_voxel] = crate::RawVoxel(0);
+        let palette = crate::BakedPalette::new(vec![BakedMaterial::default(); 256], true);
+
+        let export =
+            export_animation_to_glb([&first, &second], &palette, &VoxBakeSettings::default())
+                .unwrap();
+        let gltf = validate_glb(&export.bytes);
+        let frames = gltf
+            .document
+            .nodes()
+            .filter(|node| node.extension_value("KHR_node_visibility").is_some())
+            .collect::<Vec<_>>();
+
+        assert_eq!(export.statistics.models, 2);
+        assert_eq!(export.statistics.meshes, 2);
+        assert_eq!(frames.len(), 2);
+        assert_eq!(
+            frames[0]
+                .extension_value("KHR_node_visibility")
+                .and_then(|value| value.get("visible"))
+                .and_then(serde_json::Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            frames[1]
+                .extension_value("KHR_node_visibility")
+                .and_then(|value| value.get("visible"))
+                .and_then(serde_json::Value::as_bool),
+            Some(false)
+        );
     }
 
     #[test]

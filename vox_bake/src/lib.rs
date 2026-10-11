@@ -23,7 +23,8 @@ pub use atlas::{
 pub use bake::{BakeError, BakedModel, bake_model};
 #[cfg(feature = "gltf")]
 pub use gltf_export::{
-    ExportError, ExportStatistics, ExportWarning, ExportedGlb, export_vox_to_glb,
+    ExportError, ExportStatistics, ExportWarning, ExportedGlb, export_animation_to_glb,
+    export_model_to_glb, export_vox_to_glb,
 };
 pub use grid::{VoxelGrid, linearize};
 pub use material::{BakedMaterial, BakedPalette, analyze_vox_palette};
