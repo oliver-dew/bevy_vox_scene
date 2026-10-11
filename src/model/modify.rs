@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::VoxelModelAssets;
 
-use super::{RawVoxel, Voxel, VoxelQueryable};
+use super::{RawVoxel, Voxel, VoxelModel};
 
 /// An error encountered while modifying a voxel model.
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -48,7 +48,7 @@ impl VoxelModelAssets<'_, '_> {
     /// ### Arguments passed to the `modify` closure
     /// * `position` - the position of the current voxel, in voxel space
     /// * `voxel` - the index of the current voxel
-    /// * `model` - a reference to the model, allowing, for instance, querying neighbouring voxels via the methods in [`crate::VoxelQueryable`]
+    /// * `model` - a reference to the model, allowing, for instance, querying neighbouring voxels via [`crate::VoxelModel`] methods
     ///
     /// ### Notes
     /// Every closure invocation observes the original model. Changes made earlier in the region
@@ -65,7 +65,7 @@ impl VoxelModelAssets<'_, '_> {
         modify: F,
     ) -> Result<(), ModifyVoxelError>
     where
-        F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel,
+        F: Fn(IVec3, &Voxel, &VoxelModel) -> Voxel,
     {
         let instance = self
             .instances
@@ -236,8 +236,8 @@ mod tests {
     };
 
     use crate::{
-        Voxel, VoxelModel, VoxelModelAssets, VoxelModelSource, VoxelQueryable, VoxelRegion,
-        VoxelRegionMode, test_support::setup_and_load_voxel_scene,
+        Voxel, VoxelModel, VoxelModelAssets, VoxelModelSource, VoxelRegion, VoxelRegionMode,
+        test_support::setup_and_load_voxel_scene,
     };
 
     #[async_std::test]

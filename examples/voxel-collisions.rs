@@ -14,7 +14,7 @@ use bevy::{
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelAssets,
-    VoxelModelSource, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxelModelSource, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};

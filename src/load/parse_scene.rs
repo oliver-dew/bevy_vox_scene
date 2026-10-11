@@ -19,8 +19,7 @@ use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
 use crate::{
     VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
-    load::LoadedVoxelModel,
-    model::{VoxelMeshAssetUsage, queryable::VoxelQueryable},
+    load::LoadedVoxelModel, model::VoxelMeshAssetUsage,
 };
 
 use flipbook::{FlipbookFrame, FlipbookPlayer};

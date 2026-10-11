@@ -7,6 +7,7 @@ use crate::{VoxelModelSource, VoxelPaletteSource};
 use bevy::{
     asset::Assets,
     ecs::{
+        entity::Entity,
         query::QueryData,
         system::{Query, ResMut, SystemParam},
     },
@@ -19,13 +20,19 @@ use bevy::{
     transform::components::Transform, world_serialization::WorldAsset,
 };
 use bevy::{
-    asset::{Asset, RenderAssetUsages}, image::Image, math::UVec3, pbr::StandardMaterial, prelude::ReflectComponent, reflect::TypePath,
+    asset::{Asset, RenderAssetUsages},
+    ecs::component::Component,
+    image::Image,
+    math::{IVec3, UVec3},
+    pbr::StandardMaterial,
+    prelude::ReflectComponent,
+    reflect::{Reflect, TypePath},
 };
 #[cfg(feature = "generate_voxels")]
 use flipbook::{FlipbookFrame, FlipbookPlayer};
 #[cfg(feature = "generate_voxels")]
 use thiserror::Error;
-use vox_bake::{VoxBakeSettings, VoxelGrid};
+use vox_bake::{BakeError, BakedModel, BakedPalette, VoxBakeSettings, VoxelGrid};
 pub(crate) use voxel::RawVoxel;
 pub(super) mod mesh;
 #[cfg(feature = "modify_voxels")]
@@ -33,8 +40,7 @@ pub(super) mod modify;
 pub(crate) mod queryable;
 #[cfg(feature = "generate_voxels")]
 pub(super) mod sdf;
-#[cfg(feature = "modify_voxels")]
-pub use self::queryable::VoxelQueryable;
+pub use self::queryable::OutOfBoundsError;
 mod palette;
 pub use palette::{VoxelElement, VoxelPalette};
 pub(super) mod cloud;
@@ -49,51 +55,42 @@ pub struct VoxelModel {
 
 impl Default for VoxelModel {
     fn default() -> Self {
-        Self::new(
-            UVec3::ZERO,
-            VoxBakeSettings::default(),
-        )
+        Self::new(UVec3::ZERO, VoxBakeSettings::default())
     }
 }
 
 impl VoxelModel {
     /// Create a new, empty voxel model.
-    pub fn new(size: bevy::math::UVec3, settings: vox_bake::VoxBakeSettings) -> Self {
+    pub fn new(size: UVec3, settings: VoxBakeSettings) -> Self {
         Self {
-            grid: vox_bake::VoxelGrid::empty(size.into(), settings.mesh_outer_faces),
+            grid: VoxelGrid::empty(size.into(), settings.mesh_outer_faces),
             bake_settings: settings,
         }
     }
 
-    pub(crate) fn from_grid(
-        grid: vox_bake::VoxelGrid,
-        bake_settings: vox_bake::VoxBakeSettings,
-    ) -> Self {
+    pub(crate) fn from_grid(grid: VoxelGrid, bake_settings: VoxBakeSettings) -> Self {
         Self {
             grid,
             bake_settings,
         }
     }
 
-    pub(crate) fn _size(&self) -> bevy::math::IVec3 {
-        let size: bevy::math::UVec3 = self.grid.model_dimensions.into();
-        bevy::math::IVec3::try_from(size).unwrap_or(bevy::math::IVec3::ZERO)
+    pub(crate) fn _size(&self) -> IVec3 {
+        let size: UVec3 = self.grid.model_dimensions.into();
+        IVec3::try_from(size).unwrap_or(IVec3::ZERO)
     }
 
     pub(crate) fn padding(&self) -> u32 {
         self.grid.padding
     }
 
-    pub(crate) fn bake(
-        &self,
-        palette: &vox_bake::BakedPalette,
-    ) -> Result<vox_bake::BakedModel, vox_bake::BakeError> {
+    pub(crate) fn bake(&self, palette: &BakedPalette) -> Result<BakedModel, BakeError> {
         vox_bake::bake_model(&self.grid, palette, &self.bake_settings)
     }
 
     pub(crate) fn remesh(
         &self,
-        palette: &vox_bake::BakedPalette,
+        palette: &BakedPalette,
     ) -> Result<(Option<mesh::MeshAtlas>, Option<f32>, Option<Image>), vox_bake::BakeError> {
         let baked = self.bake(palette)?;
         let image = baked.volume.as_ref().map(cloud::create_cloud_image);
@@ -102,7 +99,7 @@ impl VoxelModel {
 }
 
 #[cfg_attr(not(feature = "modify_voxels"), allow(dead_code))]
-#[derive(bevy::ecs::component::Component, bevy::reflect::Reflect)]
+#[derive(Component, Reflect)]
 #[reflect(Component)]
 pub(crate) struct VoxelMeshAssetUsage(pub RenderAssetUsages);
 
@@ -147,9 +144,10 @@ pub struct VoxelModelAssets<'w, 's> {
 
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 impl VoxelModelAssets<'_, '_> {
-    /// Get the retained voxel model referenced by a model source component.
-    pub fn get_model(&self, source: &VoxelModelSource) -> Option<&VoxelModel> {
-        self.models.get(&source.0)
+    /// Get the retained voxel model attached to an entity.
+    pub fn get_model(&self, entity: Entity) -> Option<&VoxelModel> {
+        let instance = self.instances.get(entity).ok()?;
+        self.models.get(&instance.model.0)
     }
 }
 

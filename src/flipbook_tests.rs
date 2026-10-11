@@ -5,8 +5,9 @@ mod tests {
     use crate::{VoxelInstanceReady, test_support::setup_and_load_voxel_scene};
     use bevy::{
         app::App,
-        ecs::hierarchy::Children,
-        prelude::{Add, Commands, Component, On, Visibility},
+        ecs::{entity::Entity, hierarchy::Children},
+        prelude::{Commands, Component, On, Visibility},
+        time::TimeUpdateStrategy,
         world_serialization::WorldAssetRoot,
     };
     use flipbook::{FlipbookPlayer, FlipbookRepeatMode, FlipbookSpeed};
@@ -14,21 +15,21 @@ mod tests {
     #[derive(Component)]
     struct TaggedAnimationRoot;
 
+    fn animation_entity(app: &App) -> Entity {
+        app.world()
+            .iter_entities()
+            .find(|entity| entity.contains::<FlipbookPlayer>())
+            .map(|entity| entity.id())
+            .expect("animation entity")
+    }
+
     #[async_std::test]
     async fn test_spawn_play_animation() {
         let frame_count: usize = 4;
         let mut app = App::new();
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
-        // Use an observer to override the default `VoxelAnimationPlayer` with one that has a very fast `frame_rate`
-        // so we can advance a frame on each call to `app.update`
-        app.add_observer(
-            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
-                commands
-                    .entity(trigger.entity)
-                    .insert(FlipbookPlayer::from_frame_count(frame_count));
-            },
-        );
         app.add_observer(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
             if trigger.model_name.as_deref() == Some("deer") {
                 commands
@@ -39,12 +40,13 @@ mod tests {
         let _scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         app.update();
-        let entity = app
-            .world()
-            .iter_entities()
-            .find(|entity| entity.contains::<FlipbookPlayer>())
-            .map(|entity| entity.id())
-            .expect("animation entity");
+        let entity = animation_entity(&app);
+        app.world_mut().entity_mut(entity).insert((
+            FlipbookPlayer::from_frame_count(frame_count),
+            FlipbookSpeed(Duration::from_millis(1)),
+        ));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(2)));
+        app.update();
         assert!(
             app.world().get::<TaggedAnimationRoot>(entity).is_some(),
             "VoxelInstanceReady should identify the unsuffixed animated-model parent"
@@ -75,23 +77,22 @@ mod tests {
     async fn test_animation_despawns_on_finish_when_enabled() {
         let mut app = App::new();
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
-        app.add_observer(
-            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
-                commands.entity(trigger.entity).insert((
-                    TaggedAnimationRoot,
-                    FlipbookPlayer::from_frame_count(1),
-                    FlipbookRepeatMode::DespawnAfterCount(1),
-                    FlipbookSpeed(Duration::from_millis(1)),
-                ));
-            },
-        );
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
+        let animation = animation_entity(&app);
+        app.world_mut().entity_mut(animation).insert((
+            TaggedAnimationRoot,
+            FlipbookPlayer::from_frame_count(1),
+            FlipbookRepeatMode::DespawnAfterCount(1),
+            FlipbookSpeed(Duration::from_millis(1)),
+        ));
         assert!(
             app.world().get::<Children>(scene_root).is_some(),
             "scene root spawned"
         );
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(2)));
         app.update();
         app.update();
         let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
@@ -106,20 +107,18 @@ mod tests {
     async fn test_animation_kept_on_finish_when_despawn_disabled() {
         let mut app = App::new();
         let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
-        app.add_observer(
-            move |trigger: On<Add<FlipbookPlayer>>, mut commands: Commands| {
-                commands.entity(trigger.entity).insert((
-                    TaggedAnimationRoot,
-                    FlipbookPlayer::from_frame_count(1),
-                    FlipbookRepeatMode::Count(1),
-                    FlipbookSpeed(Duration::from_millis(1)),
-                ));
-            },
-        );
         app.world_mut().spawn(WorldAssetRoot(handle));
         app.update();
-        app.update();
+        let animation = animation_entity(&app);
+        app.world_mut().entity_mut(animation).insert((
+            TaggedAnimationRoot,
+            FlipbookPlayer::from_frame_count(1),
+            FlipbookRepeatMode::Count(1),
+            FlipbookSpeed(Duration::from_millis(1)),
+        ));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(2)));
         app.update();
         let mut query = app.world_mut().query::<&TaggedAnimationRoot>();
         assert_eq!(

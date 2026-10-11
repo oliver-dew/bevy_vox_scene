@@ -15,13 +15,16 @@ pub struct OutOfBoundsError {
     pub size: IVec3,
 }
 
-/// Methods for converting from global and local to voxel-space coordinates, getting the size of a voxel model, and the voxel at a given point
-pub trait VoxelQueryable {
+impl VoxelModel {
     /// The size of the voxel model.
-    fn size(&self) -> IVec3;
+    pub fn size(&self) -> IVec3 {
+        self._size()
+    }
 
     /// The size of the voxel model taking into account the voxel_size
-    fn model_size(&self) -> Vec3;
+    pub fn model_size(&self) -> Vec3 {
+        self._size().as_vec3() * self.bake_settings.voxel_size
+    }
 
     /// Converts a global point to a point in voxel coordinates
     ///
@@ -31,7 +34,7 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// A voxel coordinate
-    fn global_point_to_voxel_space(
+    pub fn global_point_to_voxel_space(
         &self,
         global_point: Vec3,
         global_xform: &GlobalTransform,
@@ -50,7 +53,11 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// A voxel coordinate
-    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3;
+    pub fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
+        let half_extents = self.size().as_vec3() * 0.5;
+        let voxel_position = (local_point / self.bake_settings.voxel_size) + half_extents;
+        voxel_position.as_ivec3()
+    }
 
     /// Converts a voxel coordinate to a point in local space
     ///
@@ -59,10 +66,13 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// the point in the local space of the entity that owns this [`crate::VoxelModelInstance`]
-    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3;
+    pub fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
+        let half_extents = self.size().as_vec3() * 0.5;
+        (voxel_coord.as_vec3() - half_extents) * self.bake_settings.voxel_size
+    }
 
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
-    fn point_in_model(&self, point: IVec3) -> Result<UVec3, OutOfBoundsError> {
+    pub fn point_in_model(&self, point: IVec3) -> Result<UVec3, OutOfBoundsError> {
         if point.greater_than_or_equal(self.size()).any() {
             return Err(OutOfBoundsError {
                 point,
@@ -81,31 +91,7 @@ pub trait VoxelQueryable {
     ///
     /// ### Returns
     /// the voxel at this point. If the point lies outside the bounds of the model, it will return [`OutOfBoundsError`].
-    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError>;
-}
-
-impl VoxelQueryable for VoxelModel {
-    /// The size of the voxel model.
-    fn size(&self) -> IVec3 {
-        self._size()
-    }
-
-    fn model_size(&self) -> Vec3 {
-        self._size().as_vec3() * self.bake_settings.voxel_size
-    }
-
-    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        let voxel_position = (local_point / self.bake_settings.voxel_size) + half_extents;
-        voxel_position.as_ivec3()
-    }
-
-    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        (voxel_coord.as_vec3() - half_extents) * self.bake_settings.voxel_size
-    }
-
-    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
+    pub fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
         let position = self.point_in_model(position)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
         let index = vox_bake::linearize((position + leading_padding).into(), self.grid.dimensions);
@@ -116,9 +102,7 @@ impl VoxelQueryable for VoxelModel {
         let voxel: Voxel = raw_voxel.clone().into();
         Ok(voxel)
     }
-}
 
-impl VoxelModel {
     /// Writes a voxel to a point in the model
     ///
     /// ### Arguments
@@ -158,7 +142,7 @@ impl BitwiseComparable for IVec3 {
 mod tests {
     use bevy::math::{IVec3, UVec3, Vec3};
 
-    use crate::{SDF, VoxBakeSettings, Voxel, VoxelQueryable};
+    use crate::{SDF, VoxBakeSettings, Voxel};
 
     #[cfg(feature = "generate_voxels")]
     #[test]

@@ -160,11 +160,11 @@ impl SDF {
     }
 
     /// Converts the SDF to a [`VoxelModel`] by sampling it at each position.
-    pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(
+    pub fn map_to_voxels<F: FnMut(f32, Vec3) -> Voxel>(
         self,
         size: UVec3,
         settings: VoxBakeSettings,
-        map: F,
+        mut map: F,
     ) -> VoxelModel {
         let mut data = VoxelModel::new(size, settings);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
@@ -187,11 +187,11 @@ impl SDF {
     ///
     /// Boolean operations short-circuit while testing occupancy, so expensive fields on the
     /// right-hand side are evaluated only when their result can affect whether a cell is filled.
-    pub fn map_inside_to_voxels<F: Fn(Vec3) -> Voxel>(
+    pub fn map_inside_to_voxels<F: FnMut(Vec3) -> Voxel>(
         self,
         size: UVec3,
         settings: VoxBakeSettings,
-        map: F,
+        mut map: F,
     ) -> VoxelModel {
         let mut data = VoxelModel::new(size, settings);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
@@ -270,6 +270,31 @@ mod tests {
         outside.voxelize(UVec3::ONE, VoxBakeSettings::default(), Voxel(1));
 
         assert_eq!(inner_evaluations.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn voxel_mapping_functions_accept_mutable_closures() {
+        let mut distance_samples = 0;
+        SDF::new(|_| -1.0).map_to_voxels(
+            UVec3::new(2, 1, 1),
+            VoxBakeSettings::default(),
+            |_, _| {
+                distance_samples += 1;
+                Voxel(1)
+            },
+        );
+        assert_eq!(distance_samples, 2);
+
+        let mut inside_samples = 0;
+        SDF::new(|_| -1.0).map_inside_to_voxels(
+            UVec3::new(2, 1, 1),
+            VoxBakeSettings::default(),
+            |_| {
+                inside_samples += 1;
+                Voxel(1)
+            },
+        );
+        assert_eq!(inside_samples, 2);
     }
 
     #[test]

@@ -131,16 +131,18 @@ pub fn extract_cloud_volume(
     }
     let inner_dimensions = dimensions.map(|dimension| dimension - 2);
     let mut densities = Vec::with_capacity(inner_dimensions.iter().product::<u32>() as usize);
+    let mut has_cloud = false;
     for z in 1..dimensions[2] - 1 {
         for y in 1..dimensions[1] - 1 {
             for x in 1..dimensions[0] - 1 {
                 let voxel = voxels[(x + dimensions[0] * (y + dimensions[1] * z)) as usize];
                 let density = density_for_voxel[voxel.0 as usize];
+                has_cloud |= density.is_some();
                 densities.push(density.unwrap_or(0.0));
             }
         }
     }
-    Some(BakedVolume {
+    has_cloud.then_some(BakedVolume {
         dimensions: inner_dimensions,
         densities,
     })

@@ -1,7 +1,7 @@
 use bevy::{asset::RenderAssetUsages, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelSource, VoxelPalette,
-    VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelInstance,
+    VoxelPalette, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
@@ -53,7 +53,7 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         Voxel(1),
     );
     let scene = voxel_assets
-        .create_scene(data, palette, true, RenderAssetUsages::default())// bevy Pickable requires RenderAssetUsages::default()
+        .create_scene(data, palette, true, RenderAssetUsages::default()) // bevy Pickable requires RenderAssetUsages::default()
         .expect("voxel scene created");
     commands.spawn(WorldAssetRoot(scene)).observe(on_tap_voxels);
 }
@@ -61,7 +61,7 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
 /// Tap with left button to add voxels, right button to erase
 fn on_tap_voxels(
     trigger: On<PointerPress>,
-    query: Query<(&VoxelModelSource, &GlobalTransform)>,
+    query: Query<&GlobalTransform, With<VoxelModelInstance>>,
     mut voxel_assets: VoxelModelAssets,
 ) {
     let Some(global_point) = trigger.hit.position else {
@@ -71,10 +71,10 @@ fn on_tap_voxels(
         return;
     };
     let entity = trigger.original_event_target();
-    let Ok((source, global_xform)) = query.get(entity) else {
+    let Ok(global_xform) = query.get(entity) else {
         return;
     };
-    let Some(model) = voxel_assets.get_model(source) else {
+    let Some(model) = voxel_assets.get_model(entity) else {
         return;
     };
     // pick a point close to the center of the voxel whose surface we tapped:
