@@ -81,6 +81,8 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
             },
         );
     let model_name = "my sdf model";
-    let scene_root = voxel_assets.create_scene(data, model_name, palette);
+    let scene_root = voxel_assets
+        .create_scene(data, model_name, palette)
+        .expect("voxel scene created");
     commands.spawn(WorldAssetRoot(scene_root));
 }

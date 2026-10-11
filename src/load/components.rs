@@ -13,43 +13,17 @@ use crate::{VoxelModel, VoxelPalette};
 #[require(Transform, Visibility)]
 pub struct VoxelModelInstance;
 
-/// Retained source data for a voxel model instance.
+/// The retained voxel model from which an instance was baked.
 ///
-/// This component is absent when the source voxels were discarded after baking.
+/// This component is absent when source voxel data was discarded after baking.
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
-pub enum VoxelModelSource {
-    /// The voxel grid can be queried, but the rendered mesh cannot be regenerated.
-    Queryable {
-        /// Handle to the retained voxel model.
-        model: Handle<VoxelModel>,
-        /// Handle to the palette from which the model was baked.
-        palette: Handle<VoxelPalette>,
-    },
-    /// The voxel grid can be queried and used to regenerate the rendered mesh.
-    Remeshable {
-        /// Handle to the retained voxel model.
-        model: Handle<VoxelModel>,
-        /// Handle to the palette required when regenerating the model.
-        palette: Handle<VoxelPalette>,
-    },
-}
+pub struct VoxelModelSource(pub Handle<VoxelModel>);
 
-impl VoxelModelSource {
-    /// Return the retained voxel model handle.
-    pub fn model(&self) -> &Handle<VoxelModel> {
-        match self {
-            Self::Queryable { model, .. } | Self::Remeshable { model, .. } => model,
-        }
-    }
-
-    /// Return the palette used to bake the voxel model.
-    pub fn palette(&self) -> &Handle<VoxelPalette> {
-        match self {
-            Self::Queryable { palette, .. } | Self::Remeshable { palette, .. } => palette,
-        }
-    }
-}
+/// The voxel palette from which an instance was baked.
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
+pub struct VoxelPaletteSource(pub Handle<VoxelPalette>);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///

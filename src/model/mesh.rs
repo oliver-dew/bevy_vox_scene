@@ -7,15 +7,8 @@ use vox_bake::{BakedMesh, BakedMeshAtlas};
 
 pub(crate) type MeshAtlas = BakedMeshAtlas;
 
-pub(crate) fn to_bevy_mesh(mesh: BakedMesh, retain_main_world: bool) -> Mesh {
-    let mut bevy_mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        if retain_main_world {
-            RenderAssetUsages::default()
-        } else {
-            RenderAssetUsages::RENDER_WORLD
-        },
-    );
+pub(crate) fn to_bevy_mesh(mesh: BakedMesh, asset_usage: RenderAssetUsages) -> Mesh {
+    let mut bevy_mesh = Mesh::new(PrimitiveTopology::TriangleList, asset_usage);
     bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
         VertexAttributeValues::Float32x3(mesh.positions),
@@ -48,7 +41,7 @@ mod tests {
             uv1: Some(vec![[0.25, 0.25], [0.75, 0.25], [0.25, 0.75]]),
             indices: vec![0, 1, 2],
         };
-        let mesh = to_bevy_mesh(baked.clone(), true);
+        let mesh = to_bevy_mesh(baked.clone(), RenderAssetUsages::default());
 
         assert_eq!(
             mesh.attribute(Mesh::ATTRIBUTE_POSITION),

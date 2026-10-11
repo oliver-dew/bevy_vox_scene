@@ -1,11 +1,12 @@
 use bevy::{
+    asset::RenderAssetUsages,
     image::Image,
     math::{IVec3, UVec3},
 };
 use std::fmt::Debug;
-use vox_bake::{BakedModel, BakedPalette, VoxBakeSettings, VoxelGrid, bake_model};
+use vox_bake::{BakeError, BakedModel, BakedPalette, VoxBakeSettings, VoxelGrid, bake_model};
 
-use crate::{VoxLoaderSettings, VoxelModelSourcePolicy};
+use crate::VoxLoaderSettings;
 
 use super::mesh::MeshAtlas;
 
@@ -14,7 +15,8 @@ use super::mesh::MeshAtlas;
 pub struct VoxelData {
     pub(crate) grid: VoxelGrid,
     pub(crate) bake_settings: VoxBakeSettings,
-    pub(crate) model_source: VoxelModelSourcePolicy,
+    pub(crate) retain_voxel_data: bool,
+    pub(crate) mesh_asset_usage: RenderAssetUsages,
 }
 
 impl Default for VoxelData {
@@ -29,7 +31,8 @@ impl Default for VoxelData {
                 padding: if settings.mesh_outer_faces { 2 } else { 0 },
             },
             bake_settings,
-            model_source: settings.model_source,
+            retain_voxel_data: settings.retain_voxel_data,
+            mesh_asset_usage: settings.mesh_asset_usage,
         }
     }
 }
@@ -40,7 +43,8 @@ impl Debug for VoxelData {
             .field("dimensions", &self.grid.dimensions)
             .field("voxels", &self.grid.voxels.len())
             .field("bake_settings", &self.bake_settings)
-            .field("model_source", &self.model_source)
+            .field("retain_voxel_data", &self.retain_voxel_data)
+            .field("mesh_asset_usage", &self.mesh_asset_usage)
             .finish()
     }
 }
@@ -53,7 +57,8 @@ impl VoxelData {
         Self {
             grid,
             bake_settings,
-            model_source: settings.model_source,
+            retain_voxel_data: settings.retain_voxel_data,
+            mesh_asset_usage: settings.mesh_asset_usage,
         }
     }
     /// The size of the voxel model, not including the padding that may have been added if the outer faces are being meshed.
@@ -67,17 +72,16 @@ impl VoxelData {
         self.grid.padding
     }
 
-    pub(crate) fn bake(&self, palette: &BakedPalette) -> BakedModel {
+    pub(crate) fn bake(&self, palette: &BakedPalette) -> Result<BakedModel, BakeError> {
         bake_model(&self.grid, palette, &self.bake_settings)
-            .expect("voxel texture atlas exceeds the configured maximum size")
     }
 
     pub(crate) fn remesh(
         &self,
         palette: &BakedPalette,
-    ) -> (Option<MeshAtlas>, Option<f32>, Option<Image>) {
-        let baked = self.bake(palette);
+    ) -> Result<(Option<MeshAtlas>, Option<f32>, Option<Image>), BakeError> {
+        let baked = self.bake(palette)?;
         let image = baked.volume.as_ref().map(super::cloud::create_cloud_image);
-        (baked.surface, baked.average_ior, image)
+        Ok((baked.surface, baked.average_ior, image))
     }
 }

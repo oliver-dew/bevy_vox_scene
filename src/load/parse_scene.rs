@@ -6,7 +6,6 @@ use bevy::{
     },
     asset::{Handle, LoadContext},
     ecs::{error::BevyError, hierarchy::ChildSpawner, name::Name},
-    image::Image,
     light::FogVolume,
     log::warn,
     math::Mat4,
@@ -19,7 +18,7 @@ use bevy::{
 use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
 use crate::{
-    VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy,
+    VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
     model::queryable::VoxelQueryable,
 };
 
@@ -350,35 +349,26 @@ fn attach_model(
         warn!("Shape model index {model_index} is out of bounds");
         return;
     };
-    entity.insert(VoxelModelInstance);
-    let mut model_handle = || context.get_label_handle(format!("{}@model", model.name));
-    match model.data.model_source {
-        VoxelModelSourcePolicy::Discard => {}
-        VoxelModelSourcePolicy::Queryable => {
-            entity.insert(VoxelModelSource::Queryable {
-                model: model_handle(),
-                palette: context.get_label_handle("voxel-palette"),
-            });
-        }
-        VoxelModelSourcePolicy::Remeshable => {
-            entity.insert(VoxelModelSource::Remeshable {
-                model: model_handle(),
-                palette: context.get_label_handle("voxel-palette"),
-            });
-        }
+    entity.insert((
+        VoxelModelInstance,
+        VoxelPaletteSource(context.get_label_handle("voxel-palette")),
+    ));
+    if model.data.retain_voxel_data {
+        entity.insert(VoxelModelSource(
+            context.get_label_handle(format!("{}@model", model.name())),
+        ));
     }
-    if model.has_mesh {
-        let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name));
+    if model.has_mesh() {
+        let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name()));
         let material: Handle<StandardMaterial> =
-            context.get_label_handle(format!("{}@material", model.name));
+            context.get_label_handle(format!("{}@material", model.name()));
         entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
     }
-    if model.has_cloud {
-        let cloud_image: Handle<Image> =
-            context.get_label_handle(format!("{}@cloud-image", model.name));
+    if model.has_cloud() {
+        let cloud_image = model.cloud_image.clone();
         entity.with_child((
             FogVolume {
-                density_texture: Some(cloud_image),
+                density_texture: cloud_image,
                 absorption: 0.1,
                 ..Default::default()
             },

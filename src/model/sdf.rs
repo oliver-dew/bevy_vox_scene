@@ -175,7 +175,8 @@ impl SDF {
                     let sdf_pos = pos.as_vec3() - half_extent;
                     let distance = self.distance(sdf_pos);
                     let voxel = map(distance, sdf_pos);
-                    data.set_voxel(voxel, pos);
+                    data.set_voxel(pos.as_ivec3(), voxel)
+                        .expect("sampled point is inside generated voxel data");
                 }
             }
         }
@@ -204,7 +205,8 @@ impl SDF {
                     } else {
                         Voxel::EMPTY
                     };
-                    data.set_voxel(voxel, pos);
+                    data.set_voxel(pos.as_ivec3(), voxel)
+                        .expect("sampled point is inside generated voxel data");
                 }
             }
         }

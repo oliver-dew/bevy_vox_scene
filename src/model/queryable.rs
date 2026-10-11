@@ -3,9 +3,17 @@ use bevy::{
     math::{BVec3, IVec3, UVec3, Vec3},
     transform::components::GlobalTransform,
 };
+use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutOfBoundsError;
+/// A voxel coordinate lies outside a model's bounds.
+#[derive(Error, Debug, Clone, PartialEq, Eq)]
+#[error("voxel coordinate {point} is outside model bounds {size}")]
+pub struct OutOfBoundsError {
+    /// The requested voxel coordinate.
+    pub point: IVec3,
+    /// The model dimensions in voxels.
+    pub size: IVec3,
+}
 
 /// Methods for converting from global and local to voxel-space coordinates, getting the size of a voxel model, and the voxel at a given point
 pub trait VoxelQueryable {
@@ -56,9 +64,15 @@ pub trait VoxelQueryable {
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
     fn point_in_model(&self, point: IVec3) -> Result<UVec3, OutOfBoundsError> {
         if point.greater_than_or_equal(self.size()).any() {
-            return Err(OutOfBoundsError);
+            return Err(OutOfBoundsError {
+                point,
+                size: self.size(),
+            });
         };
-        UVec3::try_from(point).map_err(|_| OutOfBoundsError)
+        UVec3::try_from(point).map_err(|_| OutOfBoundsError {
+            point,
+            size: self.size(),
+        })
     }
     /// Returns the [`Voxel`] at the point (given in voxel space)
     ///
@@ -117,7 +131,10 @@ impl VoxelQueryable for VoxelData {
         let position = self.point_in_model(position)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
         let index = vox_bake::linearize((position + leading_padding).into(), self.grid.dimensions);
-        let raw_voxel = self.grid.voxels.get(index).ok_or(OutOfBoundsError)?;
+        let raw_voxel = self.grid.voxels.get(index).ok_or(OutOfBoundsError {
+            point: position.as_ivec3(),
+            size: self.size(),
+        })?;
         let voxel: Voxel = raw_voxel.clone().into();
         Ok(voxel)
     }
@@ -129,11 +146,18 @@ impl VoxelData {
     /// ### Arguments
     /// * `voxel` - the [`Voxel`] to be written
     /// * `point` - the position at which the voxel will be written, in voxel space
-    pub fn set_voxel(&mut self, voxel: Voxel, point: UVec3) {
+    pub fn set_voxel(&mut self, point: IVec3, voxel: Voxel) -> Result<(), OutOfBoundsError> {
+        let point = self.point_in_model(point)?;
         let leading_padding = UVec3::splat(self.padding() / 2);
         let index = vox_bake::linearize((point + leading_padding).into(), self.grid.dimensions);
         let raw_voxel: RawVoxel = voxel.into();
-        self.grid.voxels[index] = raw_voxel;
+        let size = self.size();
+        let target = self.grid.voxels.get_mut(index).ok_or(OutOfBoundsError {
+            point: point.as_ivec3(),
+            size,
+        })?;
+        *target = raw_voxel;
+        Ok(())
     }
 }
 trait BitwiseComparable {
@@ -163,10 +187,15 @@ mod tests {
     fn test_voxel_queryable() {
         let mut settings = VoxLoaderSettings::default();
         settings.voxel_size = 0.25;
-        let data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), settings, Voxel(1));
+        let mut data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), settings, Voxel(1));
         assert_eq!(data.model_size(), Vec3::splat(1.0));
         assert!(data.point_in_model(IVec3::new(3, 0, 0)).is_ok());
         assert!(data.point_in_model(IVec3::new(4, 0, 0)).is_err());
+        let error = data
+            .set_voxel(IVec3::new(4, 0, 0), Voxel(2))
+            .expect_err("out-of-bounds write should fail");
+        assert_eq!(error.point, IVec3::new(4, 0, 0));
+        assert_eq!(error.size, IVec3::splat(4));
         assert_eq!(
             data.local_point_to_voxel_space(Vec3::ZERO),
             IVec3::new(2, 2, 2)

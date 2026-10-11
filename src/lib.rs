@@ -71,14 +71,14 @@ pub use flipbook::{FlipbookFrame, FlipbookPlayer, FlipbookRepeatMode};
 #[doc(inline)]
 use load::VoxSceneLoader;
 pub use load::{
-    VoxLoaderSettings, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelModelSourcePolicy,
+    VoxLoaderSettings, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
 };
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 pub use model::VoxelModelAssets;
 #[cfg(feature = "generate_voxels")]
-pub use model::VoxelSceneAssets;
-#[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
+#[cfg(feature = "generate_voxels")]
+pub use model::{CreateVoxelSceneError, VoxelSceneAssets};
 pub use model::{Voxel, VoxelData, VoxelElement, VoxelModel, VoxelPalette};
 #[cfg(feature = "modify_voxels")]
 pub use model::{
@@ -112,6 +112,7 @@ impl Plugin for VoxScenePlugin {
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
             .register_type::<VoxelModelSource>()
+            .register_type::<VoxelPaletteSource>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })

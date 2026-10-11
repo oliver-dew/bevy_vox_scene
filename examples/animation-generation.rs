@@ -7,8 +7,8 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelModelSource,
-    VoxelModelSourcePolicy, VoxelPalette, VoxelSceneAssets,
+    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelPalette, VoxelPaletteSource,
+    VoxelSceneAssets,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 
@@ -48,28 +48,17 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 
     commands
-        .spawn(WorldAssetRoot(
-            assets
-                .load_builder()
-                .with_settings(|settings: &mut VoxLoaderSettings| {
-                    settings.model_source = VoxelModelSourcePolicy::Queryable;
-                })
-                .load("study.vox#tank"),
-        ))
+        .spawn(WorldAssetRoot(assets.load("study.vox#tank")))
         .observe(
             |trigger: On<WorldInstanceReady>,
              children: Query<&Children>,
-             voxel_source: Query<&VoxelModelSource>,
+             voxel_source: Query<&VoxelPaletteSource>,
              mut commands: Commands,
              mut voxel_assets: VoxelSceneAssets| {
                 for child in children.iter_descendants(trigger.entity) {
                     if let Ok(source) = voxel_source.get(child) {
                         // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same palette as the scene loaded from disk
-                        generate_ripples(
-                            source.palette().clone(),
-                            &mut commands,
-                            &mut voxel_assets,
-                        );
+                        generate_ripples(source.0.clone(), &mut commands, &mut voxel_assets);
                         break;
                     }
                 }
@@ -107,7 +96,9 @@ fn generate_ripples(
             )
         })
         .collect();
-    let scene_root = voxel_assets.create_animation(models, "ripples", palette);
+    let scene_root = voxel_assets
+        .create_animation(models, "ripples", palette)
+        .expect("voxel animation created");
     commands.spawn((
         WorldAssetRoot(scene_root),
         Transform::from_xyz(0., 7., 0.), // position the ripples on the surface of the water

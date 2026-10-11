@@ -4,7 +4,7 @@ mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{AssetLoader, LoadContext, io::Reader},
+    asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
     ecs::error::BevyError,
     log::info,
     platform::collections::HashSet,
@@ -12,7 +12,7 @@ use bevy::{
     world_serialization::WorldAsset,
 };
 
-pub use components::{VoxelLayer, VoxelModelInstance, VoxelModelSource};
+pub use components::{VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource};
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -54,9 +54,14 @@ pub struct VoxLoaderSettings {
     pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
-    /// Controls whether source voxel data is retained after the render assets are baked.
+    /// Whether source voxel data is retained for queries and runtime modification.
     #[serde(default)]
-    pub model_source: VoxelModelSourcePolicy,
+    pub retain_voxel_data: bool,
+    /// Controls where generated mesh data remains available after render extraction.
+    /// Defaults to [`RenderAssetUsages::RENDER_WORLD`]. Use
+    /// [`RenderAssetUsages::default`] when CPU-side mesh access, such as mesh picking, is needed.
+    #[serde(default = "default_mesh_asset_usage")]
+    pub mesh_asset_usage: RenderAssetUsages,
     /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
     /// palette atlases use less texture memory. Both modes create per-model materials.
     #[serde(default)]
@@ -77,23 +82,16 @@ impl Default for VoxLoaderSettings {
             emission_strength: bake.emission_strength,
             uses_srgb: bake.uses_srgb,
             diffuse_roughness: bake.diffuse_roughness,
-            model_source: VoxelModelSourcePolicy::default(),
+            retain_voxel_data: false,
+            mesh_asset_usage: default_mesh_asset_usage(),
             texture_mode: bake.texture_mode,
             ambient_occlusion: bake.ambient_occlusion,
         }
     }
 }
 
-/// Controls which operations remain available after a voxel model's render assets are baked.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum VoxelModelSourcePolicy {
-    /// Discard the source voxel grid after baking.
-    #[default]
-    Discard,
-    /// Retain the voxel grid for spatial queries.
-    Queryable,
-    /// Retain the voxel grid, palette, and CPU-side mesh data for runtime remeshing.
-    Remeshable,
+fn default_mesh_asset_usage() -> RenderAssetUsages {
+    RenderAssetUsages::RENDER_WORLD
 }
 
 impl From<&VoxLoaderSettings> for VoxBakeSettings {
@@ -179,27 +177,26 @@ impl VoxSceneLoader {
                     crate::model::configure_material(&mut material, baked.average_ior, &data);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
-                        crate::model::mesh::to_bevy_mesh(
-                            atlas.mesh,
-                            data.model_source == VoxelModelSourcePolicy::Remeshable,
-                        ),
+                        crate::model::mesh::to_bevy_mesh(atlas.mesh, data.mesh_asset_usage),
                     );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
-                if let Some(cloud) = &baked.volume {
-                    _ = load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
-                        Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(cloud))
-                    });
-                }
-                let model_source = data.model_source;
+                let cloud_image = baked.volume.as_ref().map(|cloud| {
+                    load_context.add_labeled_asset(
+                        format!("{}@cloud-image", name),
+                        crate::model::cloud::create_cloud_image(cloud),
+                    )
+                });
+                let retain_voxel_data = data.retain_voxel_data;
                 let model = VoxelModel {
                     name: name.clone(),
                     data,
                     has_mesh,
                     has_cloud,
                     material,
+                    cloud_image,
                 };
-                if model_source != VoxelModelSourcePolicy::Discard {
+                if retain_voxel_data {
                     _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
                         Ok::<_, BevyError>(model.clone())
                     });
@@ -281,7 +278,7 @@ mod tests {
         let model = app
             .world()
             .resource::<Assets<VoxelModel>>()
-            .get(model_source.model().id())
+            .get(&model_source.0)
             .expect("retrieve model from Res<Assets>");
         let fog_entity = app
             .world()
@@ -294,11 +291,11 @@ mod tests {
             .expect("fog volume");
 
         assert!(
-            model.has_cloud,
+            model.has_cloud(),
             "Model with cloud voxels should have a cloud image"
         );
         assert!(
-            !model.has_mesh,
+            !model.has_mesh(),
             "Model consisting solely of cloud voxels shouldn't have a mesh"
         );
     }
@@ -321,7 +318,8 @@ mod tests {
             .world()
             .get::<VoxelModelSource>(*entity)
             .expect("Voxel model source")
-            .model();
+            .0
+            .id();
 
         let model = app
             .world()
@@ -329,7 +327,7 @@ mod tests {
             .get(model_id)
             .expect("Walls has a model");
         assert!(
-            !model.has_cloud,
+            !model.has_cloud(),
             "Model with no cloud voxels should not have a cloud image"
         );
         let mat_handle = &app
@@ -431,7 +429,7 @@ mod tests {
         let mut source_query = app.world_mut().query::<&VoxelModelSource>();
         let models: HashSet<String> = source_query
             .iter(&app.world())
-            .map(|source| source.model().id().to_string())
+            .map(|source| source.0.id().to_string())
             .collect();
         assert_eq!(models.len(), 3, "Instances point to 3 unique models");
         let entity = app

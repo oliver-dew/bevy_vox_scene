@@ -1,7 +1,8 @@
-use bevy::prelude::*;
+use bevy::{asset::RenderAssetUsages, prelude::*};
 use bevy_vox_scene::{
     SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelSource,
-    VoxelPalette, VoxelQueryable, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
+    VoxelPalette, VoxelPaletteSource, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxelSceneAssets,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
@@ -47,20 +48,28 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         UVec3::splat(48),
         VoxLoaderSettings {
             voxel_size: VOXEL_SIZE,
-            model_source: bevy_vox_scene::VoxelModelSourcePolicy::Remeshable,
+            retain_voxel_data: true,
+            mesh_asset_usage: RenderAssetUsages::default(),
             texture_mode: VoxelTextureMode::Palette, // makes remeshing quicker
             ..default()
         },
         Voxel(1),
     );
-    let scene = voxel_assets.create_scene(data, "canvas", palette);
+    let scene = voxel_assets
+        .create_scene(data, "canvas", palette)
+        .expect("voxel scene created");
     commands.spawn(WorldAssetRoot(scene)).observe(on_tap_voxels);
 }
 
 /// Tap with left button to add voxels, right button to erase
 fn on_tap_voxels(
     trigger: On<PointerPress>,
-    query: Query<(&VoxelModelSource, &Mesh3d, &GlobalTransform)>,
+    query: Query<(
+        &VoxelModelSource,
+        &VoxelPaletteSource,
+        &Mesh3d,
+        &GlobalTransform,
+    )>,
     mut voxel_assets: VoxelModelAssets,
 ) {
     let Some(global_point) = trigger.hit.position else {
@@ -69,7 +78,9 @@ fn on_tap_voxels(
     let Some(global_normal) = trigger.hit.normal else {
         return;
     };
-    let Ok((source, mesh, global_xform)) = query.get(trigger.original_event_target()) else {
+    let Ok((source, palette_source, mesh, global_xform)) =
+        query.get(trigger.original_event_target())
+    else {
         return;
     };
     let Some(model) = voxel_assets.get_model(source) else {
@@ -86,17 +97,23 @@ fn on_tap_voxels(
         PointerButton::Secondary | PointerButton::Middle => Voxel::EMPTY, // eraser
     };
     // define a region to update that is no bigger than our brush to keep the operation performant
-    let region = VoxelRegionMode::Box(VoxelRegion::from_center(
+    let region = VoxelRegionMode::Box(VoxelRegion::from_center_and_half_extent(
         voxel_point,
         IVec3::splat(brush_radius),
     ));
     voxel_assets
-        .modify(source, &mesh.0, region, move |pos, underlying_vox, _| {
-            if pos.distance_squared(voxel_point) < brush_radius_squared {
-                brush.clone()
-            } else {
-                underlying_vox.clone()
-            }
-        })
+        .modify(
+            source,
+            palette_source,
+            Some(mesh),
+            region,
+            move |pos, underlying_vox, _| {
+                if pos.distance_squared(voxel_point) < brush_radius_squared {
+                    brush.clone()
+                } else {
+                    underlying_vox.clone()
+                }
+            },
+        )
         .expect("canvas model is remeshable");
 }

@@ -14,7 +14,7 @@ use bevy::{
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelAssets,
-    VoxelModelSource, VoxelModelSourcePolicy, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxelModelSource, VoxelPaletteSource, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -41,7 +41,7 @@ fn main() {
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
                     // Retain voxel data so that we can do voxel collision detection and add snow splats to the table
-                    model_source: VoxelModelSourcePolicy::Remeshable,
+                    retain_voxel_data: true,
                     // Use legacy texturing so that we don't need to retexture every time a snowflake lands
                     texture_mode: VoxelTextureMode::Palette,
                     ..default()
@@ -226,7 +226,7 @@ fn update_snow(
             continue;
         }
         for (item, item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(item_instance.model()) else {
+            let Some(model) = models.get(&item_instance.0) else {
                 continue;
             };
             let vox_pos =
@@ -251,11 +251,11 @@ fn update_snow(
 
 fn on_flake_collision(
     collision: On<SnowflakeCollision>,
-    query: Query<(&VoxelModelSource, &Mesh3d)>,
+    query: Query<(&VoxelModelSource, &VoxelPaletteSource, &Mesh3d)>,
     mut commands: Commands,
     mut voxel_assets: VoxelModelAssets,
 ) {
-    let Ok((instance, Mesh3d(mesh))) = query.get(collision.colidee) else {
+    let Ok((instance, palette_source, mesh)) = query.get(collision.colidee) else {
         return;
     };
     commands.entity(collision.snowflake).despawn();
@@ -269,7 +269,8 @@ fn on_flake_collision(
     voxel_assets
         .modify(
             instance,
-            mesh,
+            palette_source,
+            Some(mesh),
             VoxelRegionMode::Box(flake_region),
             move |pos, voxel, model| {
                 // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels

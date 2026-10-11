@@ -111,7 +111,9 @@ fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
 
     let palette_handle = voxel_assets.add_palette(palette);
     let model_name = "my sdf model";
-    let scene_handle = voxel_assets.create_scene(data, model_name, palette_handle);
+    let scene_handle = voxel_assets
+        .create_scene(data, model_name, palette_handle)
+        .expect("voxel scene created");
 
     commands.spawn(WorldAssetRoot(scene_handle));
 }

@@ -85,7 +85,7 @@ Use `--ao-depth 1..8` to bake voxel ambient occlusion and optionally adjust its 
 cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-intensity 1.0
 ```
 
-The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `model_source` is intentionally omitted because exported GLBs do not contain queryable or mutable voxel data.
+The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `retain_voxel_data` and `mesh_asset_usage` are intentionally omitted because exported GLBs contain neither retained voxel data nor Bevy mesh asset residency settings.
 
 Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. The export dependencies are not compiled for ordinary runtime-loading users.
 

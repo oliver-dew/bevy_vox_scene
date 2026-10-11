@@ -8,7 +8,8 @@ impl VoxelData {
         VoxelData {
             grid,
             bake_settings,
-            model_source: settings.model_source,
+            retain_voxel_data: settings.retain_voxel_data,
+            mesh_asset_usage: settings.mesh_asset_usage,
         }
     }
 }
