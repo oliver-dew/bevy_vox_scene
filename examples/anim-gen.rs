@@ -15,7 +15,7 @@ use flipbook::{FlipbookRepeatMode, FlipbookSpeed};
 use libnoise::prelude::*;
 use rand::{Rng, seq::IndexedRandom};
 use rayon::prelude::*;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use utilities::{NoiseSampleExt, PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
 
 #[derive(Resource)]
@@ -113,22 +113,12 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
             let frame = SDF::sphere(diameter * 0.5)
                 .distort(move |sd, pos| {
                     let n_pos = (pos + Vec3::splat(256.0)) * noise_scale;
-                    let distort = noise.sample([
-                        n_pos.x.into(),
-                        n_pos.y.into(),
-                        n_pos.z.into(),
-                        (time_norm * noise_speed).into(),
-                    ]) as f32;
+                    let distort = noise.sample_vec3_time(n_pos, time_norm * noise_speed);
                     sd + (distort * distortion)
                 })
                 .subtract(SDF::sphere(inner_diameter * 0.5).distort(move |sd, pos| {
                     let n_pos = (pos + Vec3::splat(256.0)) * noise_scale;
-                    let distort = inner_noise.sample([
-                        n_pos.x.into(),
-                        n_pos.y.into(),
-                        n_pos.z.into(),
-                        (time_norm * noise_speed).into(),
-                    ]) as f32;
+                    let distort = inner_noise.sample_vec3_time(n_pos, time_norm * noise_speed);
                     sd + (distort * distortion)
                 }))
                 .map_inside_to_voxels(
@@ -136,13 +126,7 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
                     settings,
                     |pos| {
                         let pos = (pos + Vec3::splat(256.0)) * 1.4;
-                        let color = ((color_noise.sample([
-                            pos.x.into(),
-                            pos.y.into(),
-                            pos.z.into(),
-                            (time_norm * 0.05).into(),
-                        ]) as f32
-                            * 1.5)
+                        let color = ((color_noise.sample_vec3_time(pos, time_norm * 0.05) * 1.5)
                             + 0.2)
                             + (time_norm * 0.3);
                         Voxel((color * 255.).clamp(1., 255.) as u8)

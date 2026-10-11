@@ -3,7 +3,7 @@ use bevy_vox_scene::{
     SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use libnoise::prelude::*;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use utilities::{NoiseSampleExt, PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -74,9 +74,7 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
             VoxBakeSettings::default(),
             |pos| {
                 let n_pos = (pos + Vec3::splat(256.0)) * 0.8;
-                let color = (noise.sample([n_pos.x.into(), n_pos.y.into(), n_pos.z.into()]) as f32
-                    * 0.8)
-                    + 0.5;
+                let color = (noise.sample_vec3(n_pos) * 0.8) + 0.5;
                 Voxel((color * 255.).clamp(1., 255.) as u8)
             },
         );

@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.20.0", default-features = false, features = ["3d"] }
+libnoise = "1.2"
