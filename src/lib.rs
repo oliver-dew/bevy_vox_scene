@@ -60,6 +60,7 @@ mod flipbook_tests;
 mod load;
 mod model;
 mod observers;
+mod vox_export;
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -87,10 +88,14 @@ pub use model::sdf::SDF;
 pub use model::{CreateVoxelSceneError, VoxelSceneAssets};
 pub use model::{OutOfBoundsError, Voxel, VoxelElement, VoxelModel, VoxelPalette};
 pub use observers::VoxelInstanceReady;
+pub use vox_bake::VoxWriteError;
 pub use vox_bake::{
     AmbientOcclusionSettings, BakedImage, BakedMesh, BakedMeshAtlas, BakedPixelFormat, BakedVolume,
     TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode,
 };
+pub use vox_export::{export_voxel_animation_to_vox, export_voxel_model_to_vox};
+
+use crate::model::VoxelMeshAssetUsage;
 /// Plugin adding functionality for loading `.vox` files.
 ///
 /// Registers an [`bevy::asset::AssetLoader`] capable of loading `.vox` files as spawnable [`VoxelScene`]s.
@@ -115,7 +120,7 @@ impl Plugin for VoxScenePlugin {
             .register_type::<VoxelModelSource>()
             .register_type::<VoxelPaletteSource>()
             .register_type::<VoxelCloudSource>()
-            .register_type::<model::VoxelMeshAssetUsage>()
+            .register_type::<VoxelMeshAssetUsage>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })

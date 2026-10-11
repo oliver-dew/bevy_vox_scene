@@ -89,6 +89,8 @@ The CLI also exposes the export-relevant loader settings through `--voxel-size`,
 
 Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. Runtime-generated models can be exported with `export_voxel_model_to_glb(&model, &palette)`, and generated frame sequences with `export_voxel_animation_to_glb(&frames, &palette)`. The export dependencies are not compiled for ordinary runtime-loading users.
 
+Generated models can also be written back to editable MagicaVoxel data without enabling the `export` feature by calling `export_voxel_model_to_vox(&model, &palette)`, or `export_voxel_animation_to_vox(&frames, &palette)` for a shape animation.
+
 See the [offline processing guide](docs/offline-processing.md) for local installation, recursive conversion, CI consistency checks, `build.rs` integration, and loading generated assets without `bevy_vox_scene`.
 
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:

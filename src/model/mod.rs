@@ -1,8 +1,9 @@
 pub use self::voxel::Voxel;
 #[cfg(feature = "generate_voxels")]
 use crate::VoxelModelInstance;
+use crate::model::mesh::MeshAtlas;
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
-use crate::{VoxelModelSource, VoxelPaletteSource};
+use crate::{VoxelCloudSource, VoxelModelSource, VoxelPaletteSource};
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 use bevy::{
     asset::Assets,
@@ -91,7 +92,7 @@ impl VoxelModel {
     pub(crate) fn remesh(
         &self,
         palette: &BakedPalette,
-    ) -> Result<(Option<mesh::MeshAtlas>, Option<f32>, Option<Image>), vox_bake::BakeError> {
+    ) -> Result<(Option<MeshAtlas>, Option<f32>, Option<Image>), BakeError> {
         let baked = self.bake(palette)?;
         let image = baked.volume.as_ref().map(cloud::create_cloud_image);
         Ok((baked.surface, baked.average_ior, image))
@@ -110,7 +111,7 @@ struct VoxelInstanceAssets {
     palette: &'static VoxelPaletteSource,
     mesh: Option<&'static Mesh3d>,
     material: Option<&'static MeshMaterial3d<StandardMaterial>>,
-    cloud: Option<&'static crate::VoxelCloudSource>,
+    cloud: Option<&'static VoxelCloudSource>,
     mesh_asset_usage: Option<&'static VoxelMeshAssetUsage>,
 }
 
@@ -126,7 +127,7 @@ pub enum CreateVoxelSceneError {
     EmptyAnimation,
     /// Baking a voxel model failed.
     #[error(transparent)]
-    Bake(#[from] vox_bake::BakeError),
+    Bake(#[from] BakeError),
 }
 
 /// Asset collections used to inspect and modify retained voxel models.

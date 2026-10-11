@@ -14,6 +14,7 @@ mod paint;
 mod scene;
 mod settings;
 pub mod source;
+mod vox_export;
 mod voxel;
 
 pub use atlas::{
@@ -40,6 +41,7 @@ pub use settings::{
     AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings,
     VoxelTextureMode, default_animation_frames_per_second,
 };
+pub use vox_export::{VoxWriteError, export_animation_to_vox, export_model_to_vox};
 pub use voxel::{
     ClassifiedVoxels, RawVoxel, VisibleVoxel, VoxelVisibility, classify_voxels,
     extract_cloud_volume,

@@ -3,17 +3,7 @@ use bevy::{
         AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
         animation_curves::{AnimatableCurve, AnimatableKeyframeCurve},
         graph::{AnimationGraph, AnimationGraphHandle},
-    },
-    asset::{Handle, LoadContext},
-    ecs::{error::BevyError, hierarchy::ChildSpawner, name::Name},
-    light::FogVolume,
-    log::warn,
-    math::Mat4,
-    mesh::{Mesh, Mesh3d},
-    pbr::{MeshMaterial3d, StandardMaterial},
-    platform::collections::HashSet,
-    prelude::{EntityWorldMut, Transform, Visibility, World},
-    world_serialization::WorldAsset,
+    }, asset::{Handle, LoadContext}, ecs::{entity::Entity, error::BevyError, hierarchy::ChildSpawner, name::Name}, image::Image, light::FogVolume, log::warn, math::Mat4, mesh::{Mesh, Mesh3d}, pbr::{MeshMaterial3d, StandardMaterial}, platform::collections::HashSet, prelude::{EntityWorldMut, Transform, Visibility, World}, world_serialization::WorldAsset,
 };
 use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
@@ -119,7 +109,7 @@ fn spawn_node(
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     clip: &mut AnimationClip,
-    player: bevy::prelude::Entity,
+    player: Entity,
     animation_frames_per_second: f32,
 ) {
     let Some(node) = graph.get(node_index) else {
@@ -266,7 +256,7 @@ fn load_child(
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     clip: &mut AnimationClip,
-    player: bevy::prelude::Entity,
+    player: Entity,
     animation_frames_per_second: f32,
 ) {
     let Some(node) = graph.get(node_index) else {
@@ -369,7 +359,7 @@ fn attach_model(
         ));
     }
     if model.has_cloud {
-        let cloud_image: Handle<bevy::image::Image> =
+        let cloud_image: Handle<Image> =
             context.get_label_handle(format!("{}@cloud-image", model.name()));
         entity.insert(VoxelCloudSource(cloud_image.clone()));
         entity.with_child((
