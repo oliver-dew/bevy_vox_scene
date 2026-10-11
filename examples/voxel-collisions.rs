@@ -14,7 +14,7 @@ use bevy::{
 };
 use bevy_vox_scene::{
     VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelAssets,
-    VoxelModelSource, VoxelPaletteSource, VoxelQueryable, VoxelRegion, VoxelRegionMode,
+    VoxelModelSource, VoxelQueryable, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -251,13 +251,9 @@ fn update_snow(
 
 fn on_flake_collision(
     collision: On<SnowflakeCollision>,
-    query: Query<(&VoxelModelSource, &VoxelPaletteSource, &Mesh3d)>,
     mut commands: Commands,
     mut voxel_assets: VoxelModelAssets,
 ) {
-    let Ok((instance, palette_source, mesh)) = query.get(collision.colidee) else {
-        return;
-    };
     commands.entity(collision.snowflake).despawn();
     let point = collision.point;
     let flake_radius = 2;
@@ -268,9 +264,7 @@ fn on_flake_collision(
     };
     voxel_assets
         .modify(
-            instance,
-            palette_source,
-            Some(mesh),
+            collision.colidee,
             VoxelRegionMode::Box(flake_region),
             move |pos, voxel, model| {
                 // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels

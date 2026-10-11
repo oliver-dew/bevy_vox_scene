@@ -1,4 +1,4 @@
-use super::{RawVoxel, Voxel, VoxelData, VoxelModel};
+use super::{RawVoxel, Voxel, VoxelModel};
 use bevy::{
     math::{BVec3, IVec3, UVec3, Vec3},
     transform::components::GlobalTransform,
@@ -87,28 +87,6 @@ pub trait VoxelQueryable {
 impl VoxelQueryable for VoxelModel {
     /// The size of the voxel model.
     fn size(&self) -> IVec3 {
-        self.data.size()
-    }
-
-    fn model_size(&self) -> Vec3 {
-        self.data.model_size()
-    }
-
-    fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
-        self.data.local_point_to_voxel_space(local_point)
-    }
-
-    fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
-        self.data.voxel_coord_to_local_space(voxel_coord)
-    }
-
-    fn get_voxel_at_point(&self, position: IVec3) -> Result<Voxel, OutOfBoundsError> {
-        self.data.get_voxel_at_point(position)
-    }
-}
-
-impl VoxelQueryable for VoxelData {
-    fn size(&self) -> IVec3 {
         self._size()
     }
 
@@ -118,8 +96,8 @@ impl VoxelQueryable for VoxelData {
 
     fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
         let half_extents = self.size().as_vec3() * 0.5;
-        let voxel_postition = (local_point / self.bake_settings.voxel_size) + half_extents;
-        voxel_postition.as_ivec3()
+        let voxel_position = (local_point / self.bake_settings.voxel_size) + half_extents;
+        voxel_position.as_ivec3()
     }
 
     fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
@@ -140,7 +118,7 @@ impl VoxelQueryable for VoxelData {
     }
 }
 
-impl VoxelData {
+impl VoxelModel {
     /// Writes a voxel to a point in the model
     ///
     /// ### Arguments
@@ -180,12 +158,12 @@ impl BitwiseComparable for IVec3 {
 mod tests {
     use bevy::math::{IVec3, UVec3, Vec3};
 
-    use crate::{SDF, VoxLoaderSettings, Voxel, VoxelQueryable};
+    use crate::{SDF, VoxBakeSettings, Voxel, VoxelQueryable};
 
     #[cfg(feature = "generate_voxels")]
     #[test]
     fn test_voxel_queryable() {
-        let mut settings = VoxLoaderSettings::default();
+        let mut settings = VoxBakeSettings::default();
         settings.voxel_size = 0.25;
         let mut data = SDF::cuboid(Vec3::splat(2.0)).voxelize(UVec3::splat(4), settings, Voxel(1));
         assert_eq!(data.model_size(), Vec3::splat(1.0));

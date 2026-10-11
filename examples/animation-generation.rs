@@ -7,7 +7,7 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelPalette, VoxelPaletteSource,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelPalette, VoxelPaletteSource,
     VoxelSceneAssets,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -76,7 +76,7 @@ fn generate_ripples(
     let frame_count = frequency as usize;
     let blacklight_radius = 3.0;
     let ripple_centre = Vec3::new(30.0, 0.0, 20.0);
-    let models: Vec<VoxelData> = (0..frame_count)
+    let models: Vec<VoxelModel> = (0..frame_count)
         .map(|frame_index| {
             SDF::new(move |pos| {
                 let mut pos2d = pos - ripple_centre;
@@ -85,7 +85,7 @@ fn generate_ripples(
             })
             .map_to_voxels(
                 UVec3::new(70, 2, 50),
-                VoxLoaderSettings::default(),
+                VoxBakeSettings::default(),
                 |distance, pos| {
                     if distance.powf(3.0) < (0.5 - pos.y) * 0.5 {
                         Voxel(192) // water material
@@ -97,7 +97,12 @@ fn generate_ripples(
         })
         .collect();
     let scene_root = voxel_assets
-        .create_animation(models, "ripples", palette)
+        .create_animation(
+            models,
+            palette,
+            false,
+            bevy::asset::RenderAssetUsages::RENDER_WORLD,
+        )
         .expect("voxel animation created");
     commands.spawn((
         WorldAssetRoot(scene_root),

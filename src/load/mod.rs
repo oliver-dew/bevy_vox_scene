@@ -1,5 +1,4 @@
 mod components;
-mod parse_model;
 mod parse_scene;
 
 use anyhow::anyhow;
@@ -12,16 +11,30 @@ use bevy::{
     world_serialization::WorldAsset,
 };
 
-pub use components::{VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource};
+pub use components::{
+    VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
+};
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use vox_bake::{AmbientOcclusionSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode};
 
-use crate::{
-    VoxelData,
-    model::{VoxelModel, VoxelPalette},
-};
+use crate::model::{VoxelModel, VoxelPalette};
+
+pub(super) struct LoadedVoxelModel {
+    name: String,
+    model: VoxelModel,
+    retain_voxel_data: bool,
+    mesh_asset_usage: RenderAssetUsages,
+    has_mesh: bool,
+    has_cloud: bool,
+}
+
+impl LoadedVoxelModel {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::world_serialization::WorldAsset`]s.
 ///
@@ -161,47 +174,46 @@ impl VoxSceneLoader {
 
         // Models
 
-        let models: Vec<VoxelModel> = baked_scene
+        let models: Vec<LoadedVoxelModel> = baked_scene
             .models
             .into_iter()
             .map(|scene_model| {
                 let name = scene_model.name;
-                let data = VoxelData::from_grid(scene_model.grid, settings.clone());
+                let model =
+                    VoxelModel::from_grid(scene_model.grid, VoxBakeSettings::from(&settings));
                 let baked = scene_model.baked;
                 let has_mesh = baked.surface.is_some();
                 let has_cloud = baked.volume.is_some();
-                let material = baked.surface.map(|atlas| {
+                baked.surface.map(|atlas| {
                     let mut material = palette.create_atlas_material(&atlas, |label, image| {
                         load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
-                    crate::model::configure_material(&mut material, baked.average_ior, &data);
+                    crate::model::configure_material(&mut material, baked.average_ior, &model);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
-                        crate::model::mesh::to_bevy_mesh(atlas.mesh, data.mesh_asset_usage),
+                        crate::model::mesh::to_bevy_mesh(atlas.mesh, settings.mesh_asset_usage),
                     );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
-                let cloud_image = baked.volume.as_ref().map(|cloud| {
+                baked.volume.as_ref().map(|cloud| {
                     load_context.add_labeled_asset(
                         format!("{}@cloud-image", name),
                         crate::model::cloud::create_cloud_image(cloud),
                     )
                 });
-                let retain_voxel_data = data.retain_voxel_data;
-                let model = VoxelModel {
-                    name: name.clone(),
-                    data,
-                    has_mesh,
-                    has_cloud,
-                    material,
-                    cloud_image,
-                };
-                if retain_voxel_data {
+                if settings.retain_voxel_data {
                     _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
                         Ok::<_, BevyError>(model.clone())
                     });
                 }
-                model
+                LoadedVoxelModel {
+                    name,
+                    model,
+                    retain_voxel_data: settings.retain_voxel_data,
+                    mesh_asset_usage: settings.mesh_asset_usage,
+                    has_mesh,
+                    has_cloud,
+                }
             })
             .collect();
 
@@ -229,12 +241,12 @@ mod tests {
         light::FogVolume,
         pbr::{MeshMaterial3d, StandardMaterial},
         platform::collections::HashSet,
-        prelude::{Add, On, Query},
+        prelude::{Add, Mesh3d, On, Query},
         world_serialization::{WorldAsset, WorldAssetRoot},
     };
 
     use crate::{
-        VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource,
+        VoxelCloudSource, VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource,
         test_support::setup_and_load_voxel_scene,
     };
 
@@ -270,16 +282,9 @@ mod tests {
             .expect("children")
             .first()
             .expect("scene root");
-        let model_source = app
-            .world()
+        app.world()
             .get::<VoxelModelSource>(*entity)
-            .expect("voxel model source")
-            .clone();
-        let model = app
-            .world()
-            .resource::<Assets<VoxelModel>>()
-            .get(&model_source.0)
-            .expect("retrieve model from Res<Assets>");
+            .expect("voxel model source");
         let fog_entity = app
             .world()
             .get::<Children>(*entity)
@@ -290,14 +295,8 @@ mod tests {
             .get::<FogVolume>(*fog_entity)
             .expect("fog volume");
 
-        assert!(
-            model.has_cloud(),
-            "Model with cloud voxels should have a cloud image"
-        );
-        assert!(
-            !model.has_mesh(),
-            "Model consisting solely of cloud voxels shouldn't have a mesh"
-        );
+        assert!(app.world().get::<VoxelCloudSource>(*entity).is_some());
+        assert!(app.world().get::<Mesh3d>(*entity).is_none());
     }
 
     #[async_std::test]
@@ -314,22 +313,10 @@ mod tests {
             .first()
             .expect("scene root");
 
-        let model_id = app
-            .world()
+        app.world()
             .get::<VoxelModelSource>(*entity)
-            .expect("Voxel model source")
-            .0
-            .id();
-
-        let model = app
-            .world()
-            .resource::<Assets<VoxelModel>>()
-            .get(model_id)
-            .expect("Walls has a model");
-        assert!(
-            !model.has_cloud(),
-            "Model with no cloud voxels should not have a cloud image"
-        );
+            .expect("Walls has a model source");
+        assert!(app.world().get::<VoxelCloudSource>(*entity).is_none());
         let mat_handle = &app
             .world()
             .get::<MeshMaterial3d<StandardMaterial>>(*entity)

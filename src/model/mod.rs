@@ -1,31 +1,32 @@
-pub use self::{data::VoxelData, voxel::Voxel};
-#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
-use crate::VoxelModelSource;
+pub use self::voxel::Voxel;
 #[cfg(feature = "generate_voxels")]
-use crate::{VoxelModelInstance, VoxelPaletteSource};
+use crate::VoxelModelInstance;
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+use crate::{VoxelModelSource, VoxelPaletteSource};
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 use bevy::{
     asset::Assets,
-    ecs::system::{ResMut, SystemParam},
-    mesh::Mesh,
-};
-use bevy::{
-    asset::{Asset, Handle},
-    image::Image,
-    pbr::StandardMaterial,
-    reflect::TypePath,
+    ecs::{
+        query::QueryData,
+        system::{Query, ResMut, SystemParam},
+    },
+    mesh::{Mesh, Mesh3d},
+    pbr::MeshMaterial3d,
 };
 #[cfg(feature = "generate_voxels")]
 use bevy::{
-    camera::visibility::Visibility, ecs::world::World, light::FogVolume, mesh::Mesh3d,
-    pbr::MeshMaterial3d, transform::components::Transform, world_serialization::WorldAsset,
+    asset::Handle, camera::visibility::Visibility, ecs::world::World, light::FogVolume,
+    transform::components::Transform, world_serialization::WorldAsset,
+};
+use bevy::{
+    asset::{Asset, RenderAssetUsages}, image::Image, math::UVec3, pbr::StandardMaterial, prelude::ReflectComponent, reflect::TypePath,
 };
 #[cfg(feature = "generate_voxels")]
 use flipbook::{FlipbookFrame, FlipbookPlayer};
 #[cfg(feature = "generate_voxels")]
 use thiserror::Error;
+use vox_bake::{VoxBakeSettings, VoxelGrid};
 pub(crate) use voxel::RawVoxel;
-pub(super) mod data;
 pub(super) mod mesh;
 #[cfg(feature = "modify_voxels")]
 pub(super) mod modify;
@@ -39,36 +40,81 @@ pub use palette::{VoxelElement, VoxelPalette};
 pub(super) mod cloud;
 mod voxel;
 
-/// Contains the voxel data for a model
-#[derive(Asset, TypePath, Default, Clone, Debug)]
+/// A voxel grid and the settings used to bake it.
+#[derive(Asset, TypePath, Clone, Debug)]
 pub struct VoxelModel {
-    /// Unique name of the model
-    pub(crate) name: String,
-    /// The voxel data used to generate the mesh
-    pub(crate) data: VoxelData,
-    /// True if the model contains solid or transmissive voxels
-    pub(crate) has_mesh: bool,
-    /// True if the model contains cloud voxels
-    pub(crate) has_cloud: bool,
-    pub(crate) material: Option<Handle<StandardMaterial>>,
-    pub(crate) cloud_image: Option<Handle<Image>>,
+    pub(crate) grid: VoxelGrid,
+    pub(crate) bake_settings: VoxBakeSettings,
+}
+
+impl Default for VoxelModel {
+    fn default() -> Self {
+        Self::new(
+            UVec3::ZERO,
+            VoxBakeSettings::default(),
+        )
+    }
 }
 
 impl VoxelModel {
-    /// Return the model's name.
-    pub fn name(&self) -> &str {
-        &self.name
+    /// Create a new, empty voxel model.
+    pub fn new(size: bevy::math::UVec3, settings: vox_bake::VoxBakeSettings) -> Self {
+        Self {
+            grid: vox_bake::VoxelGrid::empty(size.into(), settings.mesh_outer_faces),
+            bake_settings: settings,
+        }
     }
 
-    /// Return whether the model has a surface mesh.
-    pub fn has_mesh(&self) -> bool {
-        self.has_mesh
+    pub(crate) fn from_grid(
+        grid: vox_bake::VoxelGrid,
+        bake_settings: vox_bake::VoxBakeSettings,
+    ) -> Self {
+        Self {
+            grid,
+            bake_settings,
+        }
     }
 
-    /// Return whether the model has a cloud volume.
-    pub fn has_cloud(&self) -> bool {
-        self.has_cloud
+    pub(crate) fn _size(&self) -> bevy::math::IVec3 {
+        let size: bevy::math::UVec3 = self.grid.model_dimensions.into();
+        bevy::math::IVec3::try_from(size).unwrap_or(bevy::math::IVec3::ZERO)
     }
+
+    pub(crate) fn padding(&self) -> u32 {
+        self.grid.padding
+    }
+
+    pub(crate) fn bake(
+        &self,
+        palette: &vox_bake::BakedPalette,
+    ) -> Result<vox_bake::BakedModel, vox_bake::BakeError> {
+        vox_bake::bake_model(&self.grid, palette, &self.bake_settings)
+    }
+
+    pub(crate) fn remesh(
+        &self,
+        palette: &vox_bake::BakedPalette,
+    ) -> Result<(Option<mesh::MeshAtlas>, Option<f32>, Option<Image>), vox_bake::BakeError> {
+        let baked = self.bake(palette)?;
+        let image = baked.volume.as_ref().map(cloud::create_cloud_image);
+        Ok((baked.surface, baked.average_ior, image))
+    }
+}
+
+#[cfg_attr(not(feature = "modify_voxels"), allow(dead_code))]
+#[derive(bevy::ecs::component::Component, bevy::reflect::Reflect)]
+#[reflect(Component)]
+pub(crate) struct VoxelMeshAssetUsage(pub RenderAssetUsages);
+
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+#[derive(QueryData)]
+struct VoxelInstanceAssets {
+    model: &'static VoxelModelSource,
+    palette: &'static VoxelPaletteSource,
+    mesh: Option<&'static Mesh3d>,
+    material: Option<&'static MeshMaterial3d<StandardMaterial>>,
+    cloud: Option<&'static crate::VoxelCloudSource>,
+    mesh_asset_usage: Option<&'static VoxelMeshAssetUsage>,
 }
 
 /// An error encountered while creating a generated voxel scene or animation.
@@ -89,16 +135,18 @@ pub enum CreateVoxelSceneError {
 /// Asset collections used to inspect and modify retained voxel models.
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 #[derive(SystemParam)]
-pub struct VoxelModelAssets<'w> {
+pub struct VoxelModelAssets<'w, 's> {
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<StandardMaterial>>,
     images: ResMut<'w, Assets<Image>>,
     models: ResMut<'w, Assets<VoxelModel>>,
     palettes: ResMut<'w, Assets<VoxelPalette>>,
+    #[cfg_attr(not(feature = "modify_voxels"), allow(dead_code))]
+    instances: Query<'w, 's, VoxelInstanceAssets>,
 }
 
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
-impl VoxelModelAssets<'_> {
+impl VoxelModelAssets<'_, '_> {
     /// Get the retained voxel model referenced by a model source component.
     pub fn get_model(&self, source: &VoxelModelSource) -> Option<&VoxelModel> {
         self.models.get(&source.0)
@@ -108,15 +156,15 @@ impl VoxelModelAssets<'_> {
 /// Asset collections used to create runtime voxel scenes and animations.
 #[cfg(feature = "generate_voxels")]
 #[derive(SystemParam)]
-pub struct VoxelSceneAssets<'w> {
-    model_assets: VoxelModelAssets<'w>,
+pub struct VoxelSceneAssets<'w, 's> {
+    model_assets: VoxelModelAssets<'w, 's>,
     scenes: ResMut<'w, Assets<WorldAsset>>,
 }
 
 #[cfg(feature = "generate_voxels")]
-impl<'w> VoxelSceneAssets<'w> {
+impl<'w, 's> VoxelSceneAssets<'w, 's> {
     /// Access the underlying voxel model assets.
-    pub fn model_assets(&mut self) -> &mut VoxelModelAssets<'w> {
+    pub fn model_assets(&mut self) -> &mut VoxelModelAssets<'w, 's> {
         &mut self.model_assets
     }
 
@@ -128,17 +176,17 @@ impl<'w> VoxelSceneAssets<'w> {
     /// Create a voxel scene from supplied voxel data.
     pub fn create_scene(
         &mut self,
-        data: VoxelData,
-        name: impl Into<String>,
+        model: VoxelModel,
         palette_handle: Handle<VoxelPalette>,
+        retain_voxel_data: bool,
+        mesh_asset_usage: RenderAssetUsages,
     ) -> Result<Handle<WorldAsset>, CreateVoxelSceneError> {
-        let name = name.into();
         let palette = self
             .model_assets
             .palettes
             .get(&palette_handle)
             .ok_or(CreateVoxelSceneError::PaletteUnavailable)?;
-        let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked)?;
+        let (maybe_atlas, average_ior, maybe_cloud) = model.remesh(&palette.baked)?;
         let (maybe_mesh_handle, maybe_material_handle) =
             maybe_atlas.map_or((None, None), |atlas| {
                 let mut material = palette
@@ -146,26 +194,17 @@ impl<'w> VoxelSceneAssets<'w> {
                 let mesh_handle = self
                     .model_assets
                     .meshes
-                    .add(mesh::to_bevy_mesh(atlas.mesh, data.mesh_asset_usage));
-                configure_material(&mut material, average_ior, &data);
+                    .add(mesh::to_bevy_mesh(atlas.mesh, mesh_asset_usage));
+                configure_material(&mut material, average_ior, &model);
                 (
                     Some(mesh_handle),
                     Some(self.model_assets.materials.add(material)),
                 )
             });
         let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
-        let model_size = data._size().as_vec3() * data.bake_settings.voxel_size;
-        let retain_voxel_data = data.retain_voxel_data;
-        let model_source = retain_voxel_data.then(|| {
-            VoxelModelSource(self.model_assets.models.add(VoxelModel {
-                name: name.clone(),
-                data,
-                has_mesh: maybe_mesh_handle.is_some(),
-                has_cloud: cloud_image.is_some(),
-                material: maybe_material_handle.clone(),
-                cloud_image: cloud_image.clone(),
-            }))
-        });
+        let model_size = model._size().as_vec3() * model.bake_settings.voxel_size;
+        let model_source =
+            retain_voxel_data.then(|| VoxelModelSource(self.model_assets.models.add(model)));
 
         let mut world = World::new();
         let mut root = world.spawn((
@@ -178,15 +217,16 @@ impl<'w> VoxelSceneAssets<'w> {
             root.insert(model_source);
         }
         if let Some(mesh_handle) = maybe_mesh_handle {
-            root.insert(Mesh3d(mesh_handle));
+            root.insert((Mesh3d(mesh_handle), VoxelMeshAssetUsage(mesh_asset_usage)));
             if let Some(material_handle) = maybe_material_handle {
                 root.insert(MeshMaterial3d(material_handle));
             }
         }
-        if cloud_image.is_some() {
+        if let Some(cloud_image) = cloud_image {
+            root.insert(crate::VoxelCloudSource(cloud_image.clone()));
             root.with_child((
                 FogVolume {
-                    density_texture: cloud_image,
+                    density_texture: Some(cloud_image),
                     absorption: 0.1,
                     ..Default::default()
                 },
@@ -201,13 +241,13 @@ impl<'w> VoxelSceneAssets<'w> {
     pub fn create_animation<I>(
         &mut self,
         frames: I,
-        name: impl Into<String>,
         palette_handle: Handle<VoxelPalette>,
+        retain_voxel_data: bool,
+        mesh_asset_usage: RenderAssetUsages,
     ) -> Result<Handle<WorldAsset>, CreateVoxelSceneError>
     where
-        I: IntoIterator<Item = VoxelData>,
+        I: IntoIterator<Item = VoxelModel>,
     {
-        let name = name.into();
         let frames: Vec<_> = frames.into_iter().collect();
         if frames.is_empty() {
             return Err(CreateVoxelSceneError::EmptyAnimation);
@@ -221,8 +261,8 @@ impl<'w> VoxelSceneAssets<'w> {
         let prepared = frames
             .into_iter()
             .enumerate()
-            .map(|(index, data)| {
-                let (maybe_atlas, average_ior, maybe_cloud) = data.remesh(&palette.baked)?;
+            .map(|(index, model)| {
+                let (maybe_atlas, average_ior, maybe_cloud) = model.remesh(&palette.baked)?;
                 let (maybe_mesh_handle, maybe_material_handle) =
                     maybe_atlas.map_or((None, None), |atlas| {
                         let mut material = palette.create_atlas_material(&atlas, |_, image| {
@@ -231,26 +271,16 @@ impl<'w> VoxelSceneAssets<'w> {
                         let mesh_handle = self
                             .model_assets
                             .meshes
-                            .add(mesh::to_bevy_mesh(atlas.mesh, data.mesh_asset_usage));
-                        configure_material(&mut material, average_ior, &data);
+                            .add(mesh::to_bevy_mesh(atlas.mesh, mesh_asset_usage));
+                        configure_material(&mut material, average_ior, &model);
                         (
                             Some(mesh_handle),
                             Some(self.model_assets.materials.add(material)),
                         )
                     });
                 let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
-                let model_size = data._size().as_vec3() * data.bake_settings.voxel_size;
-                let model = VoxelModel {
-                    name: format!("{}-{}", name, index),
-                    data,
-                    has_mesh: maybe_mesh_handle.is_some(),
-                    has_cloud: cloud_image.is_some(),
-                    material: maybe_material_handle.clone(),
-                    cloud_image: cloud_image.clone(),
-                };
-                let model_source = model
-                    .data
-                    .retain_voxel_data
+                let model_size = model._size().as_vec3() * model.bake_settings.voxel_size;
+                let model_source = retain_voxel_data
                     .then(|| VoxelModelSource(self.model_assets.models.add(model)));
                 Ok::<_, CreateVoxelSceneError>((
                     index,
@@ -289,15 +319,16 @@ impl<'w> VoxelSceneAssets<'w> {
                     frame.insert(model_source);
                 }
                 if let Some(mesh_handle) = maybe_mesh_handle {
-                    frame.insert(Mesh3d(mesh_handle));
+                    frame.insert((Mesh3d(mesh_handle), VoxelMeshAssetUsage(mesh_asset_usage)));
                     if let Some(material_handle) = maybe_material_handle {
                         frame.insert(MeshMaterial3d(material_handle));
                     }
                 }
-                if cloud_image.is_some() {
+                if let Some(cloud_image) = cloud_image {
+                    frame.insert(crate::VoxelCloudSource(cloud_image.clone()));
                     frame.with_child((
                         FogVolume {
-                            density_texture: cloud_image,
+                            density_texture: Some(cloud_image),
                             absorption: 0.1,
                             ..Default::default()
                         },
@@ -315,11 +346,11 @@ impl<'w> VoxelSceneAssets<'w> {
 pub(crate) fn configure_material(
     material: &mut StandardMaterial,
     average_ior: Option<f32>,
-    data: &VoxelData,
+    model: &VoxelModel,
 ) {
     if let Some(ior) = average_ior {
         material.ior = ior;
-        material.thickness = data._size().min_element() as f32 * data.bake_settings.voxel_size;
+        material.thickness = model._size().min_element() as f32 * model.bake_settings.voxel_size;
     } else {
         #[cfg(feature = "pbr_transmission_textures")]
         {
@@ -344,7 +375,7 @@ mod tests {
     };
 
     use crate::{
-        CreateVoxelSceneError, SDF, VoxLoaderSettings, Voxel, VoxelModel, VoxelModelInstance,
+        CreateVoxelSceneError, SDF, VoxBakeSettings, Voxel, VoxelModel, VoxelModelInstance,
         VoxelModelSource, VoxelPalette, VoxelPaletteSource, VoxelSceneAssets,
         test_support::setup_app,
     };
@@ -358,7 +389,7 @@ mod tests {
             VoxelPalette::from_colors(vec![bevy::color::palettes::css::GREEN.into()], true);
         let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
             UVec3::splat(6),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             Voxel(1),
         );
         let world = app.world_mut();
@@ -367,11 +398,21 @@ mod tests {
             let mut voxel_assets = state.get_mut(world).expect("voxel asset resources exist");
             let palette_handle = voxel_assets.add_palette(palette);
             assert!(matches!(
-                voxel_assets.create_animation(std::iter::empty(), "empty", palette_handle.clone()),
+                voxel_assets.create_animation(
+                    std::iter::empty(),
+                    palette_handle.clone(),
+                    false,
+                    bevy::asset::RenderAssetUsages::RENDER_WORLD,
+                ),
                 Err(CreateVoxelSceneError::EmptyAnimation)
             ));
             voxel_assets
-                .create_scene(tall_box, "tall box", palette_handle)
+                .create_scene(
+                    tall_box,
+                    palette_handle,
+                    false,
+                    bevy::asset::RenderAssetUsages::RENDER_WORLD,
+                )
                 .expect("voxel scene created")
         };
         state.apply(world);

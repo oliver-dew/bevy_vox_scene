@@ -1,3 +1,4 @@
+use bevy::image::Image;
 use bevy::{
     asset::Handle,
     ecs::component::Component,
@@ -24,6 +25,11 @@ pub struct VoxelModelSource(pub Handle<VoxelModel>);
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
 pub struct VoxelPaletteSource(pub Handle<VoxelPalette>);
+
+/// The density texture used by a voxel cloud instance.
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
+pub struct VoxelCloudSource(pub Handle<Image>);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///

@@ -1,16 +1,19 @@
 use bevy::{
+    ecs::entity::Entity,
     math::{IVec3, Vec3},
-    mesh::Mesh3d,
 };
 use thiserror::Error;
 
-use crate::{VoxelModelAssets, VoxelModelSource, VoxelPaletteSource};
+use crate::VoxelModelAssets;
 
 use super::{RawVoxel, Voxel, VoxelQueryable};
 
 /// An error encountered while modifying a voxel model.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ModifyVoxelError {
+    /// The entity is not a retained voxel model instance.
+    #[error("entity is not a retained voxel model instance")]
+    InvalidInstance,
     /// The retained model asset is no longer available.
     #[error("retained voxel model asset is unavailable")]
     ModelUnavailable,
@@ -23,9 +26,9 @@ pub enum ModifyVoxelError {
     /// The modification added or removed an entire surface or cloud representation.
     #[error("modification cannot add or remove a model's surface or cloud representation")]
     RenderTopologyChanged,
-    /// A surface model was modified without supplying its mesh handle.
-    #[error("surface model modification requires a mesh handle")]
-    MeshHandleRequired,
+    /// A surface instance is missing its material component.
+    #[error("surface voxel instance has no material component")]
+    MaterialHandleRequired,
     /// The model's material handle is no longer available.
     #[error("voxel material asset is unavailable")]
     MaterialUnavailable,
@@ -34,13 +37,11 @@ pub enum ModifyVoxelError {
     CloudImageUnavailable,
 }
 
-impl VoxelModelAssets<'_> {
+impl VoxelModelAssets<'_, '_> {
     /// Modify voxels in a retained model and regenerate its mesh and material.
     ///
     /// ### Arguments
-    /// * `source` - the retained model source component attached to the model entity.
-    /// * `palette_source` - the palette source component attached to the model entity.
-    /// * `mesh` - the same model entity's mesh component, or `None` for a cloud-only model.
+    /// * `entity` - the retained voxel model instance to modify.
     /// * `region` - a [`VoxelRegion`] defining the area of the voxel model that the modifier will operate on.
     /// * `modify` - a closure that will run against every voxel within the `region`.
     ///
@@ -59,50 +60,60 @@ impl VoxelModelAssets<'_> {
     /// The smaller the `region` is, the more performant the operation will be.
     pub fn modify<F>(
         &mut self,
-        source: &VoxelModelSource,
-        palette_source: &VoxelPaletteSource,
-        mesh: Option<&Mesh3d>,
+        entity: Entity,
         region: VoxelRegionMode,
         modify: F,
     ) -> Result<(), ModifyVoxelError>
     where
         F: Fn(IVec3, &Voxel, &dyn VoxelQueryable) -> Voxel,
     {
+        let instance = self
+            .instances
+            .get(entity)
+            .map_err(|_| ModifyVoxelError::InvalidInstance)?;
+        let model_handle = instance.model.0.clone();
+        let palette_handle = instance.palette.0.clone();
+        let mesh_handle = instance.mesh.map(|mesh| mesh.0.clone());
+        let material_handle = instance.material.map(|material| material.0.clone());
+        let cloud_handle = instance.cloud.map(|cloud| cloud.0.clone());
+        let mesh_asset_usage = instance
+            .mesh_asset_usage
+            .map(|usage| usage.0)
+            .unwrap_or(bevy::asset::RenderAssetUsages::RENDER_WORLD);
+
         let palette = self
             .palettes
-            .get(&palette_source.0)
+            .get(&palette_handle)
             .ok_or(ModifyVoxelError::PaletteUnavailable)?;
         let mut model = self
             .models
-            .get_mut(&source.0)
+            .get_mut(&model_handle)
             .ok_or(ModifyVoxelError::ModelUnavailable)?;
-        if model.has_mesh && mesh.is_none() {
-            return Err(ModifyVoxelError::MeshHandleRequired);
+        if mesh_handle.is_some() && material_handle.is_none() {
+            return Err(ModifyVoxelError::MaterialHandleRequired);
         }
-        if let Some(material) = &model.material
-            && !self.materials.contains(material.id())
+        if let Some(material) = &material_handle
+            && !self.materials.contains(material)
         {
             return Err(ModifyVoxelError::MaterialUnavailable);
         }
-        if let Some(cloud_image) = &model.cloud_image
-            && !self.images.contains(cloud_image.id())
+        if let Some(cloud_image) = &cloud_handle
+            && !self.images.contains(cloud_image)
         {
             return Err(ModifyVoxelError::CloudImageUnavailable);
         }
-        let leading_padding = IVec3::splat(model.data.padding() as i32 / 2);
+        let leading_padding = IVec3::splat(model.padding() as i32 / 2);
         let model_size = model.size();
         let region = region.clamped(model_size);
         let start = leading_padding + region.origin;
         let end = start + region.size;
-        let mut updated: Vec<RawVoxel> = model.data.grid.voxels.clone();
+        let mut updated: Vec<RawVoxel> = model.grid.voxels.clone();
         for x in start.x..end.x {
             for y in start.y..end.y {
                 for z in start.z..end.z {
-                    let index = vox_bake::linearize(
-                        [x as u32, y as u32, z as u32],
-                        model.data.grid.dimensions,
-                    );
-                    let source: Voxel = model.data.grid.voxels[index].clone().into();
+                    let index =
+                        vox_bake::linearize([x as u32, y as u32, z as u32], model.grid.dimensions);
+                    let source: Voxel = model.grid.voxels[index].clone().into();
                     updated[index] = RawVoxel::from(modify(
                         IVec3::new(x, y, z) - leading_padding,
                         &source,
@@ -111,31 +122,33 @@ impl VoxelModelAssets<'_> {
                 }
             }
         }
-        std::mem::swap(&mut model.data.grid.voxels, &mut updated);
-        let remeshed = model.data.remesh(&palette.baked);
+        std::mem::swap(&mut model.grid.voxels, &mut updated);
+        let remeshed = model.remesh(&palette.baked);
         let (maybe_atlas, average_ior, maybe_cloud) = match remeshed {
             Ok(remeshed) => remeshed,
             Err(error) => {
-                std::mem::swap(&mut model.data.grid.voxels, &mut updated);
+                std::mem::swap(&mut model.grid.voxels, &mut updated);
                 return Err(error.into());
             }
         };
-        if maybe_atlas.is_some() != model.has_mesh || maybe_cloud.is_some() != model.has_cloud {
-            std::mem::swap(&mut model.data.grid.voxels, &mut updated);
+        if maybe_atlas.is_some() != mesh_handle.is_some()
+            || maybe_cloud.is_some() != cloud_handle.is_some()
+        {
+            std::mem::swap(&mut model.grid.voxels, &mut updated);
             return Err(ModifyVoxelError::RenderTopologyChanged);
         }
 
         if let Some(atlas) = maybe_atlas {
-            let mesh = mesh.expect("surface mesh handle checked before modification");
+            let mesh = mesh_handle.expect("surface mesh handle checked before modification");
             let mut material =
                 palette.create_atlas_material(&atlas, |_, image| self.images.add(image));
-            super::configure_material(&mut material, average_ior, &model.data);
+            super::configure_material(&mut material, average_ior, &model);
             let _ = self.meshes.insert(
-                &mesh.0,
-                super::mesh::to_bevy_mesh(atlas.mesh, model.data.mesh_asset_usage),
+                &mesh,
+                super::mesh::to_bevy_mesh(atlas.mesh, mesh_asset_usage),
             );
 
-            if let Some(material_handle) = &model.material {
+            if let Some(material_handle) = &material_handle {
                 if let Some(old_material) = self.materials.get(material_handle) {
                     #[allow(unused_mut)]
                     let mut old_images = vec![
@@ -151,11 +164,9 @@ impl VoxelModelAssets<'_> {
                     }
                 }
                 let _ = self.materials.insert(material_handle, material);
-            } else {
-                model.material = Some(self.materials.add(material));
             }
         }
-        if let (Some(cloud), Some(cloud_handle)) = (maybe_cloud, &model.cloud_image) {
+        if let (Some(cloud), Some(cloud_handle)) = (maybe_cloud, &cloud_handle) {
             let _ = self.images.insert(cloud_handle, cloud);
         }
         Ok(())
@@ -221,13 +232,12 @@ mod tests {
         asset::Assets,
         ecs::{hierarchy::Children, system::SystemState},
         math::IVec3,
-        prelude::Mesh3d,
         world_serialization::WorldAssetRoot,
     };
 
     use crate::{
-        Voxel, VoxelModel, VoxelModelAssets, VoxelModelSource, VoxelPaletteSource, VoxelQueryable,
-        VoxelRegion, VoxelRegionMode, test_support::setup_and_load_voxel_scene,
+        Voxel, VoxelModel, VoxelModelAssets, VoxelModelSource, VoxelQueryable, VoxelRegion,
+        VoxelRegionMode, test_support::setup_and_load_voxel_scene,
     };
 
     #[async_std::test]
@@ -238,7 +248,7 @@ mod tests {
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
-        let entity = app
+        let entity = *app
             .world()
             .get::<Children>(scene_root)
             .expect("children")
@@ -246,18 +256,8 @@ mod tests {
             .expect("scene root");
         let model_source = app
             .world()
-            .get::<VoxelModelSource>(*entity)
+            .get::<VoxelModelSource>(entity)
             .expect("voxel model source")
-            .clone();
-        let palette_source = app
-            .world()
-            .get::<VoxelPaletteSource>(*entity)
-            .expect("voxel palette source")
-            .clone();
-        let mesh = app
-            .world()
-            .get::<Mesh3d>(*entity)
-            .expect("voxel mesh")
             .clone();
         let region = VoxelRegion {
             origin: IVec3::splat(2),
@@ -269,9 +269,7 @@ mod tests {
             .get_mut(world)
             .expect("voxel asset resources exist")
             .modify(
-                &model_source,
-                &palette_source,
-                Some(&mesh),
+                entity,
                 VoxelRegionMode::Box(region),
                 |_pos, _voxel, _model| Voxel(7),
             )
@@ -312,29 +310,14 @@ mod tests {
             .expect("children")
             .first()
             .expect("scene root");
-        let source = app
-            .world()
-            .get::<VoxelModelSource>(entity)
-            .expect("voxel model source")
-            .clone();
-        let palette_source = app
-            .world()
-            .get::<VoxelPaletteSource>(entity)
-            .expect("voxel palette source")
-            .clone();
-
         let world = app.world_mut();
         let mut state = SystemState::<VoxelModelAssets>::new(world);
         state
             .get_mut(world)
             .expect("voxel asset resources exist")
-            .modify(
-                &source,
-                &palette_source,
-                None,
-                VoxelRegionMode::All,
-                |_pos, voxel, _model| voxel.clone(),
-            )
+            .modify(entity, VoxelRegionMode::All, |_pos, voxel, _model| {
+                voxel.clone()
+            })
             .expect("cloud texture updated");
         state.apply(world);
     }

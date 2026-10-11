@@ -8,7 +8,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelData, VoxelElement, VoxelInstanceReady,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelInstanceReady, VoxelModel,
     VoxelPalette, VoxelSceneAssets,
 };
 use flipbook::{FlipbookRepeatMode, FlipbookSpeed};
@@ -93,7 +93,7 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
     let noise_scale: f32 = 0.75;
     let noise_speed: f32 = 1.0;
     let started = Instant::now();
-    let frames: Vec<VoxelData> = (0..frame_count)
+    let frames: Vec<VoxelModel> = (0..frame_count)
         .into_par_iter()
         .map(|i| {
             let noise = Source::simplex(42).fbm(2, 0.083, 2.0, 0.5);
@@ -105,7 +105,7 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
             let inner_max_diameter = max_diameter * 1.5;
             let inner_diameter =
                 inner_max_diameter - ((1.0 - time_norm).powf(0.9) * inner_max_diameter);
-            let settings = VoxLoaderSettings {
+            let settings = VoxBakeSettings {
                 voxel_size: 0.1,
                 texture_mode: VoxelTextureMode::Palette,
                 ..default()
@@ -154,7 +154,12 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
     info!("voxel generation: {:?}", started.elapsed());
     let started = Instant::now();
     let root = voxel_assets
-        .create_animation(frames, "Explosion", palette)
+        .create_animation(
+            frames,
+            palette,
+            false,
+            bevy::asset::RenderAssetUsages::RENDER_WORLD,
+        )
         .expect("voxel animation created");
     info!("mesh generation: {:?}", started.elapsed());
     commands.insert_resource(ExplosionAsset(root));

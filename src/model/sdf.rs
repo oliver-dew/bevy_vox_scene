@@ -1,7 +1,7 @@
 use bevy::math::{Quat, UVec3, Vec3};
 use std::sync::Arc;
 
-use crate::{VoxLoaderSettings, Voxel, VoxelData};
+use crate::{VoxBakeSettings, Voxel, VoxelModel};
 
 /// A 3d signed distance field
 #[derive(Clone)]
@@ -159,14 +159,14 @@ impl SDF {
         Self::new(move |point| distort(self.distance(point), point))
     }
 
-    /// Converts the SDF to [`VoxelData`] by sampling it at each position.
+    /// Converts the SDF to a [`VoxelModel`] by sampling it at each position.
     pub fn map_to_voxels<F: Fn(f32, Vec3) -> Voxel>(
         self,
         size: UVec3,
-        settings: VoxLoaderSettings,
+        settings: VoxBakeSettings,
         map: F,
-    ) -> VoxelData {
-        let mut data = VoxelData::new(size, settings);
+    ) -> VoxelModel {
+        let mut data = VoxelModel::new(size, settings);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
         for x in 0..size.x {
             for y in 0..size.y {
@@ -183,17 +183,17 @@ impl SDF {
         data
     }
 
-    /// Converts the inside of the SDF to [`VoxelData`] without calculating exact distances.
+    /// Converts the inside of the SDF to a [`VoxelModel`] without calculating exact distances.
     ///
     /// Boolean operations short-circuit while testing occupancy, so expensive fields on the
     /// right-hand side are evaluated only when their result can affect whether a cell is filled.
     pub fn map_inside_to_voxels<F: Fn(Vec3) -> Voxel>(
         self,
         size: UVec3,
-        settings: VoxLoaderSettings,
+        settings: VoxBakeSettings,
         map: F,
-    ) -> VoxelData {
-        let mut data = VoxelData::new(size, settings);
+    ) -> VoxelModel {
+        let mut data = VoxelModel::new(size, settings);
         let half_extent = Vec3::new(size.x as f32, size.y as f32, size.z as f32) * 0.5;
         for x in 0..size.x {
             for y in 0..size.y {
@@ -213,8 +213,8 @@ impl SDF {
         data
     }
 
-    /// Converts the SDF to [`VoxelData`] by filling every cell that is less than 0 with `fill`.
-    pub fn voxelize(self, size: UVec3, settings: VoxLoaderSettings, fill: Voxel) -> VoxelData {
+    /// Converts the SDF to a [`VoxelModel`] by filling every cell that is less than 0 with `fill`.
+    pub fn voxelize(self, size: UVec3, settings: VoxBakeSettings, fill: Voxel) -> VoxelModel {
         self.map_inside_to_voxels(size, settings, |_| fill.clone())
     }
 }
@@ -231,16 +231,16 @@ mod tests {
 
     use bevy::math::{Quat, UVec3, Vec3};
 
-    use crate::{SDF, VoxLoaderSettings, Voxel};
+    use crate::{SDF, VoxBakeSettings, Voxel};
 
     #[test]
     fn test_sdf_intersect() {
         let box_sphere = SDF::cuboid(Vec3::splat(2.0))
             .intersect(SDF::sphere(2.5))
-            .voxelize(UVec3::splat(7), VoxLoaderSettings::default(), Voxel(1));
+            .voxelize(UVec3::splat(7), VoxBakeSettings::default(), Voxel(1));
         let sphere_box = SDF::sphere(2.5)
             .intersect(SDF::cuboid(Vec3::splat(2.0)))
-            .voxelize(UVec3::splat(7), VoxLoaderSettings::default(), Voxel(1));
+            .voxelize(UVec3::splat(7), VoxBakeSettings::default(), Voxel(1));
         assert_eq!(box_sphere.grid.voxels, sphere_box.grid.voxels);
     }
 
@@ -248,13 +248,13 @@ mod tests {
     fn test_sdf_subtract() {
         let thin_box = SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).voxelize(
             UVec3::splat(6),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             Voxel(1),
         );
         let halved_cube = SDF::cuboid(Vec3::new(2.0, 2.0, 2.0))
             .subtract(SDF::cuboid(Vec3::new(1.0, 2.0, 2.0)).translate(Vec3::X))
             .translate(Vec3::X)
-            .voxelize(UVec3::splat(6), VoxLoaderSettings::default(), Voxel(1));
+            .voxelize(UVec3::splat(6), VoxBakeSettings::default(), Voxel(1));
         assert_eq!(thin_box.grid.voxels, halved_cube.grid.voxels);
     }
 
@@ -267,7 +267,7 @@ mod tests {
             -1.0
         }));
 
-        outside.voxelize(UVec3::ONE, VoxLoaderSettings::default(), Voxel(1));
+        outside.voxelize(UVec3::ONE, VoxBakeSettings::default(), Voxel(1));
 
         assert_eq!(inner_evaluations.load(Ordering::Relaxed), 0);
     }
@@ -276,12 +276,12 @@ mod tests {
     fn test_sdf_rotate() {
         let tall_box = SDF::cuboid(Vec3::new(0.5, 2.5, 0.5)).voxelize(
             UVec3::splat(6),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             Voxel(1),
         );
         let deep_box_rotated = SDF::cuboid(Vec3::new(0.5, 0.5, 2.5))
             .rotate(Quat::from_axis_angle(Vec3::X, FRAC_PI_2))
-            .voxelize(UVec3::splat(6), VoxLoaderSettings::default(), Voxel(1));
+            .voxelize(UVec3::splat(6), VoxBakeSettings::default(), Voxel(1));
         assert_eq!(tall_box.grid.voxels, deep_box_rotated.grid.voxels);
     }
 }

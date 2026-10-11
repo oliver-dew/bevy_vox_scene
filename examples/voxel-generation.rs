@@ -1,6 +1,6 @@
 use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use libnoise::prelude::*;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -71,7 +71,7 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         .subtract(SDF::sphere(size as f32 * 0.5))
         .map_inside_to_voxels(
             UVec3::splat(size as u32),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             |pos| {
                 let n_pos = (pos + Vec3::splat(256.0)) * 0.8;
                 let color = (noise.sample([n_pos.x.into(), n_pos.y.into(), n_pos.z.into()]) as f32
@@ -80,9 +80,13 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
                 Voxel((color * 255.).clamp(1., 255.) as u8)
             },
         );
-    let model_name = "my sdf model";
     let scene_root = voxel_assets
-        .create_scene(data, model_name, palette)
+        .create_scene(
+            data,
+            palette,
+            false,
+            bevy::asset::RenderAssetUsages::RENDER_WORLD,
+        )
         .expect("voxel scene created");
     commands.spawn(WorldAssetRoot(scene_root));
 }

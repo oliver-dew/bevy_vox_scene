@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use rand::Rng;
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -96,7 +96,7 @@ fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         .expect("a valid SDF")
         .map_to_voxels(
             UVec3::splat(32),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             |d, _| match d {
                 // higher density the deeper into the cloud we go.
                 // nb the `Voxel` values index from 1, with 0 reserved for `Voxel::EMPTY`
@@ -110,9 +110,13 @@ fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         );
 
     let palette_handle = voxel_assets.add_palette(palette);
-    let model_name = "my sdf model";
     let scene_handle = voxel_assets
-        .create_scene(data, model_name, palette_handle)
+        .create_scene(
+            data,
+            palette_handle,
+            false,
+            bevy::asset::RenderAssetUsages::RENDER_WORLD,
+        )
         .expect("voxel scene created");
 
     commands.spawn(WorldAssetRoot(scene_handle));

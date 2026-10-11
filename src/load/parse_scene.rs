@@ -18,8 +18,9 @@ use bevy::{
 use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
 use crate::{
-    VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
-    model::queryable::VoxelQueryable,
+    VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
+    load::LoadedVoxelModel,
+    model::{VoxelMeshAssetUsage, queryable::VoxelQueryable},
 };
 
 use flipbook::{FlipbookFrame, FlipbookPlayer};
@@ -28,7 +29,7 @@ pub(super) fn parse_scene_graph(
     context: &mut LoadContext,
     graph: &[BakedSceneGraphNode],
     root_index: usize,
-    vox_models: &[VoxelModel],
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     animation_frames_per_second: f32,
@@ -51,7 +52,7 @@ fn parse_scene_graph_with_parent(
     graph: &[BakedSceneGraphNode],
     root_index: usize,
     parent_name: Option<&String>,
-    vox_models: &[VoxelModel],
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     animation_frames_per_second: f32,
@@ -115,7 +116,7 @@ fn spawn_node(
     graph: &[BakedSceneGraphNode],
     node_index: usize,
     parent_name: Option<&String>,
-    vox_models: &[VoxelModel],
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     clip: &mut AnimationClip,
@@ -262,7 +263,7 @@ fn load_child(
     node_index: usize,
     entity: &mut EntityWorldMut,
     parent_name: Option<&String>,
-    vox_models: &[VoxelModel],
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
     layers: &[BakedLayer],
     clip: &mut AnimationClip,
@@ -342,7 +343,7 @@ fn load_child(
 fn attach_model(
     context: &mut LoadContext,
     entity: &mut EntityWorldMut,
-    models: &[VoxelModel],
+    models: &[LoadedVoxelModel],
     model_index: usize,
 ) {
     let Some(model) = models.get(model_index) else {
@@ -353,26 +354,32 @@ fn attach_model(
         VoxelModelInstance,
         VoxelPaletteSource(context.get_label_handle("voxel-palette")),
     ));
-    if model.data.retain_voxel_data {
+    if model.retain_voxel_data {
         entity.insert(VoxelModelSource(
             context.get_label_handle(format!("{}@model", model.name())),
         ));
     }
-    if model.has_mesh() {
+    if model.has_mesh {
         let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name()));
         let material: Handle<StandardMaterial> =
             context.get_label_handle(format!("{}@material", model.name()));
-        entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
+        entity.insert((
+            Mesh3d(mesh),
+            MeshMaterial3d(material),
+            VoxelMeshAssetUsage(model.mesh_asset_usage),
+        ));
     }
-    if model.has_cloud() {
-        let cloud_image = model.cloud_image.clone();
+    if model.has_cloud {
+        let cloud_image: Handle<bevy::image::Image> =
+            context.get_label_handle(format!("{}@cloud-image", model.name()));
+        entity.insert(VoxelCloudSource(cloud_image.clone()));
         entity.with_child((
             FogVolume {
-                density_texture: cloud_image,
+                density_texture: Some(cloud_image),
                 absorption: 0.1,
                 ..Default::default()
             },
-            Transform::from_scale(model.model_size()),
+            Transform::from_scale(model.model.model_size()),
         ));
     }
 }

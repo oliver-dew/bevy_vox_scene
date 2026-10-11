@@ -6,8 +6,7 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelSource,
-    VoxelPaletteSource, VoxelRegion, VoxelRegionMode,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
@@ -93,12 +92,9 @@ fn on_spawn_voxel_instance(
     }
 }
 
-fn grow_grass(
-    query: Query<(&VoxelModelSource, &VoxelPaletteSource, &Mesh3d), With<Floor>>,
-    mut voxel_assets: VoxelModelAssets,
-) {
+fn grow_grass(query: Query<Entity, With<Floor>>, mut voxel_assets: VoxelModelAssets) {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some((source, palette_source, mesh)) = query.iter().next() else {
+    let Some(entity) = query.iter().next() else {
         return;
     };
     let region = VoxelRegion {
@@ -106,47 +102,40 @@ fn grow_grass(
         size: IVec3::new(64, 8, 64),
     };
     voxel_assets
-        .modify(
-            source,
-            palette_source,
-            Some(mesh),
-            VoxelRegionMode::Box(region),
-            |pos, voxel, model| {
-                if *voxel != Voxel::EMPTY {
-                    // don't overwrite any voxels
-                    return voxel.clone();
-                };
-                let mut rng = rand::rng();
-                let value: u16 = rng.random_range(0..5000);
-                if value > 20 {
-                    return Voxel::EMPTY;
-                };
-                let vox_below = model
-                    .get_voxel_at_point(pos - IVec3::Y)
-                    .unwrap_or(Voxel::EMPTY);
-                let grass_voxels: RangeInclusive<u8> = 161..=165;
-                let grow_grass = grass_voxels.contains(&vox_below.0);
-                let mut plant_grass = !grow_grass && value < 5 && vox_below != Voxel::EMPTY;
-                if plant_grass {
-                    // poisson disk effect: don't plant grass if too near other blades
-                    'check_neighbors: for direction in
-                        [IVec3::NEG_X, IVec3::X, IVec3::NEG_Z, IVec3::Z]
-                    {
-                        let neighbor = model
-                            .get_voxel_at_point(pos + direction)
-                            .unwrap_or(Voxel::EMPTY);
-                        if grass_voxels.contains(&neighbor.0) {
-                            plant_grass = false;
-                            break 'check_neighbors;
-                        }
+        .modify(entity, VoxelRegionMode::Box(region), |pos, voxel, model| {
+            if *voxel != Voxel::EMPTY {
+                // don't overwrite any voxels
+                return voxel.clone();
+            };
+            let mut rng = rand::rng();
+            let value: u16 = rng.random_range(0..5000);
+            if value > 20 {
+                return Voxel::EMPTY;
+            };
+            let vox_below = model
+                .get_voxel_at_point(pos - IVec3::Y)
+                .unwrap_or(Voxel::EMPTY);
+            let grass_voxels: RangeInclusive<u8> = 161..=165;
+            let grow_grass = grass_voxels.contains(&vox_below.0);
+            let mut plant_grass = !grow_grass && value < 5 && vox_below != Voxel::EMPTY;
+            if plant_grass {
+                // poisson disk effect: don't plant grass if too near other blades
+                'check_neighbors: for direction in [IVec3::NEG_X, IVec3::X, IVec3::NEG_Z, IVec3::Z]
+                {
+                    let neighbor = model
+                        .get_voxel_at_point(pos + direction)
+                        .unwrap_or(Voxel::EMPTY);
+                    if grass_voxels.contains(&neighbor.0) {
+                        plant_grass = false;
+                        break 'check_neighbors;
                     }
                 }
-                if plant_grass || grow_grass {
-                    Voxel((161 + value % 5) as u8)
-                } else {
-                    Voxel::EMPTY
-                }
-            },
-        )
+            }
+            if plant_grass || grow_grass {
+                Voxel((161 + value % 5) as u8)
+            } else {
+                Voxel::EMPTY
+            }
+        })
         .expect("floor model is remeshable");
 }
