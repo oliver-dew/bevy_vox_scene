@@ -79,12 +79,7 @@ fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
             },
         );
     let scene_root = voxel_assets
-        .create_scene(
-            data,
-            palette,
-            false,
-            bevy::asset::RenderAssetUsages::RENDER_WORLD,
-        )
+        .create_scene(data, palette, default())
         .expect("voxel scene created");
     commands.spawn(WorldAssetRoot(scene_root));
 }

@@ -1018,8 +1018,8 @@ mod tests {
     };
     use crate::{
         AmbientOcclusionSettings, BakedLayer, BakedMaterial, BakedScene, BakedSceneGraphNode,
-        BakedSceneModel, BakedTransformFrame, VoxBakeSettings, VoxelGrid, VoxelTextureMode,
-        bake_model,
+        BakedSceneModel, BakedTransformFrame, TexturePackSettings, VoxBakeSettings, VoxelGrid,
+        VoxelTextureMode, bake_model,
     };
 
     fn fixture(name: &str) -> Vec<u8> {
@@ -1507,9 +1507,12 @@ mod tests {
     fn exports_ambient_occlusion_texture_on_uv1() {
         let bytes = fixture("deer.vox");
         let settings = VoxBakeSettings {
-            ambient_occlusion: Some(AmbientOcclusionSettings {
-                depth: 1,
-                intensity: 0.75,
+            texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
+                ambient_occlusion: Some(AmbientOcclusionSettings {
+                    depth: 1,
+                    intensity: 0.75,
+                }),
+                ..Default::default()
             }),
             ..Default::default()
         };
@@ -1530,9 +1533,12 @@ mod tests {
     fn glb_meshes_and_material_pixels_match_the_shared_bake() {
         let bytes = fixture("deer.vox");
         let settings = VoxBakeSettings {
-            ambient_occlusion: Some(AmbientOcclusionSettings {
-                depth: 1,
-                intensity: 0.75,
+            texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
+                ambient_occlusion: Some(AmbientOcclusionSettings {
+                    depth: 1,
+                    intensity: 0.75,
+                }),
+                ..Default::default()
             }),
             ..Default::default()
         };

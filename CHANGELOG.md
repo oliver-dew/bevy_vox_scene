@@ -2,21 +2,40 @@
 
 ## 0.23
 
-- Update to Bevy 0.20
-- Generate texture atlases and `StandardMaterial`s per model instead of storing shared material assets with the palette. This means that a flat surface containing multiple colors will now just be a single plane. Painting colors (keeping the surface flat) doesn't generate more geometry. This change opens the door to features like baked volumetric Ambient Occlusion and mip-mapping.
-- Make `VoxelPalette` an asset directly, replacing the `VoxelContext` wrapper. Generated palettes, scenes, and animations are now created through the `VoxelSceneAssets` system parameter.
-- Replace `supports_remeshing` with independent `retain_voxel_data` and `mesh_asset_usage` settings. `VoxelModelInstance` and `VoxelPaletteSource` are always present, while the optional `VoxelModelSource` exposes retained voxel data for queries and modification.
-- Remove `VoxelData`; `VoxelModel` now directly owns the voxel grid and bake settings. SDF generation accepts `VoxBakeSettings`, while generated-scene creation accepts retention and mesh asset usage explicitly.
-- Replace the `VoxelModifier` and `modify_voxel_model` system API with `VoxelModelAssets::modify`; modification now resolves all source and render handles from a single entity, and `VoxelSceneAssets` contains and reuses `VoxelModelAssets`.
-- Make generated scene creation and voxel writes fallible, accept animation frame iterators, update cloud textures during modification, and rename `VoxelRegion::from_center` to the inclusive `from_center_and_half_extent`.
-- Add `VoxelTextureMode::Packed(TexturePackSettings)`, which merges coplanar faces across palette indices and bakes their PBR properties into configurable packed face islands.
-- Add `VoxelTextureMode::Palette` as a lower-texture-memory compatibility mode using per-model 16x16 palette atlases.
-- Add optional distance-weighted voxel ambient occlusion for packed atlases through `AmbientOcclusionSettings`.
-- Add optional limited mip chains with mip-safe padding and alignment through `TextureMipPolicy`.
-- Add opt-in packed-atlas utilization and geometry-reduction logging through `TexturePackSettings::log_diagnostics`.
-- Stop generating duplicate `@material-no-emission` sub-assets; emissive properties can be toggled directly on each model's material.
-- Add the optional GLB exporter and the independently installable `vox-to-gltf` command-line tool for single-file and recursive directory conversion.
-- Rename `VoxelAnimationPlayer`, `VoxelAnimationFrame` etc to `FlipbookPlayer`, `FlipbookFrame`, and move them to `flipbook` crate.
+Besides the update to Bevy 0.20, this release includes two big new features, and a lot of ergonomic improvements and hardening:
+
+### 1. Export voxels to `.gltf` or `.vox` for offline voxel processing
+- Core voxel processing has been moved into an engine-agnostic `vox_bake` crate (with no dependency on bevy). As well as loading `.vox` files, this can now also export `.vox` and `.glb` files. As this is the same engine used in `bevy_vox_scene`, all Magical Voxel material types are supported (although note that cloud volumes are not supported in `.glb` files). 
+- A `vox-to-gltf` command-line tool can now be used to process voxel models offline. It has a small footprint because it also has no bevy dependency. This means that if you want to use voxel models in your application, but don't need to do anything specifically voxelly with them (like quering or changing the voxel data), and you don't care about cloud volumes, you can bake the models to glb offline. This means your application does not need to process voxels at runtime, or have `bevy_vox_scene` as a runtime dependency!
+- This even works with voxel flipbook animations! The animation code has been moved into the `flipbook` crate (with no dependency on the rest of `bevy_vox_scene`), so that it can be used to play glb flipbook animations output by `vox-to-gltf`. To see this in action, run the flipbook example: `cargo run -p flipbook --example animation-scene-gltf --features vox_gltf`
+    - `VoxelAnimationPlayer`, `VoxelAnimationFrame` and so on have been renamed to `FlipbookPlayer`, `FlipbookFrame` and moved to `flipbook` crate.
+- `vox-to-gltf` can work on a single file, or recursively through a directory
+
+### 2. Improved texturing
+- Previous versions of `bevy_vox_scene` supported the various Magica Voxel material types with a set of per-model/ per-palette 16x16 textures for diffuse, metalness, roughness, and emission. Although this was very efficient in terms of tiny texture sizes, it means each voxel colour requires geometry (texcoords) to index the correct voxel material. A flat, multicoloured square surface would need geometry for each colour, instead of being a single quad. This legacy system is still available, as `VoxelTextureMode::Palette`.
+- `VoxelTextureMode::Packed` instead creates an island per co-planar face, and packs these islands into a per-model texture. This means multicoloured surfaces use dramatically less geometry, and also opens the door to a couple of optional extra features:
+    - Set `TexturePackSettings::ambient_occlusion` to bake distance-weighted volumetric ambient occlusion into an AO texture. Keeping AO inside packed-texture settings prevents configuring it with unsupported palette textures.
+    - Use `TextureMipPolicy` for limited mip chains with mip-safe padding and alignment.
+    - Opt-in to packed-atlas utilization and geometry-reduction logging with `TexturePackSettings::log_diagnostics`.
+    - We no longer need `@material-no-emission` sub-assets, as emissive properties can be toggled directly on each model's material.
+
+### 3. API ergonomics and hardening
+- Procedural generation is now much more ergonomic. The systems that used to require exclusive `&mut World` access have all been replaced by commands on 2 voxel asset `ParamSet`s:
+    - `create_voxel_scene` is now `VoxelSceneAssets::create_scene` 
+    - `create_voxel_context` is now `VoxelSceneAssets::add_palette`
+    - `create_voxel_animation` is now `VoxelSceneAssets::create_animation`
+    - `modify_voxel_model` is now `VoxelModelAssets::modify`
+
+    Now that `World` access isn't needed, `VoxelSceneAssets` or `VoxelModelAssets` can be added to ordinary bevy systems. Scene creation and writing are fallible (the old systems could panic), they return a result.
+- Remove a few API abstractions that were no longer needed:
+    - Remove `VoxelContext`: `VoxelPalette` is now an asset directly, Generated palettes, scenes, and animations are now created through the `VoxelSceneAssets` system parameter.
+    - Remove `VoxelData` and `VoxelQueryable`: `VoxelModel` now directly owns the voxel grid and bake settings. SDF generation accepts `VoxBakeSettings`, while generated-scene creation accepts retention and mesh asset usage explicitly.
+- Replace `supports_remeshing` with independent `retain_voxel_data` and `retain_mesh_data` settings: 
+    - Set `retain_mesh_data` to true when you need CPU queries of the mesh (eg for mesh picking and other raycasts or physics collider generation).
+    - Set `retain_voxel_data` to true if you need to query or edit the underlying voxel data. The `VoxelModel` asset will be retained, and a handle to the asset, `VoxelModelSource`, will be added to the spawned instance.
+    - Even if both of these are false, a `VoxelModelInstance` and `VoxelPaletteSource` component will still be added, and a `VoxelInstanceReady` event will still fire.
+- Cloud volumes can now be modified (previously cloud textures weren't updated when the voxels changed)
+- `VoxelRegion::from_center` renamed to `from_center_and_half_extent`
 
 ## 0.22
 

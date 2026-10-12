@@ -205,12 +205,15 @@ fn defaults_help() -> String {
         ),
         VoxelTextureMode::Palette => "palette".to_string(),
     };
-    let ao = match settings.ambient_occlusion {
-        Some(ao) => format!("depth {}, intensity {}", ao.depth, ao.intensity),
-        None => format!(
-            "disabled (default intensity when enabled: {})",
-            AmbientOcclusionSettings::default().intensity
-        ),
+    let ao = match settings.texture_mode {
+        VoxelTextureMode::Packed(pack) => match pack.ambient_occlusion {
+            Some(ao) => format!("depth {}, intensity {}", ao.depth, ao.intensity),
+            None => format!(
+                "disabled (default intensity when enabled: {})",
+                AmbientOcclusionSettings::default().intensity
+            ),
+        },
+        VoxelTextureMode::Palette => "unavailable in palette mode".to_string(),
     };
 
     format!(
@@ -287,23 +290,23 @@ fn loader_settings(args: &Args) -> Result<VoxBakeSettings, String> {
             if args.atlas_diagnostics {
                 pack.log_diagnostics = true;
             }
+            pack.ambient_occlusion = args.ao_depth.map(|depth| {
+                let defaults = AmbientOcclusionSettings::default();
+                AmbientOcclusionSettings {
+                    depth: usize::from(depth),
+                    intensity: args.ao_intensity.unwrap_or(defaults.intensity),
+                }
+            });
         }
         VoxelTextureMode::Palette if has_packed_options => {
             return Err("packed-atlas options cannot be used with --texture-mode palette".into());
         }
-        VoxelTextureMode::Palette => {}
-    }
-
-    if matches!(settings.texture_mode, VoxelTextureMode::Palette) && args.ao_depth.is_some() {
-        return Err("ambient occlusion requires --texture-mode packed".into());
-    }
-    settings.ambient_occlusion = args.ao_depth.map(|depth| {
-        let defaults = AmbientOcclusionSettings::default();
-        AmbientOcclusionSettings {
-            depth: usize::from(depth),
-            intensity: args.ao_intensity.unwrap_or(defaults.intensity),
+        VoxelTextureMode::Palette => {
+            if args.ao_depth.is_some() {
+                return Err("ambient occlusion requires --texture-mode packed".into());
+            }
         }
-    });
+    }
     Ok(settings)
 }
 
@@ -472,7 +475,6 @@ mod tests {
         assert_eq!(actual.uses_srgb, expected.uses_srgb);
         assert_eq!(actual.diffuse_roughness, expected.diffuse_roughness);
         assert_eq!(actual.texture_mode, expected.texture_mode);
-        assert_eq!(actual.ambient_occlusion, expected.ambient_occlusion);
     }
 
     #[test]
@@ -535,13 +537,13 @@ mod tests {
         assert_eq!(settings.emission_strength, 3.0);
         assert!(!settings.uses_srgb);
         assert_eq!(settings.diffuse_roughness, 0.4);
-        assert_eq!(
-            settings.ambient_occlusion.unwrap().intensity,
-            vox_bake::AmbientOcclusionSettings::default().intensity
-        );
         let VoxelTextureMode::Packed(pack) = settings.texture_mode else {
             panic!("expected packed textures")
         };
+        assert_eq!(
+            pack.ambient_occlusion.unwrap().intensity,
+            vox_bake::AmbientOcclusionSettings::default().intensity
+        );
         assert_eq!(pack.padding, 2);
         assert_eq!(pack.alignment, 8);
         assert_eq!(pack.max_dimension, 4096);

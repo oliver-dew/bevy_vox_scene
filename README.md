@@ -9,11 +9,7 @@
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
-A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files into bevy:
-- __Voxel models__ are converted into efficient meshes 
-- __Materials__ and their properties, such as metalness, roughness, emission, and transmission, are rendered with bevy's `StandardMaterial`, while cloud materials are rendered with `FogVolume`.
-- __Animations__, including model-level flipbook animations and scene-level transform animations.
-- __Scenes__, allowing efficient instancing of voxel models, organisation of models into layers, and controlling visibility of layers and instances. Use Magica Voxel as your level editor!
+A plugin for [bevy](https://bevyengine.org) for loading, generating, and exporting voxel assets. In particular it focuses on supporting all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files, models, materials, animations, and scenes. Use Magica Voxel as your level editor, and augment your scenes with procedurally generated voxel assets. 
 
 ## Why `bevy_vox_scene`?
 
@@ -85,7 +81,7 @@ Use `--ao-depth 1..8` to bake voxel ambient occlusion and optionally adjust its 
 cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-intensity 1.0
 ```
 
-The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `retain_voxel_data` and `mesh_asset_usage` are intentionally omitted because exported GLBs contain neither retained voxel data nor Bevy mesh asset residency settings.
+The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `retain_voxel_data` and `retain_mesh_data` are intentionally omitted because exported GLBs contain neither retained voxel data nor Bevy CPU-side mesh residency settings.
 
 Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. Runtime-generated models can be exported with `export_voxel_model_to_glb(&model, &palette)`, and generated frame sequences with `export_voxel_animation_to_glb(&frames, &palette)`. The export dependencies are not compiled for ordinary runtime-loading users.
 
@@ -127,7 +123,7 @@ cargo run --example <example name>
 - Material properties (color, roughness, metalness, emission, transparency) are represented by per-model texture atlases indexed by mesh UVs. `VoxelTextureMode::Packed(TexturePackSettings::default())` (the default) packs merged face islands at one texel per voxel to reduce geometry. `VoxelTextureMode::Palette` retains 16x16 palette textures and color-based face merging when lower texture memory is preferable. Neither mode supports "Minecraft" style textures tiled over each voxel; for that effect, consider using [the `bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) instead.
 - Packed atlases default to `TextureMipPolicy::Disabled`. Use `TextureMipPolicy::Limited { max_lod }` in `TexturePackSettings` to generate a mip chain with mip-safe island padding and alignment. Values above `4` are clamped because each additional level doubles the required padding.
 - Set `TexturePackSettings::log_diagnostics` to `true` to log material and AO atlas dimensions, useful-texel occupancy, padding/alignment overhead, packing waste, island count, and vertex reduction relative to per-color greedy meshing.
-- Packed atlases can optionally bake distance-weighted voxel ambient occlusion by setting `VoxLoaderSettings::ambient_occlusion` to `Some(AmbientOcclusionSettings { depth, intensity })`. Depths above `8` are clamped, depth `0` disables AO, and palette texture mode does not support spatial AO.
+- Packed atlases can optionally bake distance-weighted voxel ambient occlusion by setting `TexturePackSettings::ambient_occlusion` to `Some(AmbientOcclusionSettings { depth, intensity })`. Depths above `8` are clamped, depth `0` disables AO, and palette texture mode cannot be configured with spatial AO.
 
 ### Transparent materials
 

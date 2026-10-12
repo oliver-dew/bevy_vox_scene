@@ -130,6 +130,28 @@ pub enum CreateVoxelSceneError {
     Bake(#[from] BakeError),
 }
 
+/// Runtime data-retention settings for a generated voxel scene or animation.
+#[cfg(feature = "generate_voxels")]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct VoxelSceneSettings {
+    /// Whether source voxel data is retained for queries and runtime modification.
+    pub retain_voxel_data: bool,
+    /// Whether generated mesh data is retained for CPU-side use, such as mesh picking or
+    /// collider generation.
+    pub retain_mesh_data: bool,
+}
+
+#[cfg(feature = "generate_voxels")]
+impl VoxelSceneSettings {
+    fn mesh_asset_usage(self) -> RenderAssetUsages {
+        if self.retain_mesh_data {
+            RenderAssetUsages::default()
+        } else {
+            RenderAssetUsages::RENDER_WORLD
+        }
+    }
+}
+
 /// Asset collections used to inspect and modify retained voxel models.
 #[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
 #[derive(SystemParam)]
@@ -177,9 +199,9 @@ impl<'w, 's> VoxelSceneAssets<'w, 's> {
         &mut self,
         model: VoxelModel,
         palette_handle: Handle<VoxelPalette>,
-        retain_voxel_data: bool,
-        mesh_asset_usage: RenderAssetUsages,
+        settings: VoxelSceneSettings,
     ) -> Result<Handle<WorldAsset>, CreateVoxelSceneError> {
+        let mesh_asset_usage = settings.mesh_asset_usage();
         let palette = self
             .model_assets
             .palettes
@@ -202,8 +224,9 @@ impl<'w, 's> VoxelSceneAssets<'w, 's> {
             });
         let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
         let model_size = model._size().as_vec3() * model.bake_settings.voxel_size;
-        let model_source =
-            retain_voxel_data.then(|| VoxelModelSource(self.model_assets.models.add(model)));
+        let model_source = settings
+            .retain_voxel_data
+            .then(|| VoxelModelSource(self.model_assets.models.add(model)));
 
         let mut world = World::new();
         let mut root = world.spawn((
@@ -241,12 +264,12 @@ impl<'w, 's> VoxelSceneAssets<'w, 's> {
         &mut self,
         frames: I,
         palette_handle: Handle<VoxelPalette>,
-        retain_voxel_data: bool,
-        mesh_asset_usage: RenderAssetUsages,
+        settings: VoxelSceneSettings,
     ) -> Result<Handle<WorldAsset>, CreateVoxelSceneError>
     where
         I: IntoIterator<Item = VoxelModel>,
     {
+        let mesh_asset_usage = settings.mesh_asset_usage();
         let frames: Vec<_> = frames.into_iter().collect();
         if frames.is_empty() {
             return Err(CreateVoxelSceneError::EmptyAnimation);
@@ -279,7 +302,8 @@ impl<'w, 's> VoxelSceneAssets<'w, 's> {
                     });
                 let cloud_image = maybe_cloud.map(|image| self.model_assets.images.add(image));
                 let model_size = model._size().as_vec3() * model.bake_settings.voxel_size;
-                let model_source = retain_voxel_data
+                let model_source = settings
+                    .retain_voxel_data
                     .then(|| VoxelModelSource(self.model_assets.models.add(model)));
                 Ok::<_, CreateVoxelSceneError>((
                     index,
@@ -375,7 +399,7 @@ mod tests {
 
     use crate::{
         CreateVoxelSceneError, SDF, VoxBakeSettings, Voxel, VoxelModel, VoxelModelInstance,
-        VoxelModelSource, VoxelPalette, VoxelPaletteSource, VoxelSceneAssets,
+        VoxelModelSource, VoxelPalette, VoxelPaletteSource, VoxelSceneAssets, VoxelSceneSettings,
         test_support::setup_app,
     };
 
@@ -400,18 +424,12 @@ mod tests {
                 voxel_assets.create_animation(
                     std::iter::empty(),
                     palette_handle.clone(),
-                    false,
-                    bevy::asset::RenderAssetUsages::RENDER_WORLD,
+                    VoxelSceneSettings::default(),
                 ),
                 Err(CreateVoxelSceneError::EmptyAnimation)
             ));
             voxel_assets
-                .create_scene(
-                    tall_box,
-                    palette_handle,
-                    false,
-                    bevy::asset::RenderAssetUsages::RENDER_WORLD,
-                )
+                .create_scene(tall_box, palette_handle, VoxelSceneSettings::default())
                 .expect("voxel scene created")
         };
         state.apply(world);

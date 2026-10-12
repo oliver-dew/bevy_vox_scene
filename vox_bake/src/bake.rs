@@ -79,12 +79,12 @@ fn bake_surface(
     settings: &VoxBakeSettings,
 ) -> Result<BakedMeshAtlas, BakeError> {
     let quads = crate::greedy_mesh_quads(voxels, grid.dimensions);
-    let requested_ao = settings.ambient_occlusion.and_then(|ao| {
-        let intensity = sanitized_ambient_occlusion_intensity(ao.intensity);
-        (ao.depth > 0 && intensity > 0.0).then_some((ao.depth.min(8), intensity))
-    });
-    let pack_settings = match settings.texture_mode {
+    let (pack_settings, requested_ao) = match settings.texture_mode {
         VoxelTextureMode::Packed(mut pack) => {
+            let requested_ao = pack.ambient_occlusion.and_then(|ao| {
+                let intensity = sanitized_ambient_occlusion_intensity(ao.intensity);
+                (ao.depth > 0 && intensity > 0.0).then_some((ao.depth.min(8), intensity))
+            });
             if pack.mip_policy.max_lod() > 0 {
                 let mip_alignment = pack.mip_policy.alignment();
                 pack.padding = pack.padding.max(mip_alignment);
@@ -93,9 +93,9 @@ fn bake_surface(
             if requested_ao.is_some() {
                 pack.padding = pack.padding.max(1);
             }
-            Some(pack)
+            (Some(pack), requested_ao)
         }
-        VoxelTextureMode::Palette => None,
+        VoxelTextureMode::Palette => (None, None),
     };
     let ao_settings = pack_settings.and(requested_ao);
     let material_layout = match pack_settings {

@@ -21,9 +21,6 @@ pub struct VoxBakeSettings {
     /// Texture layout used by baked voxel meshes.
     #[serde(default)]
     pub texture_mode: VoxelTextureMode,
-    /// Optional voxel-residency ambient occlusion.
-    #[serde(default)]
-    pub ambient_occlusion: Option<AmbientOcclusionSettings>,
 }
 
 impl Default for VoxBakeSettings {
@@ -37,7 +34,6 @@ impl Default for VoxBakeSettings {
             uses_srgb: true,
             diffuse_roughness: 0.8,
             texture_mode: VoxelTextureMode::default(),
-            ambient_occlusion: None,
         }
     }
 }
@@ -66,7 +62,7 @@ impl Default for AmbientOcclusionSettings {
 }
 
 /// Selects the per-model texture layout used by voxel meshes.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub enum VoxelTextureMode {
     /// Merge coplanar faces regardless of color and bake their voxel data into packed islands.
     Packed(TexturePackSettings),
@@ -81,7 +77,7 @@ impl Default for VoxelTextureMode {
 }
 
 /// Controls the layout of a packed per-model texture atlas.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct TexturePackSettings {
     /// Texels added around each face island and filled by extending its edge texels.
     #[serde(default = "default_atlas_padding")]
@@ -95,6 +91,9 @@ pub struct TexturePackSettings {
     /// Optional mipmap generation. Limited mip chains increase island padding and alignment.
     #[serde(default)]
     pub mip_policy: TextureMipPolicy,
+    /// Optional voxel-residency ambient occlusion baked into a second packed atlas.
+    #[serde(default)]
+    pub ambient_occlusion: Option<AmbientOcclusionSettings>,
     /// Log atlas dimensions, occupancy, packing overhead, and geometry reduction.
     #[serde(default)]
     pub log_diagnostics: bool,
@@ -107,6 +106,7 @@ impl Default for TexturePackSettings {
             alignment: default_atlas_alignment(),
             max_dimension: default_max_atlas_dimension(),
             mip_policy: TextureMipPolicy::Disabled,
+            ambient_occlusion: None,
             log_diagnostics: false,
         }
     }

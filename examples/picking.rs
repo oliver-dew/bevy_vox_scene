@@ -1,7 +1,7 @@
-use bevy::{asset::RenderAssetUsages, prelude::*};
+use bevy::prelude::*;
 use bevy_vox_scene::{
     SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelInstance,
-    VoxelPalette, VoxelRegion, VoxelRegionMode, VoxelSceneAssets,
+    VoxelPalette, VoxelRegion, VoxelRegionMode, VoxelSceneAssets, VoxelSceneSettings,
 };
 use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
@@ -67,7 +67,14 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         Voxel(1),
     );
     let scene = voxel_assets
-        .create_scene(data, palette, true, RenderAssetUsages::default()) // bevy Pickable requires RenderAssetUsages::default()
+        .create_scene(
+            data,
+            palette,
+            VoxelSceneSettings {
+                retain_voxel_data: true,
+                retain_mesh_data: true, // we need this for picking
+            },
+        )
         .expect("voxel scene created");
     commands
         .spawn(WorldAssetRoot(scene))

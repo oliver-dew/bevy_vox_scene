@@ -97,12 +97,7 @@ fn generate_ripples(
         })
         .collect();
     let scene_root = voxel_assets
-        .create_animation(
-            models,
-            palette,
-            false,
-            bevy::asset::RenderAssetUsages::RENDER_WORLD,
-        )
+        .create_animation(models, palette, default())
         .expect("voxel animation created");
     commands.spawn((
         WorldAssetRoot(scene_root),

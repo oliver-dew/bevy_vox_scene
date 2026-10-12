@@ -85,7 +85,7 @@ pub use model::modify::{ModifyVoxelError, VoxelRegion, VoxelRegionMode};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
 #[cfg(feature = "generate_voxels")]
-pub use model::{CreateVoxelSceneError, VoxelSceneAssets};
+pub use model::{CreateVoxelSceneError, VoxelSceneAssets, VoxelSceneSettings};
 pub use model::{OutOfBoundsError, Voxel, VoxelElement, VoxelModel, VoxelPalette};
 pub use observers::VoxelInstanceReady;
 pub use vox_bake::VoxWriteError;

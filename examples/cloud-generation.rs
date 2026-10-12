@@ -111,12 +111,7 @@ fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
 
     let palette_handle = voxel_assets.add_palette(palette);
     let scene_handle = voxel_assets
-        .create_scene(
-            data,
-            palette_handle,
-            false,
-            bevy::asset::RenderAssetUsages::RENDER_WORLD,
-        )
+        .create_scene(data, palette_handle, default())
         .expect("voxel scene created");
 
     commands.spawn(WorldAssetRoot(scene_handle));

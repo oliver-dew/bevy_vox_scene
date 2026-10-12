@@ -20,7 +20,7 @@ use bevy::{
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin, VoxelInstanceReady};
 use flipbook::FlipbookPlayer;
-use vox_bake::AmbientOcclusionSettings;
+use vox_bake::{AmbientOcclusionSettings, TexturePackSettings, VoxelTextureMode};
 
 const VOXEL_SIZE: f32 = 0.1;
 const TARGET_DIST: f32 = 550. * VOXEL_SIZE;
@@ -34,8 +34,11 @@ fn main() {
                 global_settings: Some(VoxLoaderSettings {
                     voxel_size: VOXEL_SIZE,
                     diffuse_roughness: 0.95,
-                    ambient_occlusion: Some(AmbientOcclusionSettings {
-                        depth: 3,
+                    texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
+                        ambient_occlusion: Some(AmbientOcclusionSettings {
+                            depth: 3,
+                            ..default()
+                        }),
                         ..default()
                     }),
                     ..default()

@@ -29,7 +29,7 @@ normalize the residency, multiply by intensity, write to an AO texture, which, u
 ##### API and behavior
 
 - [x] Add a public, serializable `AmbientOcclusionSettings { depth: usize, intensity: f32 }` with documented defaults and export it from the crate root.
-- [x] Add `ambient_occlusion: Option<AmbientOcclusionSettings>` to `VoxLoaderSettings`, defaulting to `None` so existing scenes retain their current appearance and build cost.
+- [x] Add `ambient_occlusion: Option<AmbientOcclusionSettings>` to `TexturePackSettings`, defaulting to `None` so existing scenes retain their current appearance and build cost while palette mode cannot represent an invalid AO configuration.
 - [x] Treat depth `0` as disabled, clamp depth to a maximum of `8`, and treat negative or non-finite intensity as zero.
 - [x] Add explicit tests for zero depth, oversized depth, negative intensity, and non-finite intensity.
 - [x] Define AO output as visibility: `1.0` is fully exposed and `0.0` is fully occluded. Compute it as `1.0 - clamp(normalized_residency * intensity, 0.0, 1.0)`.

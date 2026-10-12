@@ -78,7 +78,7 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 - [x] Replace the exporter's temporary use of Bevy-side `VoxelData`, meshing, palette, naming, and transform helpers with the shared bake pipeline before moving the writer.
 - [x] Add a `vox_bake` package to the workspace with no dependency on `bevy` or `bevy_vox_scene`.
 - [x] Move engine-neutral AO, texture mode, texture packing, mip policy, and unit-offset types and defaults into `vox_bake`, with compatibility re-exports from `bevy_vox_scene`.
-- [x] Add `VoxBakeSettings` as the source of bake defaults, while keeping `retain_voxel_data` and `mesh_asset_usage` in the Bevy-specific `VoxLoaderSettings` wrapper.
+- [x] Add `VoxBakeSettings` as the source of bake defaults, while keeping `retain_voxel_data` and `retain_mesh_data` in the Bevy-specific `VoxLoaderSettings` wrapper.
 - [x] Add an owned `BakedMesh` with position, normal, UV0, optional UV1, and index arrays. Make the exporter consume it directly and convert it to a Bevy `Mesh` only at runtime adapter boundaries.
 - [x] Add `BakedImage`, explicit pixel formats, and `BakedMeshAtlas`; move palette-index and AO image data into the shared atlas result consumed by both adapters.
 - [x] Add `BakedVolume` for cloud density fields and convert it to a Bevy 3D image only in the runtime adapter; keep the GLB adapter's explicit unsupported-volume error.
@@ -104,7 +104,7 @@ A Bevy asset processor should be a later adapter over the same exporter. It woul
 - [x] Give each current output adapter an explicit unsupported-content policy. The Bevy adapter supports surface and cloud content; the GLB adapter fails on cloud volumes rather than silently omitting them.
 - [x] Preserve the existing coordinate conversion from MagicaVoxel's left-handed Z-up space to Bevy/glTF-compatible right-handed Y-up space in one well-tested place. `VoxelGrid::from_vox_model` owns the axis swap, X reflection, and padding offset, with a direct parsed-model boundary test; shared scene tests cover hold-last frame transforms.
 - [x] Make both the Bevy runtime loader and GLB exporter consume `BakedScene`. The Bevy adapter preserves runtime flipbook entities and labeled sub-scenes while the GLB adapter converts each shape track into sibling frame nodes.
-- [x] Split bake settings from Bevy runtime settings. Keep `retain_voxel_data`, `mesh_asset_usage`, and other runtime-only choices in `bevy_vox_scene`; source every shared default used by the CLI and runtime loader from `vox_bake`.
+- [x] Split bake settings from Bevy runtime settings. Keep `retain_voxel_data`, `retain_mesh_data`, and other runtime-only choices in `bevy_vox_scene`; source every shared default used by the CLI and runtime loader from `vox_bake`.
 - [x] Preserve the existing `bevy_vox_scene` settings API where practical through re-exports or conversion into `vox_bake` settings, and document any unavoidable migration.
 - [x] Keep Bevy-specific mesh, image, material, `FogVolume`, animation-entity, and asset registration work in the `bevy_vox_scene` adapter and out of `vox_bake`.
 - [x] Keep GLB buffer construction, PNG encoding, glTF material mapping, animation sibling construction, and unsupported-feature errors in the feature-gated export adapter.

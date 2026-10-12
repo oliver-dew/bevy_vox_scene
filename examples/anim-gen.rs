@@ -138,12 +138,7 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
     info!("voxel generation: {:?}", started.elapsed());
     let started = Instant::now();
     let root = voxel_assets
-        .create_animation(
-            frames,
-            palette,
-            false,
-            bevy::asset::RenderAssetUsages::RENDER_WORLD,
-        )
+        .create_animation(frames, palette, default())
         .expect("voxel animation created");
     info!("mesh generation: {:?}", started.elapsed());
     commands.insert_resource(ExplosionAsset(root));

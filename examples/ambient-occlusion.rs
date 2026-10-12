@@ -21,11 +21,11 @@ fn main() {
                 global_settings: Some(VoxLoaderSettings {
                     texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
                         log_diagnostics: true,
+                        ambient_occlusion: Some(AmbientOcclusionSettings {
+                            depth: 4,
+                            intensity: 1.0,
+                        }),
                         ..default()
-                    }),
-                    ambient_occlusion: Some(AmbientOcclusionSettings {
-                        depth: 4,
-                        intensity: 1.0,
                     }),
                     ..default()
                 }),

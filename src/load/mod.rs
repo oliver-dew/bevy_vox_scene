@@ -17,7 +17,7 @@ pub use components::{
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use vox_bake::{AmbientOcclusionSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode};
+use vox_bake::{UnitOffset, VoxBakeSettings, VoxelTextureMode};
 
 use crate::model::{VoxelModel, VoxelPalette};
 
@@ -70,18 +70,14 @@ pub struct VoxLoaderSettings {
     /// Whether source voxel data is retained for queries and runtime modification.
     #[serde(default)]
     pub retain_voxel_data: bool,
-    /// Controls where generated mesh data remains available after render extraction.
-    /// Defaults to [`RenderAssetUsages::RENDER_WORLD`]. Use
-    /// [`RenderAssetUsages::default`] when CPU-side mesh access, such as mesh picking, is needed.
-    #[serde(default = "default_mesh_asset_usage")]
-    pub mesh_asset_usage: RenderAssetUsages,
+    /// Whether generated mesh data is retained for CPU-side use, such as mesh picking or
+    /// collider generation. Defaults to false.
+    #[serde(default)]
+    pub retain_mesh_data: bool,
     /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
     /// palette atlases use less texture memory. Both modes create per-model materials.
     #[serde(default)]
     pub texture_mode: VoxelTextureMode,
-    /// Optional voxel-residency ambient occlusion baked into packed texture atlases.
-    #[serde(default)]
-    pub ambient_occlusion: Option<AmbientOcclusionSettings>,
 }
 
 impl Default for VoxLoaderSettings {
@@ -96,15 +92,18 @@ impl Default for VoxLoaderSettings {
             uses_srgb: bake.uses_srgb,
             diffuse_roughness: bake.diffuse_roughness,
             retain_voxel_data: false,
-            mesh_asset_usage: default_mesh_asset_usage(),
+            retain_mesh_data: false,
             texture_mode: bake.texture_mode,
-            ambient_occlusion: bake.ambient_occlusion,
         }
     }
 }
 
-fn default_mesh_asset_usage() -> RenderAssetUsages {
-    RenderAssetUsages::RENDER_WORLD
+fn mesh_asset_usage(retain_mesh_data: bool) -> RenderAssetUsages {
+    if retain_mesh_data {
+        RenderAssetUsages::default()
+    } else {
+        RenderAssetUsages::RENDER_WORLD
+    }
 }
 
 impl From<&VoxLoaderSettings> for VoxBakeSettings {
@@ -118,7 +117,6 @@ impl From<&VoxLoaderSettings> for VoxBakeSettings {
             uses_srgb: settings.uses_srgb,
             diffuse_roughness: settings.diffuse_roughness,
             texture_mode: settings.texture_mode,
-            ambient_occlusion: settings.ambient_occlusion,
         }
     }
 }
@@ -191,7 +189,10 @@ impl VoxSceneLoader {
                     crate::model::configure_material(&mut material, baked.average_ior, &model);
                     load_context.add_labeled_asset(
                         format!("{}@mesh", name),
-                        crate::model::mesh::to_bevy_mesh(atlas.mesh, settings.mesh_asset_usage),
+                        crate::model::mesh::to_bevy_mesh(
+                            atlas.mesh,
+                            mesh_asset_usage(settings.retain_mesh_data),
+                        ),
                     );
                     load_context.add_labeled_asset(format!("{}@material", name), material)
                 });
@@ -210,7 +211,7 @@ impl VoxSceneLoader {
                     name,
                     model,
                     retain_voxel_data: settings.retain_voxel_data,
-                    mesh_asset_usage: settings.mesh_asset_usage,
+                    mesh_asset_usage: mesh_asset_usage(settings.retain_mesh_data),
                     has_mesh,
                     has_cloud,
                 }
