@@ -10,7 +10,8 @@ use bevy_vox_scene::{
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
 
 fn main() {

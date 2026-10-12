@@ -8,7 +8,8 @@ use bevy_vox_scene::{
     AmbientOcclusionSettings, TexturePackSettings, VoxLoaderSettings, VoxScenePlugin,
     VoxelTextureMode,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Press S to toggle Screen Space Ambient Occlusion
 /// Press A to toggle Baked Ambient Occlusion

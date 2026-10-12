@@ -6,7 +6,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{VoxScenePlugin, VoxelInstanceReady};
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

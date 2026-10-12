@@ -23,11 +23,11 @@ mod tests {
             .expect("animation entity")
     }
 
-    #[async_std::test]
-    async fn test_spawn_play_animation() {
+    #[test]
+    fn test_spawn_play_animation() {
         let frame_count: usize = 4;
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox");
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
         app.add_observer(|trigger: On<VoxelInstanceReady>, mut commands: Commands| {
@@ -73,10 +73,10 @@ mod tests {
         );
     }
 
-    #[async_std::test]
-    async fn test_animation_despawns_on_finish_when_enabled() {
+    #[test]
+    fn test_animation_despawns_on_finish_when_enabled() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox");
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
@@ -103,10 +103,10 @@ mod tests {
         );
     }
 
-    #[async_std::test]
-    async fn test_animation_kept_on_finish_when_despawn_disabled() {
+    #[test]
+    fn test_animation_kept_on_finish_when_despawn_disabled() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "deer.vox");
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.update();
         app.world_mut().spawn(WorldAssetRoot(handle));

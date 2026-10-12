@@ -251,10 +251,10 @@ mod tests {
         test_support::setup_and_load_voxel_scene,
     };
 
-    #[async_std::test]
-    async fn test_load_scene() {
+    #[test]
+    fn test_load_scene() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox");
         app.update();
         let _scene = app
             .world()
@@ -269,11 +269,10 @@ mod tests {
         );
     }
 
-    #[async_std::test]
-    async fn test_load_spawn_cloud() {
+    #[test]
+    fn test_load_spawn_cloud() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud");
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
@@ -300,11 +299,10 @@ mod tests {
         assert!(app.world().get::<Mesh3d>(*entity).is_none());
     }
 
-    #[async_std::test]
-    async fn test_transmissive_mat() {
+    #[test]
+    fn test_transmissive_mat() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls");
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         let entity = app
@@ -335,11 +333,10 @@ mod tests {
         assert!(material.metallic_roughness_texture.is_none());
     }
 
-    #[async_std::test]
-    async fn test_opaque_mat() {
+    #[test]
+    fn test_opaque_mat() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice");
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         let entity = app
@@ -368,10 +365,10 @@ mod tests {
         assert!(material.metallic_roughness_texture.is_none());
     }
 
-    #[async_std::test]
-    async fn test_spawn_system() {
+    #[test]
+    fn test_spawn_system() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group");
         app.update();
 
         assert!(matches!(

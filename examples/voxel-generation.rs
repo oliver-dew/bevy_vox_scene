@@ -3,7 +3,8 @@ use bevy_vox_scene::{
     SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use libnoise::prelude::*;
-use utilities::{NoiseSampleExt, PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{NoiseSampleExt, PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

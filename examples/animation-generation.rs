@@ -10,7 +10,8 @@ use bevy_vox_scene::{
     SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelPalette, VoxelPaletteSource,
     VoxelSceneAssets,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

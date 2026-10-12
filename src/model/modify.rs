@@ -240,11 +240,10 @@ mod tests {
         test_support::setup_and_load_voxel_scene,
     };
 
-    #[async_std::test]
-    async fn test_modify_voxels() {
+    #[test]
+    fn test_modify_voxels() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice");
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
@@ -296,11 +295,10 @@ mod tests {
         assert_eq!(voxel.0, 7, "Voxel material should've been changed to 7");
     }
 
-    #[async_std::test]
-    async fn test_modify_cloud_updates_without_mesh() {
+    #[test]
+    fn test_modify_cloud_updates_without_mesh() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud");
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();

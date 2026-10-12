@@ -6,6 +6,13 @@ on:
 
 name: Publish
 
+permissions:
+    contents: read
+
+concurrency:
+    group: publish-crates
+    cancel-in-progress: false
+
 jobs:
     publish:
         name: Publish
@@ -15,7 +22,7 @@ jobs:
               uses: actions/checkout@v4
 
             - name: Cache
-              uses: actions/cache@v3
+              uses: actions/cache@v4
               with:
                 path: |
                   ~/.cargo/bin/
@@ -33,8 +40,66 @@ jobs:
 
             - name: Run cargo test
               run: cargo test --lib --verbose
-            
-            - run: cargo publish --token ${CRATES_TOKEN}
+
+            - name: Publish workspace crates
               env:
-                CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
-                
+                CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
+              shell: bash
+              run: |
+                set -euo pipefail
+
+                package_version() {
+                    cargo metadata --no-deps --format-version 1 \
+                        | jq -er --arg package "$1" \
+                            '.packages[] | select(.name == $package) | .version'
+                }
+
+                registry_has() {
+                    cargo info --registry crates-io "$1@$2" >/dev/null 2>&1
+                }
+
+                wait_for_registry() {
+                    local package="$1"
+                    local version
+                    version="$(package_version "$package")"
+
+                    echo "Waiting for $package@$version to become resolvable from crates.io"
+                    for attempt in $(seq 1 60); do
+                        if registry_has "$package" "$version"; then
+                            echo "$package@$version is available"
+                            return 0
+                        fi
+
+                        if [[ "$attempt" -eq 60 ]]; then
+                            echo "$package@$version did not appear in the crates.io index" >&2
+                            return 1
+                        fi
+
+                        sleep 10
+                    done
+                }
+
+                publish_if_missing() {
+                    local package="$1"
+                    local version
+                    version="$(package_version "$package")"
+
+                    if registry_has "$package" "$version"; then
+                        echo "Skipping $package@$version: already published"
+                        return 0
+                    fi
+
+                    cargo publish --package "$package"
+                }
+
+                # Publish packages without workspace dependencies first.
+                publish_if_missing vox_bake
+                publish_if_missing bevy_flipbook
+
+                # Published manifests resolve path-and-version dependencies from crates.io.
+                wait_for_registry vox_bake
+                wait_for_registry bevy_flipbook
+
+                # These packages can now resolve their workspace dependencies.
+                publish_if_missing bevy_vox_scene
+                publish_if_missing vox-to-gltf

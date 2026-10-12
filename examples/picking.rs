@@ -3,7 +3,8 @@ use bevy_vox_scene::{
     SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelModelInstance,
     VoxelPalette, VoxelRegion, VoxelRegionMode, VoxelSceneAssets, VoxelSceneSettings,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
 
 const VOXEL_SIZE: f32 = 0.1;

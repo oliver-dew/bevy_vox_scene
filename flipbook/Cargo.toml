@@ -1,5 +1,6 @@
 [package]
-name = "flipbook"
+name = "bevy_flipbook"
+description = "Plugin for the bevy engine for playing flipbook animations (each frame is a discrete mesh)"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -8,6 +9,9 @@ readme = "README.md"
 authors = ["Oliver Dew <olidew@gmail.com>"]
 keywords = ["bevy", "flipbook", "animation"]
 categories = ["game-development", "graphics", "rendering::data-formats"]
+
+[lib]
+name = "flipbook"
 
 [features]
 default = []
@@ -24,5 +28,4 @@ serde_json = { version = "1.0.151", optional = true }
 
 [dev-dependencies]
 bevy = { version = "0.20.0", default-features = false, features = ["3d", "dev"] }
-async-std = { version = "1.12.0", features = ["attributes"] }
 gltf = { version = "1.4.0", default-features = false, features = ["extensions", "extras", "names"] }

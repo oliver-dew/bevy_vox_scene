@@ -17,7 +17,8 @@ use bevy_vox_scene::{
     VoxelModelSource, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 use vox_bake::VoxelTextureMode;
 
 #[derive(States, Debug, Clone, Default, Hash, Eq, PartialEq)]

@@ -1,4 +1,4 @@
-workspace = { members = ["utilities", "vox-to-gltf", "vox_bake", "flipbook"] }
+workspace = { members = ["vox-to-gltf", "vox_bake", "flipbook"] }
 [package]
 name = "bevy_vox_scene"
 description = "A Bevy engine plugin for loading Magica Voxel world files and render materials directly in Bevy as a scene graph."
@@ -62,12 +62,10 @@ anyhow = "1.0.38"
 thiserror = "2.0.12"
 serde = "1.0.219"
 vox_bake = { version = "0.1.0", path = "vox_bake" }
-flipbook = { version = "0.1.0", path = "flipbook" }
+flipbook = { package = "bevy_flipbook", version = "0.1.0", path = "flipbook" }
 
 [dev-dependencies]
 bevy = { version = "0.20.0", default-features = false, features = ["3d", "dev", "pbr_transmission_textures"] }
-utilities = { path = "utilities" }
 rand = "0.9.0"
 libnoise = "1.2"
 rayon = "1.12"
-async-std = { version = "1.12.0", features = ["attributes"] }

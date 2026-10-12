@@ -112,7 +112,7 @@ fn parse_node_extras(value: &str) -> Option<VoxBakeExtras> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use super::parse_node_extras;
     use crate::{FlipbookPlayer, FlipbookPlugin, FlipbookSpeed, on_flipbook_ready};
@@ -202,8 +202,8 @@ mod tests {
         );
     }
 
-    #[async_std::test]
-    async fn spawn_play_animation() {
+    #[test]
+    fn spawn_play_animation() {
         let mut app = App::new();
         app.add_plugins((
             MinimalPlugins,
@@ -225,14 +225,15 @@ mod tests {
         let assets = app.world().resource::<AssetServer>().clone();
         let scene_handle: Handle<WorldAsset> =
             assets.load(GltfAssetLabel::Scene(0).from_asset("deer.glb"));
-        async_std::future::timeout(Duration::from_secs(5), async {
-            while !assets.is_loaded_with_dependencies(&scene_handle) {
-                app.update();
-                async_std::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("deer.glb scene should load within five seconds");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !assets.is_loaded_with_dependencies(&scene_handle) {
+            assert!(
+                Instant::now() < deadline,
+                "deer.glb scene should load within five seconds"
+            );
+            app.update();
+            std::thread::yield_now();
+        }
         // Use an observer to give the player a very fast frame rate so each
         // subsequent app update advances the animation.
         app.add_observer(

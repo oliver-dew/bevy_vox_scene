@@ -1,6 +1,7 @@
 use bevy::{core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{UnitOffset, VoxLoaderSettings, VoxScenePlugin};
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

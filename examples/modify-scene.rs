@@ -11,7 +11,8 @@ use bevy::{
 use bevy_vox_scene::VoxScenePlugin;
 use rand::Rng;
 use std::f32::consts::PI;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Uses an observer triggered by `VoxelModelInstance` being added to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
