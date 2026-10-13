@@ -54,9 +54,10 @@ impl VoxelModel {
     /// ### Returns
     /// A voxel coordinate
     pub fn local_point_to_voxel_space(&self, local_point: Vec3) -> IVec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        let voxel_position = (local_point / self.bake_settings.voxel_size) + half_extents;
-        voxel_position.as_ivec3()
+        let model_offset =
+            self.size().as_vec3() * Vec3::from(self.bake_settings.mesh_offset.to_array());
+        let voxel_position = (local_point / self.bake_settings.voxel_size) + model_offset;
+        voxel_position.floor().as_ivec3()
     }
 
     /// Converts a voxel coordinate to a point in local space
@@ -67,8 +68,9 @@ impl VoxelModel {
     /// ### Returns
     /// the point in the local space of the entity that owns this [`crate::VoxelModelInstance`]
     pub fn voxel_coord_to_local_space(&self, voxel_coord: IVec3) -> Vec3 {
-        let half_extents = self.size().as_vec3() * 0.5;
-        (voxel_coord.as_vec3() - half_extents) * self.bake_settings.voxel_size
+        let model_offset =
+            self.size().as_vec3() * Vec3::from(self.bake_settings.mesh_offset.to_array());
+        (voxel_coord.as_vec3() - model_offset) * self.bake_settings.voxel_size
     }
 
     /// If the voxel-space `point` is within the bounds of the model, it will be returned as a [`bevy::math::UVec3`].
@@ -142,7 +144,7 @@ impl BitwiseComparable for IVec3 {
 mod tests {
     use bevy::math::{IVec3, UVec3, Vec3};
 
-    use crate::{SDF, VoxBakeSettings, Voxel};
+    use crate::{SDF, UnitOffset, VoxBakeSettings, Voxel, VoxelModel};
 
     #[cfg(feature = "generate_voxels")]
     #[test]
@@ -161,6 +163,29 @@ mod tests {
         assert_eq!(
             data.local_point_to_voxel_space(Vec3::ZERO),
             IVec3::new(2, 2, 2)
+        );
+    }
+
+    #[test]
+    fn coordinate_conversion_respects_mesh_offset_and_negative_bounds() {
+        let settings = VoxBakeSettings {
+            voxel_size: 0.5,
+            mesh_offset: UnitOffset::CENTER_BASE,
+            ..Default::default()
+        };
+        let model = VoxelModel::new(UVec3::new(4, 6, 8), settings);
+
+        assert_eq!(
+            model.local_point_to_voxel_space(Vec3::ZERO),
+            IVec3::new(2, 0, 4)
+        );
+        assert_eq!(
+            model.voxel_coord_to_local_space(IVec3::ZERO),
+            Vec3::new(-1.0, 0.0, -2.0)
+        );
+        assert_eq!(
+            model.local_point_to_voxel_space(Vec3::new(-1.01, -0.01, -2.01)),
+            IVec3::new(-1, -1, -1)
         );
     }
 }

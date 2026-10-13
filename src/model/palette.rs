@@ -58,6 +58,7 @@ impl Default for VoxelElement {
 impl VoxelPalette {
     /// Create a new [`VoxelPalette`] from the supplied [`VoxelElement`]s
     pub fn new(mut elements: Vec<VoxelElement>, uses_srgb: bool) -> Self {
+        elements.truncate(256);
         elements.resize_with(256, VoxelElement::default);
         let materials = elements
             .iter()
@@ -605,6 +606,14 @@ mod tests {
     };
     use std::collections::HashMap;
     use vox_bake::{BakedImage, BakedPixelFormat};
+
+    #[test]
+    fn palette_discards_entries_beyond_vox_capacity() {
+        let palette = VoxelPalette::new(vec![VoxelElement::default(); 257], true);
+
+        assert_eq!(palette.elements.len(), 256);
+        assert_eq!(palette.baked.materials.len(), 256);
+    }
 
     #[test]
     fn ambient_occlusion_uses_a_linear_r8_texture() {

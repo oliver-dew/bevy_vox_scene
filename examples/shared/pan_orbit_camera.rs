@@ -91,11 +91,7 @@ fn pan_orbit_camera(
             let window = get_primary_window_size(&window_query);
             let delta_x = {
                 let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
-                if pan_orbit.upside_down {
-                    -delta
-                } else {
-                    delta
-                }
+                if pan_orbit.upside_down { -delta } else { delta }
             };
             let delta_y = rotation_move.y / window.y * std::f32::consts::PI;
             let yaw = Quat::from_rotation_y(-delta_x);

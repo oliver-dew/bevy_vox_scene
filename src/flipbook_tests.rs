@@ -45,7 +45,7 @@ mod tests {
             FlipbookPlayer::from_frame_count(frame_count),
             FlipbookSpeed(Duration::from_millis(1)),
         ));
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(2)));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(1)));
         app.update();
         assert!(
             app.world().get::<TaggedAnimationRoot>(entity).is_some(),

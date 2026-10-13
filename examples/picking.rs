@@ -5,7 +5,7 @@ use bevy_vox_scene::{
 };
 mod shared;
 use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
-use vox_bake::VoxelTextureMode;
+use vox_bake::{AmbientOcclusionSettings, TexturePackSettings, VoxelTextureMode};
 
 const VOXEL_SIZE: f32 = 0.1;
 const BRUSH_RADIUS: i32 = 4;
@@ -62,7 +62,10 @@ fn spawn_voxels(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
         UVec3::splat(48),
         VoxBakeSettings {
             voxel_size: VOXEL_SIZE,
-            texture_mode: VoxelTextureMode::Palette, // makes remeshing quicker
+            texture_mode: VoxelTextureMode::Packed(TexturePackSettings {
+                ambient_occlusion: Some(AmbientOcclusionSettings::default()),
+                ..default()
+            }),
             ..default()
         },
         Voxel(1),

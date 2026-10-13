@@ -124,36 +124,61 @@ impl FlipbookPlayer {
         if self.is_paused || self.frames.is_empty() {
             return FlipbookUpdate::SameFrame;
         }
-        if let FlipbookRepeatMode::Count(end_count) = repeat_mode
+        if let FlipbookRepeatMode::Count(end_count)
+        | FlipbookRepeatMode::DespawnAfterCount(end_count) = repeat_mode
             && self.timer.play_count >= *end_count
         {
             return FlipbookUpdate::ReachedEnd;
         }
         self.timer.stopwatch.tick(delta);
-        if self.timer.stopwatch.elapsed() > speed.0 {
-            self.timer.current_frame_index += 1;
-            if self.timer.current_frame_index == self.frames.len() {
-                match repeat_mode {
-                    FlipbookRepeatMode::Count(end_count)
-                    | FlipbookRepeatMode::DespawnAfterCount(end_count) => {
-                        self.timer.play_count += 1;
-                        if self.timer.play_count >= *end_count {
-                            return FlipbookUpdate::ReachedEnd;
-                        } else {
-                            self.timer.current_frame_index = 0;
-                        }
-                    }
-                    FlipbookRepeatMode::Forever => {
-                        self.timer.play_count += 1;
-                        self.timer.current_frame_index = 0;
-                    }
-                }
-            }
-            self.timer.stopwatch.reset();
-            return FlipbookUpdate::AdvanceFrame(self.frames[self.timer.current_frame_index]);
+        let elapsed = self.timer.stopwatch.elapsed();
+        let steps = if speed.0.is_zero() {
+            u128::from(!elapsed.is_zero())
+        } else {
+            elapsed.as_nanos() / speed.0.as_nanos()
+        };
+        if steps == 0 {
+            return FlipbookUpdate::SameFrame;
         }
-        FlipbookUpdate::SameFrame
+        let remainder = if speed.0.is_zero() {
+            Duration::ZERO
+        } else {
+            duration_from_nanos(elapsed.as_nanos() % speed.0.as_nanos())
+        };
+        self.timer.stopwatch.set_elapsed(remainder);
+
+        let frame_count = self.frames.len() as u128;
+        if let FlipbookRepeatMode::Count(end_count)
+        | FlipbookRepeatMode::DespawnAfterCount(end_count) = repeat_mode
+        {
+            let remaining_plays = end_count.saturating_sub(self.timer.play_count) as u128;
+            let steps_until_end = remaining_plays
+                .saturating_mul(frame_count)
+                .saturating_sub(self.timer.current_frame_index as u128);
+            if steps >= steps_until_end {
+                self.timer.play_count = *end_count;
+                self.timer.current_frame_index = self.frames.len() - 1;
+                return FlipbookUpdate::ReachedEnd;
+            }
+        }
+
+        let next = self.timer.current_frame_index as u128 + steps;
+        let completed_plays = next / frame_count;
+        self.timer.current_frame_index = (next % frame_count) as usize;
+        self.timer.play_count = self
+            .timer
+            .play_count
+            .saturating_add(completed_plays.min(u32::MAX as u128) as u32);
+        FlipbookUpdate::AdvanceFrame(self.frames[self.timer.current_frame_index])
     }
+}
+
+fn duration_from_nanos(nanos: u128) -> Duration {
+    const NANOS_PER_SECOND: u128 = 1_000_000_000;
+    Duration::new(
+        (nanos / NANOS_PER_SECOND) as u64,
+        (nanos % NANOS_PER_SECOND) as u32,
+    )
 }
 
 /// A frame of a flipbook animation, the parameter is its index. Must have an immediate parent with a [`FlipbookPlayer`].
@@ -232,10 +257,43 @@ mod tests {
         let mut player = FlipbookPlayer::new(vec![3, 7]);
 
         let update = player.did_advance_frame(
-            Duration::from_millis(10),
+            Duration::from_millis(1),
             &FlipbookRepeatMode::Count(2),
             &FlipbookSpeed(Duration::from_millis(1)),
         );
         assert!(matches!(update, FlipbookUpdate::AdvanceFrame(7)));
+    }
+
+    #[test]
+    fn exact_frame_duration_advances() {
+        let mut player = FlipbookPlayer::from_frame_count(3);
+
+        let update = player.did_advance_frame(
+            Duration::from_millis(100),
+            &FlipbookRepeatMode::Forever,
+            &FlipbookSpeed(Duration::from_millis(100)),
+        );
+
+        assert!(matches!(update, FlipbookUpdate::AdvanceFrame(1)));
+    }
+
+    #[test]
+    fn long_updates_advance_multiple_frames_and_preserve_remainder() {
+        let mut player = FlipbookPlayer::from_frame_count(4);
+        let speed = FlipbookSpeed(Duration::from_millis(100));
+
+        let first = player.did_advance_frame(
+            Duration::from_millis(350),
+            &FlipbookRepeatMode::Forever,
+            &speed,
+        );
+        let second = player.did_advance_frame(
+            Duration::from_millis(50),
+            &FlipbookRepeatMode::Forever,
+            &speed,
+        );
+
+        assert!(matches!(first, FlipbookUpdate::AdvanceFrame(3)));
+        assert!(matches!(second, FlipbookUpdate::AdvanceFrame(0)));
     }
 }

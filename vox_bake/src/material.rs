@@ -118,6 +118,7 @@ pub struct BakedPalette {
 impl BakedPalette {
     /// Construct a complete palette and derive its classification lookup tables.
     pub fn new(mut materials: Vec<BakedMaterial>, uses_srgb: bool) -> Self {
+        materials.truncate(256);
         materials.resize_with(256, BakedMaterial::default);
         let indices_of_refraction = materials
             .iter()
@@ -265,6 +266,20 @@ mod tests {
         assert_eq!(palette.density_for_voxel[1], Some(0.75));
         assert_eq!(palette.indices_of_refraction[1], None);
         assert_eq!(palette.density_for_voxel[0], None);
+    }
+
+    #[test]
+    fn palette_discards_entries_beyond_vox_capacity() {
+        let mut materials = vec![BakedMaterial::default(); 257];
+        materials[255].roughness = 0.25;
+        materials[256].roughness = 0.75;
+
+        let palette = BakedPalette::new(materials, true);
+
+        assert_eq!(palette.materials.len(), 256);
+        assert_eq!(palette.materials[255].roughness, 0.25);
+        assert_eq!(palette.indices_of_refraction.len(), 256);
+        assert_eq!(palette.density_for_voxel.len(), 256);
     }
 
     #[test]

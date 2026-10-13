@@ -127,6 +127,7 @@ mod tests {
         mesh::MeshPlugin,
         pbr::{MaterialPlugin, StandardMaterial},
         prelude::{Add, On, Visibility},
+        time::TimeUpdateStrategy,
         world_serialization::{WorldAsset, WorldAssetRoot, WorldSerializationPlugin},
     };
 
@@ -243,6 +244,7 @@ mod tests {
                     .insert(FlipbookSpeed(Duration::from_millis(1)));
             },
         );
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(1)));
         let _scene_root = app
             .world_mut()
             .spawn(WorldAssetRoot(scene_handle))

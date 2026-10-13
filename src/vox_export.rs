@@ -13,10 +13,17 @@ pub fn export_voxel_animation_to_vox(
     frames: &[VoxelModel],
     palette: &VoxelPalette,
 ) -> Result<Vec<u8>, vox_bake::VoxWriteError> {
-    let mesh_offset = frames
-        .first()
-        .map(|frame| &frame.bake_settings.mesh_offset)
-        .unwrap_or(&vox_bake::UnitOffset::CENTER);
+    let Some(mesh_offset) = frames.first().map(|frame| &frame.bake_settings.mesh_offset) else {
+        return Err(vox_bake::VoxWriteError::EmptyAnimation);
+    };
+    if let Some((frame, _)) = frames
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|(_, model)| model.bake_settings.mesh_offset != *mesh_offset)
+    {
+        return Err(vox_bake::VoxWriteError::AnimationSettingsMismatch { frame });
+    }
     vox_bake::export_animation_to_vox_with_offset(
         frames.iter().map(|frame| &frame.grid),
         &palette.baked,
@@ -56,5 +63,36 @@ mod tests {
         let decoded = vox_bake::source::parse_vox(&bytes).unwrap();
 
         assert_eq!(decoded.models.len(), 2);
+    }
+
+    #[test]
+    fn rejects_empty_animation() {
+        let palette = VoxelPalette::from_colors(Vec::new(), true);
+
+        let error = export_voxel_animation_to_vox(&[], &palette).unwrap_err();
+
+        assert!(matches!(error, vox_bake::VoxWriteError::EmptyAnimation));
+    }
+
+    #[test]
+    fn rejects_animation_with_mismatched_mesh_offsets() {
+        let frames = [
+            VoxelModel::new(UVec3::ONE, VoxBakeSettings::default()),
+            VoxelModel::new(
+                UVec3::ONE,
+                VoxBakeSettings {
+                    mesh_offset: vox_bake::UnitOffset::CENTER_BASE,
+                    ..Default::default()
+                },
+            ),
+        ];
+        let palette = VoxelPalette::from_colors(Vec::new(), true);
+
+        let error = export_voxel_animation_to_vox(&frames, &palette).unwrap_err();
+
+        assert!(matches!(
+            error,
+            vox_bake::VoxWriteError::AnimationSettingsMismatch { frame: 1 }
+        ));
     }
 }

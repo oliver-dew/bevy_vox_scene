@@ -61,7 +61,7 @@ pub struct VoxLoaderSettings {
     /// Amount that the vertex positions of the mesh will be offset described as unit of their size.
     /// Defaults to [`UnitOffset::CENTER`] the center of the model, as this is where MagicaVoxel places the origin in its world editor
     pub mesh_offset: UnitOffset,
-    /// Multiplier for emissive strength. Defaults to 10.0.
+    /// Multiplier for emissive strength. Defaults to 20.0.
     pub emission_strength: f32,
     /// Defaults to `true` to more accurately reflect the colours in Magica Voxel.
     pub uses_srgb: bool,

@@ -12,6 +12,11 @@ use crate::{BakedMaterial, BakedPalette, RawVoxel, UnitOffset, VoxelGrid};
 pub enum VoxWriteError {
     /// A generated animation contained no frames.
     EmptyAnimation,
+    /// A generated animation frame uses settings incompatible with the first frame.
+    AnimationSettingsMismatch {
+        /// Zero-based index of the incompatible frame.
+        frame: usize,
+    },
     /// MagicaVoxel stores each voxel coordinate in one byte.
     DimensionTooLarge {
         /// Axis in the engine-independent XYZ grid.
@@ -31,6 +36,10 @@ impl fmt::Display for VoxWriteError {
             Self::EmptyAnimation => {
                 formatter.write_str("voxel animation requires at least one frame")
             }
+            Self::AnimationSettingsMismatch { frame } => write!(
+                formatter,
+                "voxel animation frame {frame} uses incompatible settings"
+            ),
             Self::DimensionTooLarge { axis, size } => write!(
                 formatter,
                 "voxel model dimension {size} on axis {axis} exceeds the VOX limit of 256"

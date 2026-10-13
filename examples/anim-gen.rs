@@ -8,7 +8,8 @@ use bevy::{
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelInstanceReady, VoxelModel, VoxelPalette, VoxelSceneAssets, export_voxel_animation_to_vox,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelInstanceReady, VoxelModel,
+    VoxelPalette, VoxelSceneAssets, export_voxel_animation_to_vox,
 };
 use flipbook::{FlipbookRepeatMode, FlipbookSpeed};
 use libnoise::prelude::*;
@@ -138,8 +139,10 @@ fn generate_animation(mut commands: Commands, mut voxel_assets: VoxelSceneAssets
         .collect();
     info!("voxel generation: {:?}", started.elapsed());
     if let Some(export_path) = std::env::args().nth(1) {
-        let bytes = export_voxel_animation_to_vox(&frames, &palette).unwrap_or_else(|error| panic!("failed to export {export_path}: {error}"));
-        std::fs::write(export_path, bytes).unwrap_or_else(|error| panic!("failed to write glb: {error}"));
+        let bytes = export_voxel_animation_to_vox(&frames, &palette)
+            .unwrap_or_else(|error| panic!("failed to export {export_path}: {error}"));
+        std::fs::write(export_path, bytes)
+            .unwrap_or_else(|error| panic!("failed to write glb: {error}"));
     }
     let started = Instant::now();
     let root = voxel_assets
