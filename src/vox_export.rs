@@ -13,7 +13,15 @@ pub fn export_voxel_animation_to_vox(
     frames: &[VoxelModel],
     palette: &VoxelPalette,
 ) -> Result<Vec<u8>, vox_bake::VoxWriteError> {
-    vox_bake::export_animation_to_vox(frames.iter().map(|frame| &frame.grid), &palette.baked)
+    let mesh_offset = frames
+        .first()
+        .map(|frame| &frame.bake_settings.mesh_offset)
+        .unwrap_or(&vox_bake::UnitOffset::CENTER);
+    vox_bake::export_animation_to_vox_with_offset(
+        frames.iter().map(|frame| &frame.grid),
+        &palette.baked,
+        mesh_offset,
+    )
 }
 
 #[cfg(test)]

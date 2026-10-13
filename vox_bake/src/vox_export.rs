@@ -5,7 +5,7 @@ use dot_vox::{
     ShapeModel, Size, Voxel,
 };
 
-use crate::{BakedMaterial, BakedPalette, RawVoxel, VoxelGrid};
+use crate::{BakedMaterial, BakedPalette, RawVoxel, UnitOffset, VoxelGrid};
 
 /// An error encountered while exporting a voxel grid to MagicaVoxel format.
 #[derive(Debug)]
@@ -64,24 +64,46 @@ pub fn export_model_to_vox(
     grid: &VoxelGrid,
     palette: &BakedPalette,
 ) -> Result<Vec<u8>, VoxWriteError> {
-    export_animation_to_vox(std::iter::once(grid), palette)
+    export_animation_to_vox_with_offset(std::iter::once(grid), palette, &UnitOffset::ZERO)
 }
 
 /// Export engine-independent voxel grids as a MagicaVoxel shape animation.
 ///
-/// Every grid becomes one model frame, in iterator order. Frame indices are written to the shape
-/// node; playback rate is not represented by the VOX format.
+/// Frames are aligned around their centers. Use [`export_animation_to_vox_with_offset`] to select
+/// another alignment.
 pub fn export_animation_to_vox<'a>(
     grids: impl IntoIterator<Item = &'a VoxelGrid>,
     palette: &BakedPalette,
 ) -> Result<Vec<u8>, VoxWriteError> {
-    let models = grids
-        .into_iter()
-        .map(vox_model)
-        .collect::<Result<Vec<_>, _>>()?;
-    if models.is_empty() {
+    export_animation_to_vox_with_offset(grids, palette, &UnitOffset::CENTER)
+}
+
+/// Export engine-independent voxel grids as a MagicaVoxel shape animation with an explicit origin.
+///
+/// Every grid becomes one model frame, in iterator order. Frames are placed in a common-sized
+/// voxel canvas using `mesh_offset`, because MagicaVoxel shape animation frames share one
+/// transform. Frame indices are written to the shape node; playback rate is not represented by
+/// the VOX format.
+pub fn export_animation_to_vox_with_offset<'a>(
+    grids: impl IntoIterator<Item = &'a VoxelGrid>,
+    palette: &BakedPalette,
+    mesh_offset: &UnitOffset,
+) -> Result<Vec<u8>, VoxWriteError> {
+    let grids = grids.into_iter().collect::<Vec<_>>();
+    if grids.is_empty() {
         return Err(VoxWriteError::EmptyAnimation);
     }
+    let common_dimensions = std::array::from_fn(|axis| {
+        grids
+            .iter()
+            .map(|grid| grid.model_dimensions[axis])
+            .max()
+            .unwrap_or_default()
+    });
+    let models = grids
+        .into_iter()
+        .map(|grid| vox_model_in_canvas(grid, common_dimensions, mesh_offset))
+        .collect::<Result<Vec<_>, _>>()?;
     let animated = models.len() > 1;
     let shape_models = (0..models.len())
         .map(|index| {
@@ -115,10 +137,20 @@ pub fn export_animation_to_vox<'a>(
                 attributes: Dict::new(),
                 frames: vec![Frame::default()],
                 child: 1,
+                layer_id: u32::MAX,
+            },
+            SceneNode::Group {
+                attributes: Dict::new(),
+                children: vec![2],
+            },
+            SceneNode::Transform {
+                attributes: Dict::new(),
+                frames: vec![Frame::new(Dict::from([("_t".into(), "0 0 0".into())]))],
+                child: 3,
                 layer_id: 0,
             },
             SceneNode::Shape {
-                attributes: Dict::new(),
+                attributes: Dict::from([("_frm_id".into(), "0".into())]),
                 models: shape_models,
             },
         ],
@@ -131,7 +163,11 @@ pub fn export_animation_to_vox<'a>(
     Ok(bytes)
 }
 
-fn vox_model(grid: &VoxelGrid) -> Result<Model, VoxWriteError> {
+fn vox_model_in_canvas(
+    grid: &VoxelGrid,
+    canvas_dimensions: [u32; 3],
+    mesh_offset: &UnitOffset,
+) -> Result<Model, VoxWriteError> {
     for (axis, size) in grid.model_dimensions.into_iter().enumerate() {
         if size > 256 {
             return Err(VoxWriteError::DimensionTooLarge { axis, size });
@@ -148,7 +184,24 @@ fn vox_model(grid: &VoxelGrid) -> Result<Model, VoxWriteError> {
         return Err(VoxWriteError::InvalidGrid);
     }
 
+    for (axis, size) in canvas_dimensions.into_iter().enumerate() {
+        if size > 256 {
+            return Err(VoxWriteError::DimensionTooLarge { axis, size });
+        }
+    }
+
     let [size_x, size_y, size_z] = grid.model_dimensions;
+    let [canvas_x, canvas_y, canvas_z] = canvas_dimensions;
+    let alignment = mesh_offset.to_array();
+    let canvas_offset: [u32; 3] = std::array::from_fn(|axis| {
+        let available = canvas_dimensions[axis] - grid.model_dimensions[axis];
+        let proportion = if alignment[axis].is_finite() {
+            alignment[axis].clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        (available as f32 * proportion).round() as u32
+    });
     let leading_padding = grid.padding / 2;
     let mut voxels = Vec::new();
     for x in 0..size_x {
@@ -165,10 +218,15 @@ fn vox_model(grid: &VoxelGrid) -> Result<Model, VoxWriteError> {
                 if *voxel == RawVoxel::EMPTY {
                     continue;
                 }
+                let destination = [
+                    x + canvas_offset[0],
+                    y + canvas_offset[1],
+                    z + canvas_offset[2],
+                ];
                 voxels.push(Voxel {
-                    x: (size_x - 1 - x) as u8,
-                    y: z as u8,
-                    z: y as u8,
+                    x: (canvas_x - 1 - destination[0]) as u8,
+                    y: destination[2] as u8,
+                    z: destination[1] as u8,
                     i: voxel.0,
                 });
             }
@@ -177,9 +235,9 @@ fn vox_model(grid: &VoxelGrid) -> Result<Model, VoxWriteError> {
 
     Ok(Model {
         size: Size {
-            x: size_x,
-            y: size_z,
-            z: size_y,
+            x: canvas_x,
+            y: canvas_z,
+            z: canvas_y,
         },
         voxels,
     })
@@ -239,8 +297,10 @@ fn vox_material(index: usize, material: &BakedMaterial) -> Material {
 
 #[cfg(test)]
 mod tests {
-    use super::{VoxWriteError, export_animation_to_vox, export_model_to_vox};
-    use crate::{BakedMaterial, BakedPalette, RawVoxel, VoxelGrid};
+    use dot_vox::{Size, Voxel};
+
+    use super::{VoxWriteError, export_animation_to_vox_with_offset, export_model_to_vox};
+    use crate::{BakedMaterial, BakedPalette, RawVoxel, UnitOffset, VoxelGrid};
 
     #[test]
     fn exported_model_round_trips_coordinates_and_palette_indices() {
@@ -289,7 +349,7 @@ mod tests {
         assert_eq!(glass.material_type(), Some("_glass"));
         assert_eq!(glass.roughness(), Some(0.25));
         assert_eq!(glass.transparency(), Some(0.6));
-        assert_eq!(decoded.scenes.len(), 2);
+        assert_eq!(decoded.scenes.len(), 4);
     }
 
     #[test]
@@ -309,13 +369,33 @@ mod tests {
         let second = VoxelGrid::empty([2, 1, 1], true);
         let palette = BakedPalette::new(Vec::new(), true);
 
-        let bytes = export_animation_to_vox([&first, &second], &palette).unwrap();
+        let bytes =
+            export_animation_to_vox_with_offset([&first, &second], &palette, &UnitOffset::CENTER)
+                .unwrap();
         let decoded = dot_vox::load_bytes(&bytes).unwrap();
-        let dot_vox::SceneNode::Shape { models, .. } = &decoded.scenes[1] else {
-            panic!("second scene node should be the animated shape");
+        let dot_vox::SceneNode::Transform {
+            child, layer_id, ..
+        } = &decoded.scenes[0]
+        else {
+            panic!("first scene node should be the root transform");
+        };
+        assert_eq!((*child, *layer_id), (1, u32::MAX));
+        let dot_vox::SceneNode::Group { children, .. } = &decoded.scenes[1] else {
+            panic!("second scene node should be the root group");
+        };
+        assert_eq!(children, &[2]);
+        let dot_vox::SceneNode::Transform { child, frames, .. } = &decoded.scenes[2] else {
+            panic!("third scene node should be the model transform");
+        };
+        assert_eq!(*child, 3);
+        assert_eq!(frames[0].position(), Some((0, 0, 0).into()));
+        let dot_vox::SceneNode::Shape { attributes, models } = &decoded.scenes[3] else {
+            panic!("fourth scene node should be the animated shape");
         };
 
         assert_eq!(decoded.models.len(), 2);
+        assert!(decoded.models.iter().all(|model| model.size.x == 2));
+        assert_eq!(attributes.get("_frm_id").map(String::as_str), Some("0"));
         assert_eq!(models.len(), 2);
         assert_eq!(models[0].frame_index(), Some(0));
         assert_eq!(models[1].frame_index(), Some(1));
@@ -325,8 +405,35 @@ mod tests {
     fn rejects_empty_animations() {
         let palette = BakedPalette::new(Vec::new(), true);
         assert!(matches!(
-            export_animation_to_vox(std::iter::empty(), &palette),
+            export_animation_to_vox_with_offset(std::iter::empty(), &palette, &UnitOffset::CENTER),
             Err(VoxWriteError::EmptyAnimation)
         ));
+    }
+
+    #[test]
+    fn animation_frames_share_a_centered_canvas() {
+        let mut small = VoxelGrid::empty([1, 1, 1], false);
+        small.voxels[0] = RawVoxel(1);
+        let mut large = VoxelGrid::empty([3, 3, 3], false);
+        let large_origin = large.linearize([0, 0, 0]);
+        large.voxels[large_origin] = RawVoxel(1);
+        let palette = BakedPalette::new(Vec::new(), true);
+
+        let bytes =
+            export_animation_to_vox_with_offset([&small, &large], &palette, &UnitOffset::CENTER)
+                .unwrap();
+        let decoded = dot_vox::load_bytes(&bytes).unwrap();
+
+        assert_eq!(decoded.models[0].size, Size { x: 3, y: 3, z: 3 });
+        assert_eq!(decoded.models[1].size, Size { x: 3, y: 3, z: 3 });
+        assert_eq!(
+            decoded.models[0].voxels[0],
+            Voxel {
+                x: 1,
+                y: 1,
+                z: 1,
+                i: 1,
+            }
+        );
     }
 }
