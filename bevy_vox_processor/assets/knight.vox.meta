@@ -1,0 +1,16 @@
+(
+    meta_format_version: "1.0",
+    asset: Process(
+        processor: "VoxToGlbProcessor",
+        settings: (
+            voxel_size: 0.1,
+            emission_strength: 300.0,
+            texture_mode: Packed((
+                ambient_occlusion: Some((
+                    depth: 3,
+                    intensity: 1.0,
+                )),
+            )),
+        ),
+    ),
+)

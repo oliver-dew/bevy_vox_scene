@@ -1446,7 +1446,7 @@ mod tests {
 
     #[test]
     fn exports_emission_for_flipbook_frames_using_emit_material_weight() {
-        let bytes = fixture("torch.vox");
+        let bytes = fixture("explosion.vox");
         let settings = VoxBakeSettings::default();
         let source = crate::source::parse_vox(&bytes).unwrap();
         let scene = crate::bake_scene(&source, &settings).unwrap();
@@ -1463,7 +1463,7 @@ mod tests {
                 })
             })
             .count();
-        assert_eq!(emissive_models, 4);
+        assert_eq!(emissive_models, 10);
 
         let export = export_vox_to_glb(&bytes, &settings).unwrap();
         let gltf = validate_glb(&export.bytes);
@@ -1471,7 +1471,7 @@ mod tests {
             gltf.materials()
                 .filter(|material| material.emissive_texture().is_some())
                 .count(),
-            4
+            10
         );
     }
 

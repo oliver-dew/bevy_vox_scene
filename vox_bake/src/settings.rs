@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Settings that affect engine-independent voxel baking output.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
 pub struct VoxBakeSettings {
     /// Timeline rate used for MagicaVoxel transform frame indices.
     #[serde(default = "default_animation_frames_per_second")]

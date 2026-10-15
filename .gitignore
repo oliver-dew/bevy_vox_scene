@@ -1,6 +1,6 @@
 /target
+/bevy_vox_processor/imported_assets
 /node_modules
-Cargo.lock
 .DS_Store
 lcov.info
 .idea

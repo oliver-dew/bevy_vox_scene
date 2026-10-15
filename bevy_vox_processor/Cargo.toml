@@ -1,0 +1,21 @@
+[package]
+name = "bevy_vox_processor"
+description = "A plugin for the bevy engine that vends an asset processor for converting Magica Voxel vox files to glb format"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Utsira/bevy_vox_scene"
+readme = "README.md"
+authors = ["Oliver Dew <olidew@gmail.com>"]
+keywords = ["bevy", "voxel", "processor"]
+categories = ["game-development", "graphics", "rendering::data-formats"]
+
+[dependencies]
+vox_bake = { version = "0.1", path = "../vox_bake", features = ["gltf"] }
+bevy = {
+    workspace = true,
+    features = ["bevy_asset", "bevy_gltf", "asset_processor"]
+}
+
+[dev-dependencies]
+bevy = { workspace = true, features = ["3d", "dev"] }

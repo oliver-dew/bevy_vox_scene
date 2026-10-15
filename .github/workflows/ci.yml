@@ -51,6 +51,9 @@ jobs:
       - name: Run tests
         run: cargo tarpaulin --ignore-tests --out Xml
 
+      - name: Test workspace
+        run: cargo test --workspace --lib --locked
+
       - name: Run exporter tests
         run: cargo test -p bevy_vox_scene --lib --features export export::tests
 

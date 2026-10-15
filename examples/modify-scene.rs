@@ -79,11 +79,7 @@ fn on_spawn_voxel_instance(
     let name = model_query.get(trigger.entity).unwrap().as_str();
     match name {
         "tank/black-light" => {
-            entity_commands.insert(EmissiveToggle {
-                is_on: true,
-                emissive_texture: None,
-                emissive: LinearRgba::BLACK,
-            });
+            entity_commands.insert(BlackLight);
         }
         "tank/goldfish" | "tank/tetra" => {
             // Make fish go brrrrr
@@ -96,19 +92,23 @@ fn on_spawn_voxel_instance(
 
 fn toggle_black_light(
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&MeshMaterial3d<StandardMaterial>, &mut EmissiveToggle)>,
+    material_handle: Single<&MeshMaterial3d<StandardMaterial>, With<BlackLight>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut cached_emissive: Local<Option<LinearRgba>>,
 ) {
     if keys.get_just_pressed().next().is_none() {
         return;
     };
-    let Ok((material_handle, mut emissive_toggle)) = query.single_mut() else {
+    let Some(mut material) = materials.get_mut(&material_handle.0) else {
         return;
     };
-    let Some(mut material) = materials.get_mut(material_handle) else {
-        return;
-    };
-    emissive_toggle.toggle(&mut material);
+    if let Some(cached) = *cached_emissive {
+        material.emissive = cached;
+        *cached_emissive = None;
+    } else {
+        *cached_emissive = Some(material.emissive);
+        material.emissive = LinearRgba::BLACK;
+    }
 }
 
 fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
@@ -132,27 +132,8 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
 }
 
 // Components
-
-#[derive(Component)]
-struct EmissiveToggle {
-    is_on: bool,
-    emissive_texture: Option<Handle<Image>>,
-    emissive: LinearRgba,
-}
-
-impl EmissiveToggle {
-    fn toggle(&mut self, material: &mut StandardMaterial) {
-        if self.is_on {
-            self.emissive_texture = material.emissive_texture.take();
-            self.emissive = material.emissive;
-            material.emissive = LinearRgba::BLACK;
-        } else {
-            material.emissive_texture = self.emissive_texture.clone();
-            material.emissive = self.emissive;
-        }
-        self.is_on = !self.is_on;
-    }
-}
-
 #[derive(Component)]
 struct Fish(f32);
+
+#[derive(Component)]
+struct BlackLight;

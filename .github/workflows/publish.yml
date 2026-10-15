@@ -38,11 +38,8 @@ jobs:
             - name: Install Dependencies
               run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
-            - name: Run cargo test
-              run: |
-                cargo test --lib --verbose
-                cargo test --lib -p bevy_flipbook
-                cargo test --lib -p vox_bake
+            - name: Run cargo tests
+              run: cargo test --workspace --lib --locked
 
             - name: Publish workspace crates
               env:
@@ -104,5 +101,6 @@ jobs:
                 wait_for_registry bevy_flipbook
 
                 # These packages can now resolve their workspace dependencies.
+                publish_if_missing bevy_vox_processor
                 publish_if_missing bevy_vox_scene
                 publish_if_missing vox-to-gltf

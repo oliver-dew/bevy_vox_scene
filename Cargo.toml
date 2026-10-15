@@ -1,4 +1,15 @@
-workspace = { members = ["vox-to-gltf", "vox_bake", "flipbook"] }
+[workspace]
+resolver = "3"
+members = [
+    "bevy_vox_processor",
+    "flipbook",
+    "vox_bake",
+    "vox-to-gltf",
+]
+
+[workspace.dependencies]
+bevy = { version = "0.20.0", default-features = false }
+
 [package]
 name = "bevy_vox_scene"
 description = "A Bevy engine plugin for loading Magica Voxel world files and render materials directly in Bevy as a scene graph."
@@ -10,9 +21,14 @@ repository = "https://github.com/Utsira/bevy_vox_scene"
 authors = ["Oliver Dew <olidew@gmail.com>"]
 edition = "2024"
 readme = "README.md"
-exclude = ["assets/*"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+include = [
+    "src/**",
+    "examples/**",
+    "Cargo.toml",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE",
+]
 
 [profile.dev]
 opt-level = 1
@@ -32,22 +48,9 @@ webgl2 = ["bevy/webgl2"]
 webgpu = []
 export = ["vox_bake/gltf"]
 
-[[example]]
-name = "modify-voxels"
-required-features = ["modify_voxels"]
-
-[[example]]
-name = "voxel-collisions"
-required-features = ["modify_voxels"]
-
-[[example]]
-name = "voxel-generation"
-required-features = ["generate_voxels"]
-
 [dependencies]
 bevy = {
-    version = "0.20.0",
-    default-features = false,
+    workspace = true,
     features = [
         "bevy_render",
         "bevy_world_serialization",
@@ -65,7 +68,7 @@ vox_bake = { version = "0.1.0", path = "vox_bake" }
 flipbook = { package = "bevy_flipbook", version = "0.1.0", path = "flipbook" }
 
 [dev-dependencies]
-bevy = { version = "0.20.0", default-features = false, features = ["3d", "dev", "pbr_transmission_textures"] }
+bevy = { workspace = true, features = ["3d", "dev", "pbr_transmission_textures"] }
 rand = "0.9.0"
 libnoise = "1.2"
 rayon = "1.12"
