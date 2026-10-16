@@ -451,12 +451,13 @@ impl GltfWriter {
 
         let (min, max) = bounds(positions);
         let position_accessor =
-            self.add_f32_accessor(positions, json::accessor::Type::Vec3, Some((min, max)));
-        let normal_accessor = self.add_f32_accessor(normals, json::accessor::Type::Vec3, None);
-        let uv_accessor = self.add_f32_accessor(uvs, json::accessor::Type::Vec2, None);
+            self.add_vertex_f32_accessor(positions, json::accessor::Type::Vec3, Some((min, max)));
+        let normal_accessor =
+            self.add_vertex_f32_accessor(normals, json::accessor::Type::Vec3, None);
+        let uv_accessor = self.add_vertex_f32_accessor(uvs, json::accessor::Type::Vec2, None);
         let ao_accessor = ao_uvs
             .as_ref()
-            .map(|values| self.add_f32_accessor(values, json::accessor::Type::Vec2, None));
+            .map(|values| self.add_vertex_f32_accessor(values, json::accessor::Type::Vec2, None));
         let index_accessor = self.add_indices(indices);
         let material = self.add_material(model, atlas, palette, voxel_size)?;
         let mut attributes = BTreeMap::new();
@@ -675,17 +676,40 @@ impl GltfWriter {
         Ok(self.root.push(material))
     }
 
-    fn add_f32_accessor<const N: usize>(
+    fn add_vertex_f32_accessor<const N: usize>(
         &mut self,
         values: &[[f32; N]],
         type_: json::accessor::Type,
         bounds: Option<([f32; 3], [f32; 3])>,
     ) -> Index<json::Accessor> {
+        self.add_f32_accessor(
+            values,
+            type_,
+            bounds,
+            Some(json::buffer::Target::ArrayBuffer),
+        )
+    }
+
+    fn add_animation_f32_accessor<const N: usize>(
+        &mut self,
+        values: &[[f32; N]],
+        type_: json::accessor::Type,
+    ) -> Index<json::Accessor> {
+        self.add_f32_accessor(values, type_, None, None)
+    }
+
+    fn add_f32_accessor<const N: usize>(
+        &mut self,
+        values: &[[f32; N]],
+        type_: json::accessor::Type,
+        bounds: Option<([f32; 3], [f32; 3])>,
+        target: Option<json::buffer::Target>,
+    ) -> Index<json::Accessor> {
         let bytes = values
             .iter()
             .flat_map(|value| value.iter().flat_map(|component| component.to_le_bytes()))
             .collect::<Vec<_>>();
-        let view = self.add_view(&bytes, Some(json::buffer::Target::ArrayBuffer));
+        let view = self.add_view(&bytes, target);
         self.root.push(json::Accessor {
             buffer_view: Some(view),
             byte_offset: Some(USize64(0)),
@@ -730,7 +754,7 @@ impl GltfWriter {
 
     fn add_scalar_f32_accessor(&mut self, values: &[f32]) -> Index<json::Accessor> {
         let arrays = values.iter().map(|value| [*value]).collect::<Vec<_>>();
-        let accessor = self.add_f32_accessor(&arrays, json::accessor::Type::Scalar, None);
+        let accessor = self.add_animation_f32_accessor(&arrays, json::accessor::Type::Scalar);
         let item = &mut self.root.accessors[accessor.value()];
         item.min = values
             .iter()
@@ -789,15 +813,15 @@ impl GltfWriter {
             }
             for (output, property) in [
                 (
-                    self.add_f32_accessor(&translations, json::accessor::Type::Vec3, None),
+                    self.add_animation_f32_accessor(&translations, json::accessor::Type::Vec3),
                     json::animation::Property::Translation,
                 ),
                 (
-                    self.add_f32_accessor(&rotations, json::accessor::Type::Vec4, None),
+                    self.add_animation_f32_accessor(&rotations, json::accessor::Type::Vec4),
                     json::animation::Property::Rotation,
                 ),
                 (
-                    self.add_f32_accessor(&scales, json::accessor::Type::Vec3, None),
+                    self.add_animation_f32_accessor(&scales, json::accessor::Type::Vec3),
                     json::animation::Property::Scale,
                 ),
             ] {
@@ -1238,6 +1262,19 @@ mod tests {
             .expect("transform tracks should produce a glTF animation");
         assert_eq!(animation.name(), Some("Voxel transforms"));
         assert!(animation.channels().count() >= 3);
+        for channel in animation.channels() {
+            let sampler = channel.sampler();
+            assert_eq!(
+                sampler.input().view().unwrap().target(),
+                None,
+                "animation input buffer views must not be marked as vertex buffers"
+            );
+            assert_eq!(
+                sampler.output().view().unwrap().target(),
+                None,
+                "animation output buffer views must not be marked as vertex buffers"
+            );
+        }
         assert_eq!(
             gltf.document.default_scene().unwrap().name(),
             Some("Voxel scene")

@@ -10,12 +10,12 @@ One usecase is voxel animations, including ones that have been exported to gltf 
 
 To run the example from the repo root:
 ```
-cargo run -p flipbook --example animation-scene-gltf --features vox_gltf
+cargo run -p bevy_flipbook --example animation-scene-gltf --features vox_gltf
 ```
 
 ## tests
 
 To run the tests from the repo root:
 ```
-cargo test -p flipbook --features vox_gltf
+cargo test -p bevy_flipbook --features vox_gltf
 ```

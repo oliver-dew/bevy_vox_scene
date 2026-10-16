@@ -6,8 +6,13 @@ The generated files can be loaded by Bevy's standard glTF loader or any other GL
 
 ## Installation
 
+To install the latest release from crates.io, run:
 ```sh
 cargo install vox-to-gltf --locked
+```
+Alternatively, if you are developing vox-to-gltf and want to install from local checkout, run:
+```sh
+cargo install --path vox-to-gltf vox-to-gltf --locked 
 ```
 
 The converter depends on the engine-independent `vox_bake` library and does not compile or depend on Bevy.
