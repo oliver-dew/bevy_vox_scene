@@ -15,7 +15,7 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -44,13 +44,6 @@ jobs:
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
-      - name: Install cargo-tarpaulin
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install cargo-tarpaulin
-
-      - name: Run tests
-        run: cargo tarpaulin --ignore-tests --out Xml
-
       - name: Test workspace
         run: cargo test --workspace --lib --locked
 
@@ -70,6 +63,13 @@ jobs:
 
       - name: Validate exported GLBs
         run: npm run validate-gltf -- target/gltf-validation/*.glb
+
+      - name: Install cargo-tarpaulin
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-tarpaulin
+
+      - name: Run tests
+        run: cargo tarpaulin --ignore-tests --out Xml
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4

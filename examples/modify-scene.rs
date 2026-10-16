@@ -102,6 +102,8 @@ fn toggle_black_light(
     let Some(mut material) = materials.get_mut(&material_handle.0) else {
         return;
     };
+    // Because the blacklight model consists of a single emissive voxel material, its emissive property is represented as a single color,
+    // not a texture. To toggle the light off and on, we can remove the color (caching it in the Local resource) and restore it.
     if let Some(cached) = *cached_emissive {
         material.emissive = cached;
         *cached_emissive = None;

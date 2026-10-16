@@ -2,36 +2,40 @@
 
 ## 0.23
 
-Besides the update to Bevy 0.20, this release includes two big new features, and a lot of ergonomic improvements and hardening:
+Besides the update to Bevy 0.20, this release includes two big new features, and a lot of ergonomic improvements and fixes:
 
 ### 1. Export voxels to `.gltf` or `.vox` for offline voxel processing
-- Core voxel processing has been moved into an engine-agnostic `vox_bake` crate (with no dependency on bevy). As well as loading `.vox` files, this can now also export `.vox` and `.glb` files. As this is the same engine used in `bevy_vox_scene`, all Magical Voxel material types are supported (although note that cloud volumes are not supported in `.glb` files). 
-- A `vox-to-gltf` command-line tool can now be used to process voxel models offline. It has a small footprint because it also has no bevy dependency. This means that if you want to use voxel models in your application, but don't need to do anything specifically voxelly with them (like quering or changing the voxel data), and you don't care about cloud volumes, you can bake the models to glb offline. This means your application does not need to process voxels at runtime, or have `bevy_vox_scene` as a runtime dependency!
-- This even works with voxel flipbook animations! The animation code has been moved into the `flipbook` crate (with no dependency on the rest of `bevy_vox_scene`), so that it can be used to play glb flipbook animations output by `vox-to-gltf`. To see this in action, run the flipbook example: `cargo run -p flipbook --example animation-scene-gltf --features vox_gltf`
-    - `VoxelAnimationPlayer`, `VoxelAnimationFrame` and so on have been renamed to `FlipbookPlayer`, `FlipbookFrame` and moved to `flipbook` crate.
-- `vox-to-gltf` can work on a single file, or recursively through a directory
+Core voxel processing has been moved into an engine-agnostic `vox_bake` crate (with no dependency on bevy). As well as loading `.vox` files, this can now also export `.vox` and `.glb` files. As this is the same engine used in `bevy_vox_scene`, all Magical Voxel material types are supported (although note that cloud volumes are not supported in `.glb` files). 
+
+Gltf export opens the door to offline vox processing. If you want to use voxel models in your application, but don't need to do anything specifically voxelly with them (like quering or changing the voxel data), and you don't care about cloud volumes, you can bake the models to glb offline. This means your application does not need to process voxels at runtime, or have `bevy_vox_scene` as a runtime dependency! Two offlining methods are provided:
+
+1. If your vox assets aren't updated often, the `vox-to-gltf` command-line tool can be used to process them. It has a small footprint because it has no bevy dependency. It can work on a single file, or recursively through a directory.
+
+2. Alternatively, if you have voxel assets that frequently update, there is a bevy vox asset processor, `VoxToGlbProcessor`, in the `bevy_vox_processor` crate. Combine this with bevy's `file_watcher` feature to re-process your vox files and hot reload them as gltfs in your running bevy app.
+
+Both of these offline routes can even work with voxel flipbook animations! The animation code has been moved into the `flipbook` crate (with no dependency on the rest of `bevy_vox_scene`), so that it can be used to play glb flipbook animations output by either the `vox-to-gltf` CLI or `VoxToGlbProcessor`. To see this in action, run the flipbook example: `cargo run -p flipbook --example animation-scene-gltf --features vox_gltf`. `VoxelAnimationPlayer`, `VoxelAnimationFrame` and so on have been renamed to `FlipbookPlayer`, `FlipbookFrame` and moved to `flipbook` crate.
 
 ### 2. Improved texturing
 - Previous versions of `bevy_vox_scene` supported the various Magica Voxel material types with a set of per-model/ per-palette 16x16 textures for diffuse, metalness, roughness, and emission. Although this was very efficient in terms of tiny texture sizes, it means each voxel colour requires geometry (texcoords) to index the correct voxel material. A flat, multicoloured square surface would need geometry for each colour, instead of being a single quad. This legacy system is still available, as `VoxelTextureMode::Palette`.
 - `VoxelTextureMode::Packed` instead creates an island per co-planar face, and packs these islands into a per-model texture. This means multicoloured surfaces use dramatically less geometry, and also opens the door to a couple of optional extra features:
-    - Set `TexturePackSettings::ambient_occlusion` to bake distance-weighted volumetric ambient occlusion into an AO texture. Keeping AO inside packed-texture settings prevents configuring it with unsupported palette textures.
+    - Set `TexturePackSettings::ambient_occlusion` to bake distance-weighted volumetric ambient occlusion into an AO texture.
     - Use `TextureMipPolicy` for limited mip chains with mip-safe padding and alignment.
     - Opt-in to packed-atlas utilization and geometry-reduction logging with `TexturePackSettings::log_diagnostics`.
     - We no longer need `@material-no-emission` sub-assets, as emissive properties can be toggled directly on each model's material.
 
 ### 3. API ergonomics and hardening
-- Procedural generation is now much more ergonomic. The systems that used to require exclusive `&mut World` access have all been replaced by commands on 2 voxel asset `ParamSet`s:
+- Procedural generation is now much more ergonomic. The systems that used to require exclusive `&mut World` access have all been replaced by commands on two voxel asset `ParamSet`s:
     - `create_voxel_scene` is now `VoxelSceneAssets::create_scene` 
     - `create_voxel_context` is now `VoxelSceneAssets::add_palette`
     - `create_voxel_animation` is now `VoxelSceneAssets::create_animation`
     - `modify_voxel_model` is now `VoxelModelAssets::modify`
 
-    Now that `World` access isn't needed, `VoxelSceneAssets` or `VoxelModelAssets` can be added to ordinary bevy systems. Scene creation and writing are fallible (the old systems could panic), they return a result.
+    Now that `World` access isn't needed, `VoxelSceneAssets` or `VoxelModelAssets` can be added to ordinary bevy systems. Scene creation and writing are fallible and return a result (whereas the old systems could panic).
 - Remove a few API abstractions that were no longer needed:
     - Remove `VoxelContext`: `VoxelPalette` is now an asset directly, Generated palettes, scenes, and animations are now created through the `VoxelSceneAssets` system parameter.
     - Remove `VoxelData` and `VoxelQueryable`: `VoxelModel` now directly owns the voxel grid and bake settings. SDF generation accepts `VoxBakeSettings`, while generated-scene creation accepts retention and mesh asset usage explicitly.
 - Replace `supports_remeshing` with independent `retain_voxel_data` and `retain_mesh_data` settings: 
-    - Set `retain_mesh_data` to true when you need CPU queries of the mesh (eg for mesh picking and other raycasts or physics collider generation).
+    - Set `retain_mesh_data` to true when you need CPU queries of the mesh (eg for mesh picking, raycasts, or physics collider generation).
     - Set `retain_voxel_data` to true if you need to query or edit the underlying voxel data. The `VoxelModel` asset will be retained, and a handle to the asset, `VoxelModelSource`, will be added to the spawned instance.
     - Even if both of these are false, a `VoxelModelInstance` and `VoxelPaletteSource` component will still be added, and a `VoxelInstanceReady` event will still fire.
 - Cloud volumes can now be modified (previously cloud textures weren't updated when the voxels changed)
