@@ -7,7 +7,6 @@
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
 [![dependency status](https://deps.rs/crate/bevy_vox_scene/0.23.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.23.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
-[![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
 A plugin for [bevy](https://bevyengine.org) for loading, generating, and exporting voxel assets. In particular it focuses on supporting all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files, models, materials, animations, and scenes. Use Magica Voxel as your level editor, and augment your scenes with procedurally generated voxel assets. 
 

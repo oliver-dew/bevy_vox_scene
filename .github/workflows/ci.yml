@@ -11,7 +11,6 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Run cargo test
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -21,7 +20,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Cache
-        id: cache
         uses: actions/cache@v3
         with:
           path: |
@@ -63,21 +61,3 @@ jobs:
 
       - name: Validate exported GLBs
         run: npm run validate-gltf -- target/gltf-validation/*.glb
-
-      - name: Install cargo-tarpaulin
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cargo install cargo-tarpaulin
-
-      - name: Run tests
-        run: cargo tarpaulin --ignore-tests --out Xml
-
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Archive code coverage results
-        uses: actions/upload-artifact@v4
-        with:
-          name: code-coverage-report
-          path: cobertura.xml
