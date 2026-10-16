@@ -1,140 +1,35 @@
-use std::time::Duration;
-
+use bevy::image::Image;
 use bevy::{
     asset::Handle,
     ecs::component::Component,
     prelude::{ReflectComponent, Transform, Visibility},
     reflect::Reflect,
-    time::Stopwatch,
 };
 
-use crate::{VoxelContext, VoxelModel};
+use crate::{VoxelModel, VoxelPalette};
 
-#[derive(Debug, Clone)]
-pub(crate) struct LayerInfo {
-    pub name: Option<String>,
-    pub is_hidden: bool,
-}
-
-/// An instance of a [`VoxelModel`].
-#[derive(Component, Clone, Reflect)]
+/// Marks an entity as an instance of a voxel model.
+#[derive(Component, Clone, Reflect, Default)]
 #[reflect(Component)]
 #[require(Transform, Visibility)]
-pub struct VoxelModelInstance {
-    /// Handles to the model.
-    pub model: Handle<VoxelModel>,
-    /// Handle to the context
-    pub context: Handle<VoxelContext>,
-}
+pub struct VoxelModelInstance;
 
-impl VoxelModelInstance {
-    /// Create a new instance
-    pub fn new(model: Handle<VoxelModel>, context: Handle<VoxelContext>) -> Self {
-        Self { model, context }
-    }
-}
-
-/// Plays Voxel Animations
+/// The retained voxel model from which an instance was baked.
+///
+/// This component is absent when source voxel data was discarded after baking.
 #[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
-pub struct VoxelAnimationPlayer {
-    /// Frame indices
-    pub frames: Vec<usize>,
-    /// Duration that each frame remains on screen
-    pub frame_rate: Duration,
-    /// Whether the animation repeats
-    pub repeat_mode: AnimationRepeatMode,
-    /// If true (default), and [`VoxelAnimation::repeat_mode`] is not [`RepeatAnimation::Forever`], entity will despawn upon completion
-    pub despawn_on_finish: bool,
-    /// If true, playback is paused
-    pub is_paused: bool,
-    /// timer that determines when frame should advance
-    pub timer: AnimationTimer,
-}
+pub struct VoxelModelSource(pub Handle<VoxelModel>);
 
-impl Default for VoxelAnimationPlayer {
-    fn default() -> Self {
-        Self {
-            frames: vec![],
-            frame_rate: Duration::from_secs_f32(1.0 / 8.0),
-            repeat_mode: AnimationRepeatMode::Forever,
-            despawn_on_finish: true,
-            is_paused: false,
-            timer: AnimationTimer::default(),
-        }
-    }
-}
-
-#[derive(Clone, Reflect)]
-pub enum AnimationRepeatMode {
-    /// The animation will finish after running "n" times.
-    Count(u32),
-    /// The animation will never finish.
-    Forever,
-}
-
-#[derive(Clone, Reflect)]
-pub struct AnimationTimer {
-    current_frame_index: usize,
-    stopwatch: Stopwatch,
-    play_count: u32,
-}
-
-impl Default for AnimationTimer {
-    fn default() -> Self {
-        Self {
-            current_frame_index: 0,
-            stopwatch: Stopwatch::new(),
-            play_count: 0,
-        }
-    }
-}
-
-pub enum AnimationUpdate {
-    SameFrame,
-    AdvanceFrame(usize),
-    ReachedEnd,
-}
-
-impl VoxelAnimationPlayer {
-    pub(crate) fn did_advance_frame(&mut self, delta: Duration) -> AnimationUpdate {
-        if self.is_paused || self.frames.is_empty() {
-            return AnimationUpdate::SameFrame;
-        }
-        if let AnimationRepeatMode::Count(end_count) = self.repeat_mode
-            && self.timer.play_count >= end_count
-        {
-            return AnimationUpdate::ReachedEnd;
-        }
-        self.timer.stopwatch.tick(delta);
-        if self.timer.stopwatch.elapsed() > self.frame_rate {
-            self.timer.current_frame_index += 1;
-            if self.timer.current_frame_index == self.frames.len() {
-                match self.repeat_mode {
-                    AnimationRepeatMode::Count(end_count) => {
-                        self.timer.play_count += 1;
-                        if self.timer.play_count >= end_count {
-                            return AnimationUpdate::ReachedEnd;
-                        } else {
-                            self.timer.current_frame_index = 0;
-                        }
-                    }
-                    AnimationRepeatMode::Forever => {
-                        self.timer.play_count += 1;
-                        self.timer.current_frame_index = 0;
-                    }
-                }
-            }
-            self.timer.stopwatch.reset();
-            return AnimationUpdate::AdvanceFrame(self.frames[self.timer.current_frame_index]);
-        }
-        AnimationUpdate::SameFrame
-    }
-}
-
-#[derive(Component, Reflect)]
+/// The voxel palette from which an instance was baked.
+#[derive(Component, Clone, Reflect)]
 #[reflect(Component)]
-pub struct VoxelAnimationFrame(pub usize);
+pub struct VoxelPaletteSource(pub Handle<VoxelPalette>);
+
+/// The density texture used by a voxel cloud instance.
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
+pub struct VoxelCloudSource(pub Handle<Image>);
 
 /// A component specifying which layer the Entity belongs to, with an optional name.
 ///
@@ -147,48 +42,4 @@ pub struct VoxelLayer {
     pub id: u32,
     /// An optional name for the Layer, assignable in Magica Voxel layer editor.
     pub name: Option<String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use super::{AnimationRepeatMode, AnimationUpdate, VoxelAnimationPlayer};
-
-    #[test]
-    fn test_did_advance_frame_empty_frames_returns_same_frame() {
-        let mut player = VoxelAnimationPlayer {
-            frames: vec![],
-            frame_rate: Duration::from_millis(1),
-            ..Default::default()
-        };
-        let update = player.did_advance_frame(Duration::from_millis(10));
-        assert!(matches!(update, AnimationUpdate::SameFrame));
-    }
-
-    #[test]
-    fn test_did_advance_frame_count_mode_reaches_end() {
-        let mut player = VoxelAnimationPlayer {
-            frames: vec![0],
-            frame_rate: Duration::from_millis(1),
-            repeat_mode: AnimationRepeatMode::Count(1),
-            ..Default::default()
-        };
-
-        let update = player.did_advance_frame(Duration::from_millis(10));
-        assert!(matches!(update, AnimationUpdate::ReachedEnd));
-    }
-
-    #[test]
-    fn test_did_advance_frame_count_mode_advances_before_end() {
-        let mut player = VoxelAnimationPlayer {
-            frames: vec![3, 7],
-            frame_rate: Duration::from_millis(1),
-            repeat_mode: AnimationRepeatMode::Count(2),
-            ..Default::default()
-        };
-
-        let update = player.did_advance_frame(Duration::from_millis(10));
-        assert!(matches!(update, AnimationUpdate::AdvanceFrame(7)));
-    }
 }

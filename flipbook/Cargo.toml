@@ -1,0 +1,31 @@
+[package]
+name = "bevy_flipbook"
+description = "Plugin for the bevy engine for playing flipbook animations (each frame is a discrete mesh)"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Utsira/bevy_vox_scene"
+readme = "README.md"
+authors = ["Oliver Dew <olidew@gmail.com>"]
+keywords = ["bevy", "flipbook", "animation"]
+categories = ["game-development", "graphics", "rendering::data-formats"]
+
+[lib]
+name = "flipbook"
+
+[features]
+default = []
+vox_gltf = ["bevy/bevy_gltf", "dep:serde", "dep:serde_json"]
+
+[[example]]
+name = "animation-scene-gltf"
+required-features = ["vox_gltf"]
+
+[dependencies]
+bevy = { workspace = true, features = ["bevy_camera"] }
+serde = { version = "1.0.219", optional = true }
+serde_json = { version = "1.0.151", optional = true }
+
+[dev-dependencies]
+bevy = { workspace = true, features = ["3d", "dev"] }
+gltf = { version = "1.4.0", default-features = false, features = ["extensions", "extras", "names"] }

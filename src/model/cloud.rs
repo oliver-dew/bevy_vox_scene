@@ -1,21 +1,21 @@
 use bevy::{
     asset::RenderAssetUsages,
     image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor},
-    math::UVec3,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use ndshape::Shape;
+use vox_bake::BakedVolume;
 
-use super::VoxelData;
-
-pub(crate) fn create_cloud_image(cloud_voxels: &Vec<f32>, data: &VoxelData) -> Image {
-    let model_size: UVec3 = data.shape.as_array().map(|v| v - 2).into();
+pub(crate) fn create_cloud_image(volume: &BakedVolume) -> Image {
     let image_size = Extent3d {
-        width: model_size.x,
-        height: model_size.y,
-        depth_or_array_layers: model_size.z,
+        width: volume.dimensions[0],
+        height: volume.dimensions[1],
+        depth_or_array_layers: volume.dimensions[2],
     };
-    let data = cloud_voxels.iter().flat_map(|d| d.to_le_bytes()).collect();
+    let data = volume
+        .densities
+        .iter()
+        .flat_map(|density| density.to_le_bytes())
+        .collect();
     let mut image = Image::new(
         image_size,
         TextureDimension::D3,

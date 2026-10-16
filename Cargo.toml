@@ -1,18 +1,43 @@
-workspace = { members = ["utilities"] }
+[workspace]
+resolver = "3"
+members = [
+    "bevy_vox_processor",
+    "flipbook",
+    "vox_bake",
+    "vox-to-gltf",
+]
+
+[workspace.dependencies]
+bevy = { version = "0.20.0", default-features = false }
+
 [package]
 name = "bevy_vox_scene"
 description = "A Bevy engine plugin for loading Magica Voxel world files and render materials directly in Bevy as a scene graph."
 keywords = ["bevy", "voxel", "Magica-Voxel"]
 categories = ["game-development", "graphics", "rendering", "rendering::data-formats"]
 license = "MIT"
-version = "0.22.0"
+version = "0.23.0"
 repository = "https://github.com/Utsira/bevy_vox_scene"
 authors = ["Oliver Dew <olidew@gmail.com>"]
 edition = "2024"
 readme = "README.md"
-exclude = ["assets/*"]
+include = [
+    "src/**",
+    "examples/**",
+    "Cargo.toml",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE",
+]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.vox_bake]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 3
 
 [features]
 default = ["modify_voxels", "generate_voxels", "pbr_transmission_textures"]
@@ -21,31 +46,29 @@ generate_voxels = []
 pbr_transmission_textures = ["bevy/pbr_transmission_textures"]
 webgl2 = ["bevy/webgl2"]
 webgpu = []
-
-[[example]]
-name = "modify-voxels"
-required-features = ["modify_voxels"]
-
-[[example]]
-name = "voxel-collisions"
-required-features = ["modify_voxels"]
-
-[[example]]
-name = "voxel-generation"
-required-features = ["generate_voxels"]
+export = ["vox_bake/gltf"]
 
 [dependencies]
-bevy = { version = "0.19", default-features = false, features = ["bevy_render", "bevy_world_serialization", "bevy_asset", "bevy_pbr", "bevy_log", "png"] }
-dot_vox = "5.1.1"
-ndshape = "0.3.0"
-block-mesh = "0.2.0"
-ndcopy = "0.3.0"
+bevy = {
+    workspace = true,
+    features = [
+        "bevy_render",
+        "bevy_world_serialization",
+        "bevy_asset",
+        "bevy_animation",
+        "bevy_pbr",
+        "bevy_log",
+        "png",
+    ],
+}
 anyhow = "1.0.38"
 thiserror = "2.0.12"
 serde = "1.0.219"
+vox_bake = { version = "0.1.0", path = "vox_bake" }
+flipbook = { package = "bevy_flipbook", version = "0.1.0", path = "flipbook" }
 
 [dev-dependencies]
-bevy = { version = "0.19", default-features = false, features = ["3d", "dev"] }
-utilities = { path = "utilities" }
+bevy = { workspace = true, features = ["3d", "dev", "pbr_transmission_textures"] }
 rand = "0.9.0"
-async-std = { version = "1.12.0", features = ["attributes"] }
+libnoise = "1.2"
+rayon = "1.12"

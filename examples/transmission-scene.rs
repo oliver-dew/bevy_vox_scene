@@ -8,7 +8,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

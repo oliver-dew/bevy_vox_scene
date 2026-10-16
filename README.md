@@ -5,16 +5,13 @@
 [![Latest version](https://img.shields.io/crates/v/bevy_vox_scene.svg)](https://crates.io/crates/bevy_vox_scene)
 [![docs.rs](https://docs.rs/bevy_vox_scene/badge.svg)](https://docs.rs/bevy_vox_scene)
 [![CI](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml/badge.svg)](https://github.com/Utsira/bevy_vox_scene/actions/workflows/ci.yml)
-[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.22.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.22.0)
+[![dependency status](https://deps.rs/crate/bevy_vox_scene/0.23.0/status.svg)](https://deps.rs/crate/bevy_vox_scene/0.23.0)
 [![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/#main-branch-tracking)
 [![codecov](https://codecov.io/gh/Utsira/bevy_vox_scene/graph/badge.svg?token=29AR6PVOYP)](https://codecov.io/gh/Utsira/bevy_vox_scene)
 
-A plugin for [the Bevy Engine](https://bevyengine.org) which focuses on bringing all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files into bevy, including:
-- __Voxel models__, with support for almost all Magica Voxel's material types and properties, such as metalness, roughness, emission, transmission, and cloud.
-- __Voxel animations__
-- __Voxel scenes__, allowing efficient instancing of voxel models, organisation of models into layers, controlling visibility of layers and instances. Use Magica Voxel as your level editor!
+A plugin for [bevy](https://bevyengine.org) for loading, generating, and exporting voxel assets. In particular it focuses on supporting all the features of [Magica Voxel](https://ephtracy.github.io) `.vox` files, models, materials, animations, and scenes. Use Magica Voxel as your level editor, and augment your scenes with procedurally generated voxel assets. 
 
-## Why `bevy-vox-scene`?
+## Why `bevy_vox_scene`?
 
 Whereas other voxel crates focus on massive voxel worlds and efficient spatial partitioning, or on loading a single model with voxel colors but no other material properties, `bevy_vox_scene` can load an entire scene graph from a Magica Voxel world file, or a voxel animation, and it attempts to recreate the material properties from Magica Voxel's render tab. This means you can produce a scene in Bevy that approximates Magica Voxel's raytraced renders, but at Bevy's real-time interactive framerates.
 
@@ -26,7 +23,7 @@ And this is the same scene in Bevy:
 
 Almost all Magica Voxel material types are supported. Bevy's screen space transmission does a great job of rendering glass materials, while Magica Voxel cloud materials are imported into Bevy as volumetric fog.
 
-`bevy_vox_scene` achieves this by generating a series of texture atlases for the scene to capture the differing color, metalness, roughness, emission, and transparency for each Voxel type in the scene, and a volumetric texture for models containing cloud materials.
+`bevy_vox_scene` achieves this by generating per-model texture atlases that capture the differing color, metalness, roughness, emission, and transparency of each visible voxel, and a volumetric texture for models containing cloud materials.
 
 ## Usage
 
@@ -34,7 +31,7 @@ Almost all Magica Voxel material types are supported. Bevy's screen space transm
 
 ```toml
 [dependencies]
-bevy_vox_scene = "0.22.0"
+bevy_vox_scene = "0.23.0"
 ```
 
    Then in code:
@@ -62,6 +59,36 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 3. Add the plugin to the app.
 4. Spawn a scene graph using `WorldAssetRoot`. Alternatively, spawn any node of the scene graph, down to individual models, using the name you assigned to the node in MagicaVoxel.
 
+### Offline GLB export
+
+Applications with fixed voxel assets can preprocess `.vox` files into GLB and load them through Bevy's normal glTF loader without shipping `bevy_vox_scene`. Run the workspace CLI with:
+
+```sh
+cargo run -p vox-to-gltf -- model.vox --output model.glb
+```
+
+Every input produces one GLB. For each animated shape, its voxel frames are sibling mesh nodes beneath their shared transform, named `model-001`, `model-002`, and so on. Frame one is initially visible and later frames use the ratified `KHR_node_visibility` extension with `visible: false`; versioned, engine-neutral `vox_bake` animation metadata is also stored in node extras for engines that need custom setup. Scene-node transform tracks become a standard glTF animation with smooth translation, rotation, and scale channels. Existing output is protected unless `--force` is passed. Cloud volumes are currently rejected because glTF has no equivalent representation for Bevy's voxel density texture.
+
+An input directory is processed recursively. In this mode, `--output` names the destination directory and source-relative paths are preserved. Without `--output`, generated files are written beside their `.vox` sources.
+
+```sh
+cargo run -p vox-to-gltf -- assets/vox --output assets/generated
+```
+
+Use `--ao-depth 1..8` to bake voxel ambient occlusion and optionally adjust its strength with `--ao-intensity`. For example:
+
+```sh
+cargo run -p vox-to-gltf -- model.vox --output model.glb --ao-depth 4 --ao-intensity 1.0
+```
+
+The CLI also exposes the export-relevant loader settings through `--voxel-size`, `--no-mesh-outer-faces`, `--mesh-offset`, `--emission-strength`, `--no-srgb`, `--diffuse-roughness`, and `--texture-mode`. Packed textures can be configured with `--atlas-padding`, `--atlas-alignment`, `--max-atlas-dimension`, `--texture-max-lod`, and `--atlas-diagnostics`. Run `vox-to-gltf --help` for value ranges and accepted enum values. Omitted options inherit their values directly from `VoxLoaderSettings::default()`, so the CLI and runtime loader share one source of defaults. `retain_voxel_data` and `retain_mesh_data` are intentionally omitted because exported GLBs contain neither retained voxel data nor Bevy CPU-side mesh residency settings.
+
+Library users can enable the optional `export` feature and call `export_vox_to_glb` directly. Runtime-generated models can be exported with `export_voxel_model_to_glb(&model, &palette)`, and generated frame sequences with `export_voxel_animation_to_glb(&frames, &palette)`. The export dependencies are not compiled for ordinary runtime-loading users.
+
+Generated models can also be written back to editable MagicaVoxel data without enabling the `export` feature by calling `export_voxel_model_to_vox(&model, &palette)`, or `export_voxel_animation_to_vox(&frames, &palette)` for a shape animation.
+
+See the [offline processing guide](docs/offline-processing.md) for local installation, recursive conversion, CI consistency checks, `build.rs` integration, and loading generated assets without `bevy_vox_scene`.
+
 Take a look in the `examples/` directory for complete working examples. To run an example, type the following into the terminal:
 ```ignore
 cargo run --example <example name>
@@ -75,24 +102,28 @@ cargo run --example <example name>
 
 ## Bevy and Magica Voxel compatibility
 
-| Bevy version | Magica Voxel version           | `bevy-vox-scene` version | 
-| ------------ | ------------------------------ | ------------------------ |
-| 0.12         | 0.99.6, 0.99.7                 | 0.9, 0.10, 0.11, 0.12    | 
-| 0.13         |                                | 0.13                     |
-| 0.14         |                                | 0.14, 0.15               |
-| 0.15         |                                | 0.16                     |
-|              | - support cloud materials      | 0.17                     |
-|              | - support animation            | 0.18                     |
-| 0.16         |                                | 0.19                     |
-| 0.17         |                                | 0.20                     |
-| 0.18         |                                | 0.21                     |
-| 0.19         |                                | 0.22                     |
+| Bevy version | Magica Voxel version                | `bevy-vox-scene` version | 
+| ------------ | ------------------------------      | ------------------------ |
+| 0.12         | 0.99.6, 0.99.7                      | 0.9, 0.10, 0.11, 0.12    | 
+| 0.13         |                                     | 0.13                     |
+| 0.14         |                                     | 0.14, 0.15               |
+| 0.15         |                                     | 0.16                     |
+|              | - support cloud materials           | 0.17                     |
+|              | - support flipbook model animation  | 0.18                     |
+| 0.16         |                                     | 0.19                     |
+| 0.17         |                                     | 0.20                     |
+| 0.18         |                                     | 0.21                     |
+| 0.19         |                                     | 0.22                     |
+| 0.20         | - support scene transform animation | 0.23                     |
 
 ## Limitations and workarounds
 
 - When spawning individual named meshes as subassets (`assets.load("study.vox#desk")`), you'll need to ensure that the name you have given it in Magica Voxel is unique within the file. Avoid names that begin with the word `material` or `model` as these are reserved for the various subassets that make up the scene.
 - In MagicaVoxel's raytraced renders, emissive materials contribute to the lighting of a scene. Emissive materials do not currently do this in Bevy, they just glow. If in future Bevy implements a global illumination system, then emissive materials would contribute to the lighting.
-- Material properties (color, roughness, metalness, emission, transparency) are achieved using 16x16 pixel texture atlases that are indexed from the meshes UVs. Therefore it isn't possible to do "Minecraft" style texturing (where a texture is tiled over each voxel). For that effect, consider using [the `bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) instead.
+- Material properties (color, roughness, metalness, emission, transparency) are represented by per-model texture atlases indexed by mesh UVs. `VoxelTextureMode::Packed(TexturePackSettings::default())` (the default) packs merged face islands at one texel per voxel to reduce geometry. `VoxelTextureMode::Palette` retains 16x16 palette textures and color-based face merging when lower texture memory is preferable. Neither mode supports "Minecraft" style textures tiled over each voxel; for that effect, consider using [the `bevy_vox_mesh` crate](https://crates.io/crates/bevy_vox_mesh) instead.
+- Packed atlases default to `TextureMipPolicy::Disabled`. Use `TextureMipPolicy::Limited { max_lod }` in `TexturePackSettings` to generate a mip chain with mip-safe island padding and alignment. Values above `4` are clamped because each additional level doubles the required padding.
+- Set `TexturePackSettings::log_diagnostics` to `true` to log material and AO atlas dimensions, useful-texel occupancy, padding/alignment overhead, packing waste, island count, and vertex reduction relative to per-color greedy meshing.
+- Packed atlases can optionally bake distance-weighted voxel ambient occlusion by setting `TexturePackSettings::ambient_occlusion` to `Some(AmbientOcclusionSettings { depth, intensity })`. Depths above `8` are clamped, depth `0` disables AO, and palette texture mode cannot be configured with spatial AO.
 
 ### Transparent materials
 

@@ -1,85 +1,64 @@
 use bevy::{
     asset::RenderAssetUsages,
-    math::Vec3,
     mesh::{Indices, Mesh, VertexAttributeValues},
     render::render_resource::PrimitiveTopology,
 };
-use block_mesh::{GreedyQuadsBuffer, RIGHT_HANDED_Y_UP_CONFIG, greedy_quads};
-use ndshape::Shape;
+use vox_bake::{BakedMesh, BakedMeshAtlas};
 
-use super::{VoxelData, VoxelQueryable, voxel::VisibleVoxel};
+pub(crate) type MeshAtlas = BakedMeshAtlas;
 
-pub(crate) fn mesh_model(voxels: &[VisibleVoxel], data: &VoxelData) -> Mesh {
-    let mut greedy_quads_buffer = GreedyQuadsBuffer::new(data.shape.size() as usize);
-    let quads_config = RIGHT_HANDED_Y_UP_CONFIG;
-    greedy_quads(
-        voxels,
-        &data.shape,
-        [0; 3],
-        data.shape.as_array().map(|x| x - 1),
-        &quads_config.faces,
-        &mut greedy_quads_buffer,
-    );
-    let offset = data.model_size() * data.settings.mesh_offset.0; // center the mesh
-    let leading_padding = (data.padding() / 2) as f32 * data.settings.voxel_size; // corrects the 1 offset introduced by the meshing.
-    let position_offset = offset + Vec3::splat(leading_padding);
-
-    let num_indices = greedy_quads_buffer.quads.num_quads() * 6;
-    let num_vertices = greedy_quads_buffer.quads.num_quads() * 4;
-
-    let mut indices = Vec::with_capacity(num_indices);
-    let mut positions = Vec::with_capacity(num_vertices);
-    let mut normals = Vec::with_capacity(num_vertices);
-    let mut uvs = Vec::with_capacity(num_vertices);
-
-    let mut render_mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        if data.settings.supports_remeshing {
-            RenderAssetUsages::default()
-        } else {
-            RenderAssetUsages::RENDER_WORLD
-        },
-    );
-
-    for (group, face) in greedy_quads_buffer
-        .quads
-        .groups
-        .iter()
-        .zip(quads_config.faces.as_ref())
-    {
-        for quad in group.iter() {
-            let palette_index = voxels[data.shape.linearize(quad.minimum) as usize].index;
-            indices.extend_from_slice(&face.quad_mesh_indices(positions.len() as u32));
-            positions.extend_from_slice(
-                &face
-                    .quad_mesh_positions(quad, data.settings.voxel_size)
-                    .map(|position| {
-                        [
-                            position[0] - position_offset.x,
-                            position[1] - position_offset.y,
-                            position[2] - position_offset.z,
-                        ]
-                    }),
-            );
-            let u = ((palette_index % 16) as f32 + 0.5) / 16.0;
-            let v = ((palette_index / 16) as f32 + 0.5) / 16.0;
-            uvs.extend_from_slice(&[[u, v], [u, v], [u, v], [u, v]]);
-            normals.extend_from_slice(&face.quad_mesh_normals());
-        }
-    }
-
-    render_mesh.insert_attribute(
+pub(crate) fn to_bevy_mesh(mesh: BakedMesh, asset_usage: RenderAssetUsages) -> Mesh {
+    let mut bevy_mesh = Mesh::new(PrimitiveTopology::TriangleList, asset_usage);
+    bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_POSITION,
-        VertexAttributeValues::Float32x3(positions),
+        VertexAttributeValues::Float32x3(mesh.positions),
     );
-
-    render_mesh.insert_attribute(
+    bevy_mesh.insert_attribute(
         Mesh::ATTRIBUTE_NORMAL,
-        VertexAttributeValues::Float32x3(normals),
+        VertexAttributeValues::Float32x3(mesh.normals),
     );
-    render_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, VertexAttributeValues::Float32x2(uvs));
+    bevy_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_UV_0,
+        VertexAttributeValues::Float32x2(mesh.uv0),
+    );
+    if let Some(uvs) = mesh.uv1 {
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, VertexAttributeValues::Float32x2(uvs));
+    }
+    bevy_mesh.insert_indices(Indices::U32(mesh.indices));
+    bevy_mesh
+}
 
-    render_mesh.insert_indices(Indices::U32(indices));
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    render_mesh
+    #[test]
+    fn bevy_mesh_adapter_preserves_shared_buffers() {
+        let baked = BakedMesh {
+            positions: vec![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+            normals: vec![[0.0, 1.0, 0.0]; 3],
+            uv0: vec![[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            uv1: Some(vec![[0.25, 0.25], [0.75, 0.25], [0.25, 0.75]]),
+            indices: vec![0, 1, 2],
+        };
+        let mesh = to_bevy_mesh(baked.clone(), RenderAssetUsages::default());
+
+        assert_eq!(
+            mesh.attribute(Mesh::ATTRIBUTE_POSITION),
+            Some(&VertexAttributeValues::Float32x3(baked.positions))
+        );
+        assert_eq!(
+            mesh.attribute(Mesh::ATTRIBUTE_NORMAL),
+            Some(&VertexAttributeValues::Float32x3(baked.normals))
+        );
+        assert_eq!(
+            mesh.attribute(Mesh::ATTRIBUTE_UV_0),
+            Some(&VertexAttributeValues::Float32x2(baked.uv0))
+        );
+        assert_eq!(
+            mesh.attribute(Mesh::ATTRIBUTE_UV_1),
+            Some(&VertexAttributeValues::Float32x2(baked.uv1.unwrap()))
+        );
+        assert_eq!(mesh.indices(), Some(&Indices::U32(baked.indices)));
+    }
 }

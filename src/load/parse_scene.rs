@@ -1,449 +1,338 @@
 use bevy::{
+    animation::{
+        AnimatedBy, AnimationClip, AnimationPlayer, AnimationTargetId, animated_field,
+        animation_curves::{AnimatableCurve, AnimatableKeyframeCurve},
+        graph::{AnimationGraph, AnimationGraphHandle},
+    },
     asset::{Handle, LoadContext},
-    ecs::{error::BevyError, hierarchy::ChildSpawner, name::Name},
+    ecs::{entity::Entity, error::BevyError, hierarchy::ChildSpawner, name::Name},
     image::Image,
     light::FogVolume,
     log::warn,
-    math::{Mat3, Mat4, Quat, Vec3},
+    math::Mat4,
     mesh::{Mesh, Mesh3d},
     pbr::{MeshMaterial3d, StandardMaterial},
     platform::collections::HashSet,
     prelude::{EntityWorldMut, Transform, Visibility, World},
     world_serialization::WorldAsset,
 };
-use dot_vox::{Frame, SceneNode};
+use vox_bake::{BakedLayer, BakedSceneGraphNode, BakedTransformFrame};
 
-use crate::{VoxelLayer, VoxelModel, VoxelModelInstance, VoxelQueryable};
-
-use super::{
-    VoxelAnimationFrame,
-    components::{LayerInfo, VoxelAnimationPlayer},
+use crate::{
+    VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
+    load::LoadedVoxelModel, model::VoxelMeshAssetUsage,
 };
 
-pub(super) fn find_model_names(
-    name_for_model: &mut Vec<Option<String>>,
-    graph: &Vec<SceneNode>,
-    scene_node: &SceneNode,
-    parent_name: Option<&String>,
-) {
-    match scene_node {
-        SceneNode::Transform {
-            attributes,
-            frames: _,
-            child,
-            layer_id: _,
-        } => {
-            let (accumulated, node_name) =
-                get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let Some(child_node) = graph.get(*child as usize) else {
-                warn!(
-                    "Transform child index {} out of bounds while finding model names (graph len {})",
-                    child,
-                    graph.len()
-                );
-                return;
-            };
-            match child_node {
-                SceneNode::Group {
-                    attributes: _,
-                    children,
-                } => {
-                    for grandchild in children {
-                        let Some(grandchild_node) = graph.get(*grandchild as usize) else {
-                            warn!(
-                                "Group child index {} out of bounds while finding model names (graph len {})",
-                                grandchild,
-                                graph.len()
-                            );
-                            continue;
-                        };
-                        find_model_names(
-                            name_for_model,
-                            graph,
-                            grandchild_node,
-                            accumulated.as_ref(),
-                        );
-                    }
-                }
-                SceneNode::Shape {
-                    attributes: _,
-                    models,
-                } => {
-                    let Some(first_model) = models.first() else {
-                        warn!("Shape node has no models while finding model names");
-                        return;
-                    };
-                    let model_id = first_model.model_id as usize;
-                    let Some(existing_name) = name_for_model.get(model_id) else {
-                        warn!(
-                            "Shape model_id {} out of bounds while finding model names (model name slots {})",
-                            model_id,
-                            name_for_model.len()
-                        );
-                        return;
-                    };
-                    match (existing_name, node_name) {
-                        (None, Some(name)) | (Some(_), Some(name)) => {
-                            let mut node_name = name.clone();
-                            // disambiguate model name if we have a scene where different models have the same name
-                            let name_root = name;
-                            let mut disambiguator = 0;
-                            let mut names_to_disambiguate = name_for_model.clone();
-                            names_to_disambiguate.remove(model_id);
-                            while names_to_disambiguate.contains(&Some(node_name.clone())) {
-                                node_name =
-                                    format_args!("{}_{}", name_root, disambiguator).to_string();
-                                disambiguator += 1;
-                            }
-                            if let Some(name_slot) = name_for_model.get_mut(model_id) {
-                                *name_slot = Some(node_name);
-                            }
-                        }
-                        (None, None) | (Some(_), None) => (),
-                    };
-                }
-                _ => {}
-            }
-        }
-        _ => {}
-    }
-}
+use flipbook::{FlipbookFrame, FlipbookPlayer};
 
-//TODO: consider returning a Result and bubbling up errors
 pub(super) fn parse_scene_graph(
     context: &mut LoadContext,
-    graph: &Vec<SceneNode>,
-    scene_node: &SceneNode,
-    parent_name: Option<&String>,
-    vox_models: &Vec<VoxelModel>,
+    graph: &[BakedSceneGraphNode],
+    root_index: usize,
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
-    layers: &Vec<LayerInfo>,
-    scene_scale: f32,
+    layers: &[BakedLayer],
+    animation_frames_per_second: f32,
+) -> WorldAsset {
+    parse_scene_graph_with_parent(
+        context,
+        graph,
+        root_index,
+        None,
+        vox_models,
+        subassets,
+        layers,
+        animation_frames_per_second,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_scene_graph_with_parent(
+    context: &mut LoadContext,
+    graph: &[BakedSceneGraphNode],
+    root_index: usize,
+    parent_name: Option<&String>,
+    vox_models: &[LoadedVoxelModel],
+    subassets: &mut HashSet<String>,
+    layers: &[BakedLayer],
+    animation_frames_per_second: f32,
 ) -> WorldAsset {
     let mut world = World::default();
-    match scene_node {
-        SceneNode::Transform {
-            attributes,
-            frames: _, // nb for the root node we ignore the transform
-            child,
-            layer_id,
-        } => {
-            let (accumulated, node_name) =
-                get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut entity = world.spawn(Transform::IDENTITY);
-            let maybe_layer = layers.get(*layer_id as usize);
-            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
-            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
-            let visibility = if node_is_hidden || layer_is_hidden {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            };
-            entity.insert(visibility);
-            let Some(child_node) = graph.get(*child as usize) else {
-                warn!(
-                    "Transform child index {} out of bounds while parsing scene (graph len {})",
-                    child,
-                    graph.len()
-                );
-                return WorldAsset::new(world);
-            };
-            load_xform_child(
-                context,
-                graph,
-                child_node,
-                &mut entity,
-                accumulated.as_ref(),
-                vox_models,
-                subassets,
-                layers,
-                scene_scale,
-            );
+    let Some(BakedSceneGraphNode::Transform {
+        name,
+        hidden,
+        child,
+        layer_index,
+        ..
+    }) = graph.get(root_index)
+    else {
+        warn!("Voxel scene root is missing or is not a transform node");
+        return WorldAsset::new(world);
+    };
 
-            if let Some(layer) = maybe_layer {
-                entity.insert(VoxelLayer {
-                    id: *layer_id,
-                    name: layer.name.clone(),
-                });
-            }
-
-            if let Some(node_name) = node_name.clone() {
-                entity.insert(Name::new(node_name.clone()));
-            }
-        }
-        _ => {}
+    let (accumulated, node_name) = accumulated_name(parent_name, name.as_ref());
+    let mut clip = AnimationClip::default();
+    let mut entity = world.spawn(Transform::IDENTITY);
+    let player = entity.id();
+    let layer = layers.get(*layer_index);
+    entity.insert(node_visibility(*hidden, layer));
+    if let Some(layer) = layer {
+        entity.insert(VoxelLayer {
+            id: *layer_index as u32,
+            name: layer.name.clone(),
+        });
+    }
+    if let Some(node_name) = node_name {
+        entity.insert(Name::new(node_name));
+    }
+    load_child(
+        context,
+        graph,
+        *child,
+        &mut entity,
+        accumulated.as_ref(),
+        vox_models,
+        subassets,
+        layers,
+        &mut clip,
+        player,
+        animation_frames_per_second,
+    );
+    if !clip.curves().is_empty() {
+        let clip = context.add_labeled_asset("Animation0".to_string(), clip);
+        let (graph, _) = AnimationGraph::from_clip(clip);
+        let graph = context.add_labeled_asset("AnimationGraph".to_string(), graph);
+        world
+            .entity_mut(player)
+            .insert((AnimationPlayer::default(), AnimationGraphHandle(graph)));
     }
     WorldAsset::new(world)
 }
 
-fn load_xform_node(
+#[allow(clippy::too_many_arguments)]
+fn spawn_node(
     context: &mut LoadContext,
     builder: &mut ChildSpawner,
-    graph: &Vec<SceneNode>,
-    scene_node: &SceneNode,
+    graph: &[BakedSceneGraphNode],
+    node_index: usize,
     parent_name: Option<&String>,
-    vox_models: &Vec<VoxelModel>,
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
-    layers: &Vec<LayerInfo>,
-    scene_scale: f32,
+    layers: &[BakedLayer],
+    clip: &mut AnimationClip,
+    player: Entity,
+    animation_frames_per_second: f32,
 ) {
-    match scene_node {
-        SceneNode::Transform {
-            attributes,
-            frames,
-            child,
-            layer_id,
-        } => {
-            let (accumulated, node_name) =
-                get_accumulated_and_node_name(parent_name, attributes.get("_name"));
-            let mut entity = builder.spawn_empty();
+    let Some(node) = graph.get(node_index) else {
+        warn!("Scene node index {node_index} is out of bounds");
+        return;
+    };
+    let BakedSceneGraphNode::Transform {
+        name,
+        hidden,
+        layer_index,
+        child,
+        frames,
+    } = node
+    else {
+        warn!("Found group or shape node without a parent transform");
+        let mut entity = builder.spawn_empty();
+        load_child(
+            context,
+            graph,
+            node_index,
+            &mut entity,
+            parent_name,
+            vox_models,
+            subassets,
+            layers,
+            clip,
+            player,
+            animation_frames_per_second,
+        );
+        return;
+    };
 
-            let maybe_layer = layers.get(*layer_id as usize);
-            if let Some(layer) = maybe_layer {
-                entity.insert(VoxelLayer {
-                    id: *layer_id,
-                    name: layer.name.clone(),
-                });
-            }
-            if let Some(node_name) = node_name.clone() {
-                entity.insert(Name::new(node_name));
-            }
+    let (accumulated, node_name) = accumulated_name(parent_name, name.as_ref());
+    let mut entity = builder.spawn_empty();
+    let layer = layers.get(*layer_index);
+    entity.insert(node_visibility(*hidden, layer));
+    if let Some(layer) = layer {
+        entity.insert(VoxelLayer {
+            id: *layer_index as u32,
+            name: layer.name.clone(),
+        });
+    }
+    if let Some(node_name) = node_name.clone() {
+        entity.insert(Name::new(node_name));
+    }
+    if frames.len() > 1
+        && let Some(node_name) = node_name.as_ref()
+    {
+        let target = AnimationTargetId::from_name(&Name::new(node_name.clone()));
+        entity.insert((target, AnimatedBy(player)));
+        add_transform_curves(clip, target, frames, animation_frames_per_second);
+    }
+    load_child(
+        context,
+        graph,
+        *child,
+        &mut entity,
+        accumulated.as_ref(),
+        vox_models,
+        subassets,
+        layers,
+        clip,
+        player,
+        animation_frames_per_second,
+    );
+    entity.insert(
+        frames
+            .first()
+            .map(|frame| Transform::from_matrix(Mat4::from_cols_array(&frame.transform)))
+            .unwrap_or(Transform::IDENTITY),
+    );
 
-            let node_is_hidden = parse_bool(attributes.get("_hidden").cloned());
-            let layer_is_hidden = maybe_layer.map_or(false, |v| v.is_hidden);
-            let visibility = if node_is_hidden || layer_is_hidden {
-                Visibility::Hidden
-            } else {
-                Visibility::Inherited
-            };
-            entity.insert(visibility);
-            let Some(child_node) = graph.get(*child as usize) else {
-                warn!(
-                    "Transform child index {} out of bounds while loading transform node (graph len {})",
-                    child,
-                    graph.len()
-                );
-                return;
-            };
-
-            load_xform_child(
+    if let Some(node_name) = node_name
+        && subassets.insert(node_name.clone())
+    {
+        _ = context.labeled_asset_scope(node_name, |context| {
+            Ok::<WorldAsset, BevyError>(parse_scene_graph_with_parent(
                 context,
                 graph,
-                child_node,
-                &mut entity,
-                accumulated.as_ref(),
-                vox_models,
-                subassets,
-                layers,
-                scene_scale,
-            );
-
-            if let Some(frame) = frames.first() {
-                entity.insert(Transform::from_matrix(transform_from_frame(
-                    frame,
-                    scene_scale,
-                )));
-            } else {
-                warn!("Transform node has no frame data; using identity transform");
-                entity.insert(Transform::IDENTITY);
-            }
-
-            if let Some(node_name) = node_name {
-                // create sub-asset
-                if subassets.insert(node_name.clone()) {
-                    _ = context.labeled_asset_scope(node_name, |context| {
-                        let scene = parse_scene_graph(
-                            context,
-                            graph,
-                            scene_node,
-                            parent_name,
-                            vox_models,
-                            subassets,
-                            layers,
-                            scene_scale,
-                        );
-                        Ok::<WorldAsset, BevyError>(scene)
-                    });
-                }
-            }
-        }
-        SceneNode::Group { .. } | SceneNode::Shape { .. } => {
-            warn!("Found Group or Shape Node without a parent Transform");
-            let mut node = builder.spawn_empty();
-            load_xform_child(
-                context,
-                graph,
-                scene_node,
-                &mut node,
+                node_index,
                 parent_name,
                 vox_models,
                 subassets,
                 layers,
-                scene_scale,
-            );
-        }
+                animation_frames_per_second,
+            ))
+        });
     }
 }
 
-fn load_xform_child(
+fn add_transform_curves(
+    clip: &mut AnimationClip,
+    target: AnimationTargetId,
+    frames: &[BakedTransformFrame],
+    frames_per_second: f32,
+) {
+    let fps = if frames_per_second.is_finite() && frames_per_second > 0.0 {
+        frames_per_second
+    } else {
+        vox_bake::default_animation_frames_per_second()
+    };
+    let transforms = frames
+        .iter()
+        .map(|frame| {
+            let (scale, rotation, translation) =
+                Mat4::from_cols_array(&frame.transform).to_scale_rotation_translation();
+            (frame.frame_index as f32 / fps, translation, rotation, scale)
+        })
+        .collect::<Vec<_>>();
+    let translation =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, value, _, _)| (*time, *value)));
+    let rotation =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, _, value, _)| (*time, *value)));
+    let scale =
+        AnimatableKeyframeCurve::new(transforms.iter().map(|(time, _, _, value)| (*time, *value)));
+    if let Ok(curve) = translation {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::translation), curve),
+        );
+    }
+    if let Ok(curve) = rotation {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::rotation), curve),
+        );
+    }
+    if let Ok(curve) = scale {
+        clip.add_curve_to_target(
+            target,
+            AnimatableCurve::new(animated_field!(Transform::scale), curve),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn load_child(
     context: &mut LoadContext,
-    graph: &Vec<SceneNode>,
-    scene_node: &SceneNode,
+    graph: &[BakedSceneGraphNode],
+    node_index: usize,
     entity: &mut EntityWorldMut,
     parent_name: Option<&String>,
-    vox_models: &Vec<VoxelModel>,
+    vox_models: &[LoadedVoxelModel],
     subassets: &mut HashSet<String>,
-    layers: &Vec<LayerInfo>,
-    scene_scale: f32,
+    layers: &[BakedLayer],
+    clip: &mut AnimationClip,
+    player: Entity,
+    animation_frames_per_second: f32,
 ) {
-    match scene_node {
-        SceneNode::Transform { .. } => {
-            warn!("Found nested Transform nodes");
+    let Some(node) = graph.get(node_index) else {
+        warn!("Scene child index {node_index} is out of bounds");
+        return;
+    };
+    match node {
+        BakedSceneGraphNode::Transform { .. } => {
+            warn!("Found nested transform nodes");
             entity.insert(Transform::IDENTITY);
-
             entity.with_children(|builder| {
-                load_xform_node(
+                spawn_node(
                     context,
                     builder,
                     graph,
-                    scene_node,
+                    node_index,
                     parent_name,
                     vox_models,
                     subassets,
                     layers,
-                    scene_scale,
+                    clip,
+                    player,
+                    animation_frames_per_second,
                 );
             });
         }
-        SceneNode::Group {
-            attributes: _,
-            children,
-        } => {
+        BakedSceneGraphNode::Group { children } => {
             entity.insert(Transform::IDENTITY);
             entity.with_children(|builder| {
                 for child in children {
-                    let Some(child_node) = graph.get(*child as usize) else {
-                        warn!(
-                            "Group child index {} out of bounds while parsing scene (graph len {})",
-                            child,
-                            graph.len()
-                        );
-                        continue;
-                    };
-                    load_xform_node(
+                    spawn_node(
                         context,
                         builder,
                         graph,
-                        child_node,
+                        *child,
                         parent_name,
                         vox_models,
                         subassets,
                         layers,
-                        scene_scale,
+                        clip,
+                        player,
+                        animation_frames_per_second,
                     );
                 }
             });
         }
-        SceneNode::Shape {
-            attributes: _,
-            models,
-        } => {
-            let model_count = models.len();
-            if model_count == 1 {
-                let Some(first_model) = models.first() else {
-                    warn!("Shape node has no models while parsing scene");
-                    return;
-                };
-                let Some(model) = vox_models.get(first_model.model_id as usize) else {
-                    warn!(
-                        "Shape model_id {} out of bounds while parsing scene (model count {})",
-                        first_model.model_id,
-                        vox_models.len()
-                    );
-                    return;
-                };
-                entity.insert(VoxelModelInstance {
-                    model: context.get_label_handle(format!("{}@model", model.name)),
-                    context: context.get_label_handle("voxel-context"),
-                });
-                if model.has_mesh {
-                    let mesh: Handle<Mesh> =
-                        context.get_label_handle(format!("{}@mesh", model.name));
-                    let material: Handle<StandardMaterial> =
-                        context.get_label_handle(format!("{}@material", model.name));
-                    entity.insert((Mesh3d(mesh), MeshMaterial3d(material)));
-                }
-                if model.has_cloud {
-                    let cloud_image: Handle<Image> =
-                        context.get_label_handle(format!("{}@cloud-image", model.name));
-                    entity.with_child((
-                        FogVolume {
-                            density_texture: Some(cloud_image),
-                            absorption: 0.1,
-                            ..Default::default()
-                        },
-                        Transform::from_scale(model.model_size()),
-                    ));
-                }
-            } else if model_count > 1 {
+        BakedSceneGraphNode::Shape { models } => {
+            if models.len() == 1 {
+                attach_model(context, entity, vox_models, models[0]);
+            } else if !models.is_empty() {
                 entity.insert((
-                    VoxelAnimationPlayer {
-                        frames: (0..model_count).collect(),
-                        ..Default::default()
-                    },
+                    FlipbookPlayer::from_frame_count(models.len()),
                     Transform::IDENTITY,
                 ));
                 entity.with_children(|spawner| {
-                    for index in 0..model_count {
-                        let Some(shape_model) = models.get(index) else {
-                            warn!(
-                                "Animation model index {} out of bounds while parsing scene (shape model count {})",
-                                index,
-                                models.len()
-                            );
-                            continue;
-                        };
-                        let Some(model) = vox_models.get(shape_model.model_id as usize) else {
-                            warn!(
-                                "Animation model_id {} out of bounds while parsing scene (model count {})",
-                                shape_model.model_id,
-                                vox_models.len()
-                            );
-                            continue;
-                        };
+                    for (frame_index, model_index) in models.iter().copied().enumerate() {
                         let mut frame = spawner.spawn((
-                            VoxelModelInstance {
-                                model: context.get_label_handle(format!("{}@model", model.name)),
-                                context: context.get_label_handle("voxel-context"),
-                            },
-                            VoxelAnimationFrame(index),
-                            if index == 0 {
+                            FlipbookFrame(frame_index),
+                            if frame_index == 0 {
                                 Visibility::Inherited
                             } else {
                                 Visibility::Hidden
                             },
                         ));
-
-                        if model.has_mesh {
-                            let mesh: Handle<Mesh> =
-                                context.get_label_handle(format!("{}@mesh", model.name));
-                            let material: Handle<StandardMaterial> =
-                                context.get_label_handle(format!("{}@material", model.name));
-                            frame.insert((Mesh3d(mesh), MeshMaterial3d(material)));
-                        }
-
-                        if model.has_cloud {
-                            let cloud_image: Handle<Image> =
-                                context.get_label_handle(format!("{}@cloud-image", model.name));
-                            frame.with_child((
-                                FogVolume {
-                                    density_texture: Some(cloud_image),
-                                    absorption: 0.1,
-                                    ..Default::default()
-                                },
-                                Transform::from_scale(model.model_size()),
-                            ));
-                        }
+                        attach_model(context, &mut frame, vox_models, model_index);
                     }
                 });
             }
@@ -451,50 +340,69 @@ fn load_xform_child(
     }
 }
 
-fn get_accumulated_and_node_name(
+fn attach_model(
+    context: &mut LoadContext,
+    entity: &mut EntityWorldMut,
+    models: &[LoadedVoxelModel],
+    model_index: usize,
+) {
+    let Some(model) = models.get(model_index) else {
+        warn!("Shape model index {model_index} is out of bounds");
+        return;
+    };
+    entity.insert((
+        VoxelModelInstance,
+        VoxelPaletteSource(context.get_label_handle("voxel-palette")),
+    ));
+    if model.retain_voxel_data {
+        entity.insert(VoxelModelSource(
+            context.get_label_handle(format!("{}@model", model.name())),
+        ));
+    }
+    if model.has_mesh {
+        let mesh: Handle<Mesh> = context.get_label_handle(format!("{}@mesh", model.name()));
+        let material: Handle<StandardMaterial> =
+            context.get_label_handle(format!("{}@material", model.name()));
+        entity.insert((
+            Mesh3d(mesh),
+            MeshMaterial3d(material),
+            VoxelMeshAssetUsage(model.mesh_asset_usage),
+        ));
+    }
+    if model.has_cloud {
+        let cloud_image: Handle<Image> =
+            context.get_label_handle(format!("{}@cloud-image", model.name()));
+        entity.insert(VoxelCloudSource(cloud_image.clone()));
+        entity.with_child((
+            FogVolume {
+                density_texture: Some(cloud_image),
+                absorption: 0.1,
+                ..Default::default()
+            },
+            Transform::from_scale(model.model.model_size()),
+        ));
+    }
+}
+
+fn node_visibility(hidden: bool, layer: Option<&BakedLayer>) -> Visibility {
+    if hidden || layer.is_some_and(|layer| layer.hidden) {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    }
+}
+
+fn accumulated_name(
     parent_name: Option<&String>,
     node_name: Option<&String>,
 ) -> (Option<String>, Option<String>) {
     match (parent_name, node_name) {
         (None, None) => (None, None),
-        (None, Some(node_name)) => (Some(node_name.to_string()), Some(node_name.to_string())),
-        (Some(parent_name), None) => (Some(parent_name.to_string()), None), // allow group name to pass down through unnamed child
+        (None, Some(node_name)) => (Some(node_name.clone()), Some(node_name.clone())),
+        (Some(parent_name), None) => (Some(parent_name.clone()), None),
         (Some(parent_name), Some(node_name)) => {
-            let accumulated = format!("{}/{}", parent_name, node_name);
+            let accumulated = format!("{parent_name}/{node_name}");
             (Some(accumulated.clone()), Some(accumulated))
         }
     }
-}
-
-fn parse_bool(value: Option<String>) -> bool {
-    match value.as_deref() {
-        Some("1") => true,
-        Some("0") => false,
-        Some(_) => {
-            warn!("Invalid boolean string");
-            false
-        }
-        None => false,
-    }
-}
-
-fn transform_from_frame(frame: &Frame, scene_scale: f32) -> Mat4 {
-    let Some(position) = frame.position() else {
-        return Mat4::IDENTITY;
-    };
-    let position =
-        Vec3::new(-position.x as f32, position.z as f32, position.y as f32) * scene_scale;
-    let translation = Mat4::from_translation(position);
-    let rotation = if let Some(orientation) = frame.orientation() {
-        let (rotation, scale) = &orientation.to_quat_scale();
-        let scale: Vec3 = (*scale).into();
-        let quat = Quat::from_array(*rotation);
-        let (axis, angle) = quat.to_axis_angle();
-        let mat3 = Mat3::from_axis_angle(Vec3::new(-axis.x, axis.z, axis.y), angle)
-            * Mat3::from_diagonal(scale);
-        Mat4::from_mat3(mat3)
-    } else {
-        Mat4::IDENTITY
-    };
-    translation * rotation
 }

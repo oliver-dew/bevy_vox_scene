@@ -1,32 +1,40 @@
 mod components;
-mod parse_model;
 mod parse_scene;
 
 use anyhow::anyhow;
 use bevy::{
-    asset::{AssetLoader, LoadContext, io::Reader},
-    color::LinearRgba,
+    asset::{AssetLoader, LoadContext, RenderAssetUsages, io::Reader},
     ecs::error::BevyError,
     log::info,
-    math::Vec3,
     platform::collections::HashSet,
     reflect::TypePath,
     world_serialization::WorldAsset,
 };
-use components::LayerInfo;
+
 pub use components::{
-    AnimationUpdate, VoxelAnimationFrame, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
+    VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource, VoxelPaletteSource,
 };
-#[cfg(test)]
-pub(crate) use components::AnimationRepeatMode;
-use parse_scene::{find_model_names, parse_scene_graph};
+use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use vox_bake::{UnitOffset, VoxBakeSettings, VoxelTextureMode};
 
-use crate::{
-    VoxelContext, VoxelData, VoxelQueryable,
-    model::{MaterialProperty, VoxelModel, VoxelPalette},
-};
+use crate::model::{VoxelModel, VoxelPalette};
+
+pub(super) struct LoadedVoxelModel {
+    name: String,
+    model: VoxelModel,
+    retain_voxel_data: bool,
+    mesh_asset_usage: RenderAssetUsages,
+    has_mesh: bool,
+    has_cloud: bool,
+}
+
+impl LoadedVoxelModel {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
 
 /// An asset loader capable of loading models in `.vox` files as [`bevy::world_serialization::WorldAsset`]s.
 ///
@@ -42,6 +50,9 @@ pub(super) struct VoxSceneLoader {
 /// Settings for the VoxSceneLoader.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VoxLoaderSettings {
+    /// Timeline rate used for MagicaVoxel transform frame indices. Defaults to 8 fps.
+    #[serde(default = "vox_bake::default_animation_frames_per_second")]
+    pub animation_frames_per_second: f32,
     /// The length of each side of a single voxel. Defaults to 1.0.
     pub voxel_size: f32,
     /// Whether the outer-most faces of the model should be meshed. Defaults to true. Set this to false if the outer faces of a
@@ -50,45 +61,64 @@ pub struct VoxLoaderSettings {
     /// Amount that the vertex positions of the mesh will be offset described as unit of their size.
     /// Defaults to [`UnitOffset::CENTER`] the center of the model, as this is where MagicaVoxel places the origin in its world editor
     pub mesh_offset: UnitOffset,
-    /// Multiplier for emissive strength. Defaults to 10.0.
+    /// Multiplier for emissive strength. Defaults to 20.0.
     pub emission_strength: f32,
     /// Defaults to `true` to more accurately reflect the colours in Magica Voxel.
     pub uses_srgb: bool,
     /// Magica Voxel doesn't let you adjust the roughness for the default "diffuse" block type, so it can be adjusted with this setting. Defaults to 0.8.
     pub diffuse_roughness: f32,
-    /// Set to `true` if you want to modify the voxel model after it has been spawned, `false` if the voxels will be immutable
-    pub supports_remeshing: bool,
+    /// Whether source voxel data is retained for queries and runtime modification.
+    #[serde(default)]
+    pub retain_voxel_data: bool,
+    /// Whether generated mesh data is retained for CPU-side use, such as mesh picking or
+    /// collider generation. Defaults to false.
+    #[serde(default)]
+    pub retain_mesh_data: bool,
+    /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
+    /// palette atlases use less texture memory. Both modes create per-model materials.
+    #[serde(default)]
+    pub texture_mode: VoxelTextureMode,
 }
 
 impl Default for VoxLoaderSettings {
     fn default() -> Self {
+        let bake = VoxBakeSettings::default();
         Self {
-            voxel_size: 1.0,
-            mesh_outer_faces: true,
-            mesh_offset: UnitOffset::CENTER,
-            emission_strength: 20.0,
-            uses_srgb: true,
-            diffuse_roughness: 0.8,
-            supports_remeshing: false,
+            animation_frames_per_second: bake.animation_frames_per_second,
+            voxel_size: bake.voxel_size,
+            mesh_outer_faces: bake.mesh_outer_faces,
+            mesh_offset: bake.mesh_offset,
+            emission_strength: bake.emission_strength,
+            uses_srgb: bake.uses_srgb,
+            diffuse_roughness: bake.diffuse_roughness,
+            retain_voxel_data: false,
+            retain_mesh_data: false,
+            texture_mode: bake.texture_mode,
         }
     }
 }
 
-/// An offset applied to the vertex positions of the mesh expressed as a unit of the mesh's size.
-/// For a fully centered mesh, use [`UnitOffset::CENTER`]
-/// For a mesh centred around it's base, use [`UnitOffset::CENTER_BASE`]
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct UnitOffset(pub(crate) Vec3);
+fn mesh_asset_usage(retain_mesh_data: bool) -> RenderAssetUsages {
+    if retain_mesh_data {
+        RenderAssetUsages::default()
+    } else {
+        RenderAssetUsages::RENDER_WORLD
+    }
+}
 
-impl UnitOffset {
-    /// Vertex positions will not be offset at all, so that the origin will be the minimum of the model's AABB
-    pub const ZERO: Self = UnitOffset(Vec3::ZERO);
-
-    /// Offset representing the center of a model
-    pub const CENTER: Self = UnitOffset(Vec3::splat(0.5));
-
-    /// Offset representing the center base of a model
-    pub const CENTER_BASE: Self = UnitOffset(Vec3::new(0.5, 0.0, 0.5));
+impl From<&VoxLoaderSettings> for VoxBakeSettings {
+    fn from(settings: &VoxLoaderSettings) -> Self {
+        Self {
+            animation_frames_per_second: settings.animation_frames_per_second,
+            voxel_size: settings.voxel_size,
+            mesh_outer_faces: settings.mesh_outer_faces,
+            mesh_offset: settings.mesh_offset.clone(),
+            emission_strength: settings.emission_strength,
+            uses_srgb: settings.uses_srgb,
+            diffuse_roughness: settings.diffuse_roughness,
+            texture_mode: settings.texture_mode,
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -128,139 +158,75 @@ impl VoxSceneLoader {
         load_context: &'a mut LoadContext,
         settings: &'a VoxLoaderSettings,
     ) -> Result<WorldAsset, VoxLoaderError> {
-        let file = match dot_vox::load_bytes(bytes) {
+        let file = match vox_bake::source::parse_vox(bytes) {
             Ok(data) => data,
             Err(error) => return Err(VoxLoaderError::InvalidAsset(anyhow!(error))),
         };
         info!("Loading {}", load_context.path());
         let settings = self.global_settings.clone().unwrap_or(settings.clone());
 
-        // Palette
-        let palette = VoxelPalette::from_data(
-            &file,
-            settings.diffuse_roughness,
-            settings.emission_strength,
-            settings.uses_srgb,
-        );
-        let translucent_material = palette.create_material_in_load_context(load_context);
-        let opaque_material = load_context.labeled_asset_scope("material".to_string(), |_| {
-            let mut opaque_material = translucent_material.clone();
-            #[cfg(feature = "pbr_transmission_textures")]
-            {
-                opaque_material.specular_transmission_texture = None;
-            }
-            opaque_material.specular_transmission = 0.0;
-            Ok::<_, BevyError>(opaque_material)
-        });
-        if palette.emission == MaterialProperty::VariesPerElement {
-            _ = load_context.labeled_asset_scope("material-no-emission".to_string(), |_| {
-                let mut non_emissive = translucent_material.clone();
-                non_emissive.emissive_texture = None;
-                non_emissive.emissive = LinearRgba::BLACK;
-                Ok::<_, BevyError>(non_emissive)
-            });
-        }
-
-        // Scene graph
-        let layers: Vec<LayerInfo> = file
-            .layers
-            .iter()
-            .map(|layer| LayerInfo {
-                name: layer.name(),
-                is_hidden: layer.hidden(),
-            })
-            .collect();
-        let Some(root_scene) = file.scenes.first() else {
-            return Err(VoxLoaderError::InvalidAsset(anyhow!(
-                "VOX file contains no scene graph root"
-            )));
-        };
-
-        let model_count = file.models.len();
+        let baked_scene = vox_bake::bake_scene(&file, &VoxBakeSettings::from(&settings))
+            .map_err(|error| VoxLoaderError::InvalidAsset(anyhow!(error)))?;
+        let palette = VoxelPalette::from_baked(baked_scene.palette.clone());
         let mut subassets: HashSet<String> = HashSet::default();
-        let mut model_names: Vec<Option<String>> = vec![None; model_count];
-        find_model_names(&mut model_names, &file.scenes, root_scene, None);
 
         // Models
 
-        let models: Vec<VoxelModel> = model_names
-            .iter()
-            .zip(file.models)
-            .enumerate()
-            .map(|(index, (maybe_name, model))| {
-                let name = maybe_name.clone().unwrap_or(format!("model-{}", index));
-                let data = VoxelData::from_model(&model, settings.clone());
-                let (visible_voxels, ior, has_mesh) =
-                    data.visible_voxels(&palette.indices_of_refraction, &palette.density_for_voxel);
-                let (cloud_voxels, has_cloud) = data.cloud_voxels(&palette.density_for_voxel);
-                if has_mesh {
-                    _ = load_context.labeled_asset_scope(format!("{}@mesh", name), |_| {
-                        Ok::<_, BevyError>(crate::model::mesh::mesh_model(&visible_voxels, &data))
+        let models: Vec<LoadedVoxelModel> = baked_scene
+            .models
+            .into_iter()
+            .map(|scene_model| {
+                let name = scene_model.name;
+                let model =
+                    VoxelModel::from_grid(scene_model.grid, VoxBakeSettings::from(&settings));
+                let baked = scene_model.baked;
+                let has_mesh = baked.surface.is_some();
+                let has_cloud = baked.volume.is_some();
+                baked.surface.map(|atlas| {
+                    let mut material = palette.create_atlas_material(&atlas, |label, image| {
+                        load_context.add_labeled_asset(format!("{}@{}", name, label), image)
                     });
-
-                    if let Some(ior) = ior {
-                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                            let mut material = translucent_material.clone();
-                            material.ior = ior;
-                            material.thickness = data.size().min_element() as f32;
-                            Ok::<_, BevyError>(material)
-                        });
-                    } else {
-                        _ = load_context.labeled_asset_scope(format!("{}@material", name), |_| {
-                            let mut opaque_material = translucent_material.clone();
-                            #[cfg(feature = "pbr_transmission_textures")]
-                            {
-                                opaque_material.specular_transmission_texture = None;
-                            }
-                            opaque_material.specular_transmission = 0.0;
-                            Ok::<_, BevyError>(opaque_material)
-                        });
-                    }
-                }
-                if has_cloud {
-                    _ = load_context.labeled_asset_scope(format!("{}@cloud-image", name), |_| {
-                        Ok::<_, BevyError>(crate::model::cloud::create_cloud_image(
-                            &cloud_voxels,
-                            &data,
-                        ))
+                    crate::model::configure_material(&mut material, baked.average_ior, &model);
+                    load_context.add_labeled_asset(
+                        format!("{}@mesh", name),
+                        crate::model::mesh::to_bevy_mesh(
+                            atlas.mesh,
+                            mesh_asset_usage(settings.retain_mesh_data),
+                        ),
+                    );
+                    load_context.add_labeled_asset(format!("{}@material", name), material)
+                });
+                baked.volume.as_ref().map(|cloud| {
+                    load_context.add_labeled_asset(
+                        format!("{}@cloud-image", name),
+                        crate::model::cloud::create_cloud_image(cloud),
+                    )
+                });
+                if settings.retain_voxel_data {
+                    _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
+                        Ok::<_, BevyError>(model.clone())
                     });
                 }
-                let model = VoxelModel {
-                    name: name.clone(),
-                    data,
+                LoadedVoxelModel {
+                    name,
+                    model,
+                    retain_voxel_data: settings.retain_voxel_data,
+                    mesh_asset_usage: mesh_asset_usage(settings.retain_mesh_data),
                     has_mesh,
                     has_cloud,
-                };
-                _ = load_context.labeled_asset_scope(format!("{}@model", name), |_| {
-                    Ok::<_, BevyError>(model.clone())
-                });
-                model
+                }
             })
             .collect();
 
-        let transmissive_material = load_context
-            .add_labeled_asset("material-transmissive".to_string(), translucent_material);
-        load_context.add_labeled_asset(
-            "voxel-context".to_string(),
-            VoxelContext {
-                palette,
-                opaque_material: opaque_material.map_err(|error| {
-                    VoxLoaderError::InvalidAsset(anyhow!(
-                        "Failed to create opaque material labeled asset: {error}"
-                    ))
-                })?,
-                transmissive_material,
-            },
-        );
+        load_context.add_labeled_asset("voxel-palette".to_string(), palette);
         let scene = parse_scene_graph(
             load_context,
-            &file.scenes,
-            root_scene,
-            None,
+            &baked_scene.nodes,
+            baked_scene.root,
             &models,
             &mut subassets,
-            &layers,
-            settings.voxel_size,
+            &baked_scene.layers,
+            settings.animation_frames_per_second,
         );
 
         Ok(scene)
@@ -276,18 +242,19 @@ mod tests {
         light::FogVolume,
         pbr::{MeshMaterial3d, StandardMaterial},
         platform::collections::HashSet,
-        prelude::{Add, On, Query},
+        prelude::{Add, Mesh3d, On, Query},
         world_serialization::{WorldAsset, WorldAssetRoot},
     };
 
     use crate::{
-        VoxelLayer, VoxelModel, VoxelModelInstance, test_support::setup_and_load_voxel_scene,
+        VoxelCloudSource, VoxelLayer, VoxelModel, VoxelModelInstance, VoxelModelSource,
+        test_support::setup_and_load_voxel_scene,
     };
 
-    #[async_std::test]
-    async fn test_load_scene() {
+    #[test]
+    fn test_load_scene() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "test.vox").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox");
         app.update();
         let _scene = app
             .world()
@@ -302,11 +269,10 @@ mod tests {
         );
     }
 
-    #[async_std::test]
-    async fn test_load_spawn_cloud() {
+    #[test]
+    fn test_load_spawn_cloud() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/cloud");
         app.update();
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
@@ -316,16 +282,9 @@ mod tests {
             .expect("children")
             .first()
             .expect("scene root");
-        let model_instance = app
-            .world()
-            .get::<VoxelModelInstance>(*entity)
-            .expect("voxel model instance")
-            .clone();
-        let model = app
-            .world()
-            .resource::<Assets<VoxelModel>>()
-            .get(model_instance.model.id())
-            .expect("retrieve model from Res<Assets>");
+        app.world()
+            .get::<VoxelModelSource>(*entity)
+            .expect("voxel model source");
         let fog_entity = app
             .world()
             .get::<Children>(*entity)
@@ -336,21 +295,14 @@ mod tests {
             .get::<FogVolume>(*fog_entity)
             .expect("fog volume");
 
-        assert!(
-            model.has_cloud,
-            "Model with cloud voxels should have a cloud image"
-        );
-        assert!(
-            !model.has_mesh,
-            "Model consisting solely of cloud voxels shouldn't have a mesh"
-        );
+        assert!(app.world().get::<VoxelCloudSource>(*entity).is_some());
+        assert!(app.world().get::<Mesh3d>(*entity).is_none());
     }
 
-    #[async_std::test]
-    async fn test_transmissive_mat() {
+    #[test]
+    fn test_transmissive_mat() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/walls");
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         let entity = app
@@ -360,21 +312,10 @@ mod tests {
             .first()
             .expect("scene root");
 
-        let model_id = &app
-            .world()
-            .get::<VoxelModelInstance>(*entity)
-            .expect("Voxel model instance")
-            .model;
-
-        let model = app
-            .world()
-            .resource::<Assets<VoxelModel>>()
-            .get(model_id)
-            .expect("Walls has a model");
-        assert!(
-            !model.has_cloud,
-            "Model with no cloud voxels should not have a cloud image"
-        );
+        app.world()
+            .get::<VoxelModelSource>(*entity)
+            .expect("Walls has a model source");
+        assert!(app.world().get::<VoxelCloudSource>(*entity).is_none());
         let mat_handle = &app
             .world()
             .get::<MeshMaterial3d<StandardMaterial>>(*entity)
@@ -386,17 +327,16 @@ mod tests {
             .get(mat_handle)
             .expect("material");
         #[cfg(feature = "pbr_transmission_textures")]
-        assert!(material.specular_transmission_texture.is_some());
-        assert_eq!(material.specular_transmission, 1.0);
+        assert!(material.specular_transmission_texture.is_none());
+        assert!((material.specular_transmission - 0.98).abs() < 0.001);
         assert!((material.ior - 1.3).abs() / 1.3 <= 0.0001);
-        assert!(material.metallic_roughness_texture.is_some());
+        assert!(material.metallic_roughness_texture.is_none());
     }
 
-    #[async_std::test]
-    async fn test_opaque_mat() {
+    #[test]
+    fn test_opaque_mat() {
         let mut app = App::new();
-        let handle =
-            setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group/dice");
         let scene_root = app.world_mut().spawn(WorldAssetRoot(handle)).id();
         app.update();
         let entity = app
@@ -422,13 +362,13 @@ mod tests {
         #[cfg(feature = "pbr_transmission_textures")]
         assert!(material.specular_transmission_texture.is_none());
         assert_eq!(material.specular_transmission, 0.0);
-        assert!(material.metallic_roughness_texture.is_some());
+        assert!(material.metallic_roughness_texture.is_none());
     }
 
-    #[async_std::test]
-    async fn test_spawn_system() {
+    #[test]
+    fn test_spawn_system() {
         let mut app = App::new();
-        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group").await;
+        let handle = setup_and_load_voxel_scene(&mut app, "test.vox#outer-group/inner-group");
         app.update();
 
         assert!(matches!(
@@ -437,7 +377,7 @@ mod tests {
                 .load_state(handle.id()),
             LoadState::Loaded
         ));
-        app.add_observer(|trigger: On<Add, Name>, query: Query<&Name>| {
+        app.add_observer(|trigger: On<Add<Name>>, query: Query<&Name>| {
             let name = query
                 .get(trigger.entity)
                 .expect("name on added entity")
@@ -471,9 +411,10 @@ mod tests {
             5,
             "5 model instances spawned in this scene slice"
         );
-        let models: HashSet<String> = instance_query
+        let mut source_query = app.world_mut().query::<&VoxelModelSource>();
+        let models: HashSet<String> = source_query
             .iter(&app.world())
-            .map(|c| c.model.id().to_string().clone())
+            .map(|source| source.0.id().to_string())
             .collect();
         assert_eq!(models.len(), 3, "Instances point to 3 unique models");
         let entity = app

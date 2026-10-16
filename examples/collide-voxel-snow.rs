@@ -13,11 +13,13 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelInstance,
-    VoxelModifier, VoxelQueryable, VoxelRegion, VoxelRegionMode, modify_voxel_model,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelInstanceReady, VoxelModel, VoxelModelAssets,
+    VoxelModelSource, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::VoxelTextureMode;
 
 #[derive(States, Debug, Clone, Default, Hash, Eq, PartialEq)]
 enum AppState {
@@ -39,7 +41,10 @@ fn main() {
             PanOrbitCameraPlugin,
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
-                    supports_remeshing: true,
+                    // Retain voxel data so that we can do voxel collision detection and add snow splats to the table
+                    retain_voxel_data: true,
+                    // Use legacy texturing so that we don't need to retexture every time a snowflake lands
+                    texture_mode: VoxelTextureMode::Palette,
                     ..default()
                 }),
             },
@@ -201,14 +206,14 @@ fn spawn_snow(mut commands: Commands, scenes: Res<Scenes>) {
             MeshMaterial3d::<StandardMaterial>(scenes.voxel_material.clone()),
             Transform::from_translation(position),
         ))
-        .observe(on_flake_collision.pipe(modify_voxel_model));
+        .observe(on_flake_collision);
 }
 
 fn update_snow(
     mut commands: Commands,
     mut snowflakes: Query<(Entity, &Snowflake, &mut Transform), Without<Scenery>>,
     scenery: Query<
-        (Entity, &GlobalTransform, &VoxelModelInstance),
+        (Entity, &GlobalTransform, &VoxelModelSource),
         (With<Scenery>, Without<Snowflake>),
     >,
     models: Res<Assets<VoxelModel>>,
@@ -222,7 +227,7 @@ fn update_snow(
             continue;
         }
         for (item, item_xform, item_instance) in scenery.iter() {
-            let Some(model) = models.get(&item_instance.model) else {
+            let Some(model) = models.get(&item_instance.0) else {
                 continue;
             };
             let vox_pos =
@@ -247,12 +252,9 @@ fn update_snow(
 
 fn on_flake_collision(
     collision: On<SnowflakeCollision>,
-    query: Query<(&VoxelModelInstance, &Mesh3d)>,
     mut commands: Commands,
-) -> Option<VoxelModifier> {
-    let Ok((instance, Mesh3d(mesh))) = query.get(collision.colidee) else {
-        return None;
-    };
+    mut voxel_assets: VoxelModelAssets,
+) {
     commands.entity(collision.snowflake).despawn();
     let point = collision.point;
     let flake_radius = 2;
@@ -261,25 +263,25 @@ fn on_flake_collision(
         origin: point - IVec3::splat(flake_radius),
         size: IVec3::splat(1 + (flake_radius * 2)),
     };
-    let modifier = VoxelModifier::new(
-        instance.clone(),
-        mesh.clone(),
-        VoxelRegionMode::Box(flake_region),
-        move |pos, voxel, model| {
-            // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
-            if *voxel == Voxel::EMPTY && pos.distance_squared(point) <= radius_squared {
-                if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
-                    if voxel_below != Voxel::EMPTY {
-                        // draw our snow material
-                        return Voxel(234);
+    voxel_assets
+        .modify(
+            collision.colidee,
+            VoxelRegionMode::Box(flake_region),
+            move |pos, voxel, model| {
+                // a signed distance field for a sphere, but _only_ drawing it on empty cells directly above solid voxels
+                if *voxel == Voxel::EMPTY && pos.distance_squared(point) <= radius_squared {
+                    if let Ok(voxel_below) = model.get_voxel_at_point(pos - IVec3::Y) {
+                        if voxel_below != Voxel::EMPTY {
+                            // draw our snow material
+                            return Voxel(234);
+                        }
                     }
                 }
-            }
-            // else we return the underlying voxel, unmodified
-            voxel.clone()
-        },
-    );
-    Some(modifier)
+                // else we return the underlying voxel, unmodified
+                voxel.clone()
+            },
+        )
+        .expect("scenery model is remeshable");
 }
 
 // Focus the camera on the focal point when the camera is first added and when it moves

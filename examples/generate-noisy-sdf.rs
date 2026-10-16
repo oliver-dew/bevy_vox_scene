@@ -1,10 +1,10 @@
 use bevy::{color::palettes::tailwind, post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
-    create_voxel_context, create_voxel_scene,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
-use rand::random;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+use libnoise::prelude::*;
+mod shared;
+use shared::{NoiseSampleExt, PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -35,7 +35,7 @@ fn setup_camera(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 }
 
-fn setup(world: &mut World) {
+fn setup(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
     let stop_0 = VoxelElement {
         color: tailwind::SKY_600.into(),
         roughness: 0.1,
@@ -63,34 +63,24 @@ fn setup(world: &mut World) {
         ..default()
     };
     let size = 64;
-    let palette = VoxelPalette::from_gradient(
+    let palette = voxel_assets.add_palette(VoxelPalette::from_gradient(
         &[(0, stop_0), (85, stop_1), (170, stop_2), (255, stop_3)],
         true,
-    );
+    ));
+    let noise = Source::simplex(67890).fbm(4, 0.008, 2.34, 0.6);
     let data = SDF::cuboid(Vec3::splat(size as f32 * 0.45))
         .subtract(SDF::sphere(size as f32 * 0.5))
-        .map_to_voxels(
+        .map_inside_to_voxels(
             UVec3::splat(size as u32),
-            VoxLoaderSettings::default(),
-            |distance, pos| {
-                if distance >= 0.0 {
-                    return Voxel::EMPTY;
-                };
-                // map y coord to 0..256 palette range, and add a bit of random noise to dither the gradient
-                let dither = random::<f32>() * 4.;
-                let y_normalized = (pos.y.round() / size as f32) + 0.5;
-                Voxel((y_normalized * 256. + dither) as u8)
+            VoxBakeSettings::default(),
+            |pos| {
+                let n_pos = (pos + Vec3::splat(256.0)) * 0.8;
+                let color = (noise.sample_vec3(n_pos) * 0.8) + 0.5;
+                Voxel((color * 255.).clamp(1., 255.) as u8)
             },
         );
-    let context = world
-        .run_system_cached_with(create_voxel_context, palette)
-        .expect("Context has been generated");
-    let model_name = "my sdf model";
-    let scene_root = world
-        .run_system_cached_with(
-            create_voxel_scene,
-            (data, model_name.to_string(), context.clone()),
-        )
-        .expect("Voxel scene created");
-    world.spawn(WorldAssetRoot(scene_root));
+    let scene_root = voxel_assets
+        .create_scene(data, palette, default())
+        .expect("voxel scene created");
+    commands.spawn(WorldAssetRoot(scene_root));
 }

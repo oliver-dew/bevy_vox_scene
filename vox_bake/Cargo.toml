@@ -1,0 +1,27 @@
+[package]
+name = "vox_bake"
+description = "Engine-independent MagicaVoxel parsing and asset baking"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Utsira/bevy_vox_scene"
+readme = "README.md"
+authors = ["Oliver Dew <olidew@gmail.com>"]
+keywords = ["voxel", "magica-voxel", "mesh", "asset-pipeline"]
+categories = ["game-development", "graphics", "rendering::data-formats"]
+
+[features]
+default = []
+gltf = ["dep:gltf", "dep:png", "dep:serde_json", "dep:thiserror"]
+
+[dependencies]
+block-mesh = "0.2.0"
+dot_vox = "5.2"
+glam = "0.33.7"
+gltf = { version = "1.4.0", optional = true, default-features = false, features = ["names", "extras", "extensions", "KHR_materials_emissive_strength", "KHR_materials_ior", "KHR_materials_transmission", "KHR_materials_volume"] }
+ndshape = "0.3.0"
+png = { version = "0.18", optional = true }
+rectangle-pack = "0.4.2"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", optional = true, features = ["raw_value"] }
+thiserror = { version = "2.0.12", optional = true }

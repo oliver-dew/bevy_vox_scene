@@ -49,37 +49,53 @@
 //!```
 
 use bevy::{
-    app::{App, Plugin, Update},
+    animation::AnimationPlugin,
+    app::{App, Plugin},
     asset::AssetApp,
 };
 
+#[cfg(feature = "export")]
+mod export;
+mod flipbook_tests;
 mod load;
 mod model;
 mod observers;
-mod systems;
+mod vox_export;
 
 #[cfg(test)]
 pub(crate) mod test_support;
 
+#[cfg(feature = "export")]
+pub use export::{
+    ExportError, ExportedGlb, export_vox_to_glb, export_voxel_animation_to_glb,
+    export_voxel_model_to_glb,
+};
+use flipbook::FlipbookPlugin;
+pub use flipbook::{FlipbookFrame, FlipbookPlayer, FlipbookRepeatMode};
 #[doc(inline)]
 use load::VoxSceneLoader;
-use load::VoxelAnimationFrame;
 pub use load::{
-    UnitOffset, VoxLoaderSettings, VoxelAnimationPlayer, VoxelLayer, VoxelModelInstance,
+    VoxLoaderSettings, VoxelCloudSource, VoxelLayer, VoxelModelInstance, VoxelModelSource,
+    VoxelPaletteSource,
 };
+#[cfg(any(feature = "generate_voxels", feature = "modify_voxels"))]
+pub use model::VoxelModelAssets;
+#[cfg(feature = "modify_voxels")]
+pub use model::modify::{ModifyVoxelError, VoxelRegion, VoxelRegionMode};
 #[cfg(feature = "generate_voxels")]
 pub use model::sdf::SDF;
-pub use model::{
-    Voxel, VoxelContext, VoxelData, VoxelElement, VoxelModel, VoxelPalette, create_voxel_animation,
-    create_voxel_context, create_voxel_scene,
-};
-#[cfg(feature = "modify_voxels")]
-pub use model::{
-    modify::{VoxelModifier, VoxelRegion, VoxelRegionMode, modify_voxel_model},
-    queryable::VoxelQueryable,
-};
+#[cfg(feature = "generate_voxels")]
+pub use model::{CreateVoxelSceneError, VoxelSceneAssets, VoxelSceneSettings};
+pub use model::{OutOfBoundsError, Voxel, VoxelElement, VoxelModel, VoxelPalette};
 pub use observers::VoxelInstanceReady;
+pub use vox_bake::VoxWriteError;
+pub use vox_bake::{
+    AmbientOcclusionSettings, BakedImage, BakedMesh, BakedMeshAtlas, BakedPixelFormat, BakedVolume,
+    TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode,
+};
+pub use vox_export::{export_voxel_animation_to_vox, export_voxel_model_to_vox};
 
+use crate::model::VoxelMeshAssetUsage;
 /// Plugin adding functionality for loading `.vox` files.
 ///
 /// Registers an [`bevy::asset::AssetLoader`] capable of loading `.vox` files as spawnable [`VoxelScene`]s.
@@ -93,16 +109,21 @@ pub struct VoxScenePlugin {
 
 impl Plugin for VoxScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<VoxelModel>()
-            .init_asset::<VoxelContext>()
+        if !app.is_plugin_added::<AnimationPlugin>() {
+            app.add_plugins(AnimationPlugin);
+        }
+        app.add_plugins(FlipbookPlugin)
+            .init_asset::<VoxelModel>()
+            .init_asset::<VoxelPalette>()
             .register_type::<VoxelLayer>()
             .register_type::<VoxelModelInstance>()
-            .register_type::<VoxelAnimationPlayer>()
-            .register_type::<VoxelAnimationFrame>()
+            .register_type::<VoxelModelSource>()
+            .register_type::<VoxelPaletteSource>()
+            .register_type::<VoxelCloudSource>()
+            .register_type::<VoxelMeshAssetUsage>()
             .register_asset_loader(VoxSceneLoader {
                 global_settings: self.global_settings.clone(),
             })
-            .add_observer(observers::on_voxel_scene_ready)
-            .add_systems(Update, systems::update_animations);
+            .add_observer(observers::on_voxel_scene_ready);
     }
 }

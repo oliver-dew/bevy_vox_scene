@@ -1,6 +1,7 @@
 #[cfg(not(all(feature = "webgl2", target_arch = "wasm32")))]
 use bevy::anti_alias::taa::TemporalAntiAliasing;
 use bevy::{
+    color::LinearRgba,
     core_pipeline::tonemapping::Tonemapping,
     input::keyboard::KeyboardInput,
     pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
@@ -10,7 +11,8 @@ use bevy::{
 use bevy_vox_scene::VoxScenePlugin;
 use rand::Rng;
 use std::f32::consts::PI;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 /// Uses an observer triggered by `VoxelModelInstance` being added to add extra components into the scene graph.
 /// Press any key to toggle the fish tank black-light on and off
@@ -69,20 +71,15 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 
 // Will run against every named child entity that gets spawned in the scene
 fn on_spawn_voxel_instance(
-    trigger: On<Add, Name>,
+    trigger: On<Add<Name>>,
     model_query: Query<&Name>,
     mut commands: Commands,
-    assets: Res<AssetServer>,
 ) {
     let mut entity_commands = commands.entity(trigger.entity);
     let name = model_query.get(trigger.entity).unwrap().as_str();
     match name {
         "tank/black-light" => {
-            entity_commands.insert(EmissiveToggle {
-                is_on: true,
-                on_material: assets.load("study.vox#material"), // emissive texture
-                off_material: assets.load("study.vox#material-no-emission"), // non-emissive texture
-            });
+            entity_commands.insert(BlackLight);
         }
         "tank/goldfish" | "tank/tetra" => {
             // Make fish go brrrrr
@@ -94,20 +91,26 @@ fn on_spawn_voxel_instance(
 }
 
 fn toggle_black_light(
-    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(Entity, &mut EmissiveToggle)>,
+    material_handle: Single<&MeshMaterial3d<StandardMaterial>, With<BlackLight>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut cached_emissive: Local<Option<LinearRgba>>,
 ) {
     if keys.get_just_pressed().next().is_none() {
         return;
     };
-    let Ok((entity, mut emissive_toggle)) = query.single_mut() else {
+    let Some(mut material) = materials.get_mut(&material_handle.0) else {
         return;
     };
-    emissive_toggle.toggle();
-    commands
-        .entity(entity)
-        .insert(MeshMaterial3d(emissive_toggle.material().clone()));
+    // Because the blacklight model consists of a single emissive voxel material, its emissive property is represented as a single color,
+    // not a texture. To toggle the light off and on, we can remove the color (caching it in the Local resource) and restore it.
+    if let Some(cached) = *cached_emissive {
+        material.emissive = cached;
+        *cached_emissive = None;
+    } else {
+        *cached_emissive = Some(material.emissive);
+        material.emissive = LinearRgba::BLACK;
+    }
 }
 
 fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
@@ -131,26 +134,8 @@ fn swim_fish(mut query: Query<(&mut Transform, &Fish)>, time: Res<Time>) {
 }
 
 // Components
-
-#[derive(Component)]
-struct EmissiveToggle {
-    is_on: bool,
-    on_material: Handle<StandardMaterial>,
-    off_material: Handle<StandardMaterial>,
-}
-
-impl EmissiveToggle {
-    fn toggle(&mut self) {
-        self.is_on = !self.is_on;
-    }
-
-    fn material(&self) -> &Handle<StandardMaterial> {
-        match self.is_on {
-            true => &self.on_material,
-            false => &self.off_material,
-        }
-    }
-}
-
 #[derive(Component)]
 struct Fish(f32);
+
+#[derive(Component)]
+struct BlackLight;

@@ -6,5 +6,6 @@
         "RUSTC_BOOTSTRAP": "1",
     },
     "rust-analyzer.testExplorer": true,
-    "rust-analyzer.cargo.targetDir": true
+    "rust-analyzer.cargo.targetDir": true,
+    "rust-analyzer.cargo.features": "all",
 }

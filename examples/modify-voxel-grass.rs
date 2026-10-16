@@ -1,14 +1,18 @@
 use bevy::{
-    core_pipeline::tonemapping::Tonemapping, post_process::bloom::Bloom, prelude::*,
+    core_pipeline::tonemapping::Tonemapping,
+    pbr::{ScreenSpaceTransmission, ScreenSpaceTransmissionQuality},
+    post_process::bloom::Bloom,
+    prelude::*,
     time::common_conditions::on_timer,
 };
 use bevy_vox_scene::{
-    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelInstance, VoxelModifier, VoxelRegion,
-    VoxelRegionMode, modify_voxel_model,
+    VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelModelAssets, VoxelRegion, VoxelRegionMode,
 };
 use rand::Rng;
 use std::{ops::RangeInclusive, time::Duration};
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::VoxelTextureMode;
 
 fn main() {
     App::new()
@@ -20,9 +24,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            grow_grass
-                .pipe(modify_voxel_model)
-                .run_if(on_timer(Duration::from_secs_f32(0.1))),
+            grow_grass.run_if(on_timer(Duration::from_secs_f32(0.1))),
         )
         .run();
 }
@@ -34,6 +36,10 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.add_observer(on_spawn_voxel_instance);
     commands.spawn((
         Camera3d::default(),
+        ScreenSpaceTransmission {
+            steps: 1,
+            quality: ScreenSpaceTransmissionQuality::High,
+        },
         Transform::from_xyz(8.0, 1.5, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
         Tonemapping::SomewhatBoringDisplayTransform,
         PanOrbitCamera::default(),
@@ -65,7 +71,8 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
             assets
                 .load_builder()
                 .with_settings(|settings: &mut VoxLoaderSettings| {
-                    settings.supports_remeshing = true
+                    settings.retain_voxel_data = true;
+                    settings.texture_mode = VoxelTextureMode::Palette;
                 })
                 .load("study.vox"),
         ),
@@ -74,7 +81,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn on_spawn_voxel_instance(
-    trigger: On<Add, Name>,
+    trigger: On<Add<Name>>,
     model_query: Query<&Name>,
     mut commands: Commands,
 ) {
@@ -86,20 +93,17 @@ fn on_spawn_voxel_instance(
     }
 }
 
-fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Option<VoxelModifier> {
+fn grow_grass(query: Query<Entity, With<Floor>>, mut voxel_assets: VoxelModelAssets) {
     // All the floor tiles are instances of the same model, so we only need one instance
-    let Some((instance, mesh)) = query.iter().next() else {
-        return None;
+    let Some(entity) = query.iter().next() else {
+        return;
     };
     let region = VoxelRegion {
         origin: IVec3::new(0, 4, 0),
         size: IVec3::new(64, 8, 64),
     };
-    Some(VoxelModifier::new(
-        instance.clone(),
-        mesh.0.clone(),
-        VoxelRegionMode::Box(region),
-        |pos, voxel, model| {
+    voxel_assets
+        .modify(entity, VoxelRegionMode::Box(region), |pos, voxel, model| {
             if *voxel != Voxel::EMPTY {
                 // don't overwrite any voxels
                 return voxel.clone();
@@ -133,6 +137,6 @@ fn grow_grass(query: Query<(&VoxelModelInstance, &Mesh3d), With<Floor>>) -> Opti
             } else {
                 Voxel::EMPTY
             }
-        },
-    ))
+        })
+        .expect("floor model is remeshable");
 }

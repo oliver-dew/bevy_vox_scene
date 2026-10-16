@@ -1,0 +1,20 @@
+[package]
+name = "vox-to-gltf"
+description = "Convert MagicaVoxel .vox files to glTF"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Utsira/bevy_vox_scene"
+homepage = "https://github.com/Utsira/bevy_vox_scene"
+readme = "README.md"
+authors = ["Oliver Dew <olidew@gmail.com>"]
+keywords = ["voxel", "gltf", "glb", "magica-voxel", "converter"]
+categories = ["command-line-utilities", "game-development", "graphics"]
+
+[[bin]]
+name = "vox-to-gltf"
+path = "src/main.rs"
+
+[dependencies]
+vox_bake = { version = "0.1.0", path = "../vox_bake", features = ["gltf"] }
+clap = { version = "4.5", features = ["derive"] }

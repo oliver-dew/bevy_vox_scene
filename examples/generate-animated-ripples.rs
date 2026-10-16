@@ -7,10 +7,11 @@ use bevy::{
     world_serialization::WorldInstanceReady,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelContext, VoxelData, VoxelModelInstance,
-    create_voxel_animation,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelModel, VoxelPalette, VoxelPaletteSource,
+    VoxelSceneAssets,
 };
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -52,12 +53,13 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
         .observe(
             |trigger: On<WorldInstanceReady>,
              children: Query<&Children>,
-             vox_instance: Query<&VoxelModelInstance>,
-             mut commands: Commands| {
+             voxel_source: Query<&VoxelPaletteSource>,
+             mut commands: Commands,
+             mut voxel_assets: VoxelSceneAssets| {
                 for child in children.iter_descendants(trigger.entity) {
-                    if let Ok(instance) = vox_instance.get(child) {
-                        // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same `VoxelContext` as the scene loaded from disk
-                        commands.run_system_cached_with(generate_ripples, instance.context.clone());
+                    if let Ok(source) = voxel_source.get(child) {
+                        // we need to wait until `WorldInstanceReady` so that the animation we generate can use the same palette as the scene loaded from disk
+                        generate_ripples(source.0.clone(), &mut commands, &mut voxel_assets);
                         break;
                     }
                 }
@@ -66,12 +68,16 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 /// Spawn a 10 frame animation of concentric circles moving outwards
-fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
+fn generate_ripples(
+    palette: Handle<VoxelPalette>,
+    commands: &mut Commands,
+    voxel_assets: &mut VoxelSceneAssets,
+) {
     let frequency = 10.0;
     let frame_count = frequency as usize;
     let blacklight_radius = 3.0;
     let ripple_centre = Vec3::new(30.0, 0.0, 20.0);
-    let models: Vec<VoxelData> = (0..frame_count)
+    let models: Vec<VoxelModel> = (0..frame_count)
         .map(|frame_index| {
             SDF::new(move |pos| {
                 let mut pos2d = pos - ripple_centre;
@@ -80,7 +86,7 @@ fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
             })
             .map_to_voxels(
                 UVec3::new(70, 2, 50),
-                VoxLoaderSettings::default(),
+                VoxBakeSettings::default(),
                 |distance, pos| {
                     if distance.powf(3.0) < (0.5 - pos.y) * 0.5 {
                         Voxel(192) // water material
@@ -91,13 +97,10 @@ fn generate_ripples(In(context): In<Handle<VoxelContext>>, world: &mut World) {
             )
         })
         .collect();
-    let scene_root = world
-        .run_system_cached_with(
-            create_voxel_animation,
-            (models, "ripples".to_string(), context),
-        )
-        .expect("animation created");
-    world.spawn((
+    let scene_root = voxel_assets
+        .create_animation(models, palette, default())
+        .expect("voxel animation created");
+    commands.spawn((
         WorldAssetRoot(scene_root),
         Transform::from_xyz(0., 7., 0.), // position the ripples on the surface of the water
     ));

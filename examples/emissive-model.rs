@@ -1,6 +1,7 @@
 use bevy::{post_process::bloom::Bloom, prelude::*};
 use bevy_vox_scene::VoxScenePlugin;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()

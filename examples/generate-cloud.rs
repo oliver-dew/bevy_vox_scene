@@ -4,11 +4,11 @@ use bevy::{
     prelude::*,
 };
 use bevy_vox_scene::{
-    SDF, VoxLoaderSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette,
-    create_voxel_context, create_voxel_scene,
+    SDF, VoxBakeSettings, VoxScenePlugin, Voxel, VoxelElement, VoxelPalette, VoxelSceneAssets,
 };
 use rand::Rng;
-use utilities::{PanOrbitCamera, PanOrbitCameraPlugin};
+mod shared;
+use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
 
 fn main() {
     App::new()
@@ -58,7 +58,7 @@ fn setup_light_camera(mut commands: Commands, assets: Res<AssetServer>) {
     ));
 }
 
-fn spawn_cloud(world: &mut World) {
+fn spawn_cloud(mut commands: Commands, mut voxel_assets: VoxelSceneAssets) {
     // create a palette of varying densities
     let densities: Vec<f32> = vec![0.3, 1.0, 3.0, 5.0];
     let palette = VoxelPalette::new(
@@ -97,7 +97,7 @@ fn spawn_cloud(world: &mut World) {
         .expect("a valid SDF")
         .map_to_voxels(
             UVec3::splat(32),
-            VoxLoaderSettings::default(),
+            VoxBakeSettings::default(),
             |d, _| match d {
                 // higher density the deeper into the cloud we go.
                 // nb the `Voxel` values index from 1, with 0 reserved for `Voxel::EMPTY`
@@ -110,18 +110,12 @@ fn spawn_cloud(world: &mut World) {
             },
         );
 
-    let context = world
-        .run_system_cached_with(create_voxel_context, palette)
-        .expect("Context has been generated");
-    let model_name = "my sdf model";
-    let scene_handle = world
-        .run_system_cached_with(
-            create_voxel_scene,
-            (data, model_name.to_string(), context.clone()),
-        )
-        .expect("Model has been generated");
+    let palette_handle = voxel_assets.add_palette(palette);
+    let scene_handle = voxel_assets
+        .create_scene(data, palette_handle, default())
+        .expect("voxel scene created");
 
-    world.spawn(WorldAssetRoot(scene_handle));
+    commands.spawn(WorldAssetRoot(scene_handle));
 }
 
 /// Moves fog density texture offset every frame.

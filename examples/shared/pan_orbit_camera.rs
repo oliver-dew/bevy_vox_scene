@@ -7,6 +7,8 @@ use bevy::{
 /// Tags an entity as capable of panning and orbiting.
 #[derive(Component)]
 pub struct PanOrbitCamera {
+    /// Whether mouse input can currently move the camera.
+    pub enabled: bool,
     /// The "focus point" to orbit around. It is automatically updated when panning the camera
     pub focus: Vec3,
     pub radius: f32,
@@ -16,6 +18,7 @@ pub struct PanOrbitCamera {
 impl Default for PanOrbitCamera {
     fn default() -> Self {
         PanOrbitCamera {
+            enabled: true,
             focus: Vec3::ZERO,
             radius: 5.0,
             upside_down: false,
@@ -72,6 +75,9 @@ fn pan_orbit_camera(
     }
 
     for (mut pan_orbit, mut transform, projection) in query.iter_mut() {
+        if !pan_orbit.enabled {
+            continue;
+        }
         if orbit_button_changed {
             // only check for upside down when orbiting started or ended this frame
             // if the camera is "upside" down, panning horizontally would be inverted, so invert the input to make it correct
@@ -85,11 +91,7 @@ fn pan_orbit_camera(
             let window = get_primary_window_size(&window_query);
             let delta_x = {
                 let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
-                if pan_orbit.upside_down {
-                    -delta
-                } else {
-                    delta
-                }
+                if pan_orbit.upside_down { -delta } else { delta }
             };
             let delta_y = rotation_move.y / window.y * std::f32::consts::PI;
             let yaw = Quat::from_rotation_y(-delta_x);
