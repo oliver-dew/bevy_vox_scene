@@ -7,7 +7,7 @@ use std::{
 use clap::{Command, CommandFactory, FromArgMatches, Parser, ValueEnum};
 use vox_bake::{
     AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings,
-    VoxelTextureMode, export_vox_to_glb,
+    VoxelMesher, VoxelTextureMode, export_vox_to_glb,
 };
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -68,6 +68,10 @@ struct Args {
     /// Roughness assigned to diffuse MagicaVoxel materials.
     #[arg(long, value_name = "ROUGHNESS", value_parser = parse_unit_f32)]
     diffuse_roughness: Option<f32>,
+
+    /// Chamfer voxel edges while greedily merging flat surfaces.
+    #[arg(long)]
+    beveled: bool,
 
     /// Texture layout used for voxel materials.
     #[arg(long, value_enum)]
@@ -258,6 +262,9 @@ fn loader_settings(args: &Args) -> Result<VoxBakeSettings, String> {
         settings.diffuse_roughness = roughness;
     }
 
+    if args.beveled {
+        settings.mesher = VoxelMesher::Beveled;
+    }
     if let Some(mode) = args.texture_mode {
         settings.texture_mode = match mode {
             TextureModeArg::Packed => VoxelTextureMode::Packed(TexturePackSettings::default()),
@@ -435,7 +442,7 @@ mod tests {
         fs,
         time::{SystemTime, UNIX_EPOCH},
     };
-    use vox_bake::{TextureMipPolicy, VoxBakeSettings, VoxelTextureMode};
+    use vox_bake::{TextureMipPolicy, VoxBakeSettings, VoxelMesher, VoxelTextureMode};
 
     #[test]
     fn ambient_occlusion_arguments_are_parsed() {
@@ -474,6 +481,7 @@ mod tests {
         assert_eq!(actual.emission_strength, expected.emission_strength);
         assert_eq!(actual.uses_srgb, expected.uses_srgb);
         assert_eq!(actual.diffuse_roughness, expected.diffuse_roughness);
+        assert_eq!(actual.mesher, expected.mesher);
         assert_eq!(actual.texture_mode, expected.texture_mode);
     }
 
@@ -510,6 +518,7 @@ mod tests {
             "--voxel-size",
             "0.25",
             "--no-mesh-outer-faces",
+            "--beveled",
             "--mesh-offset",
             "center-base",
             "--emission-strength",
@@ -534,6 +543,7 @@ mod tests {
         assert_eq!(settings.animation_frames_per_second, 12.0);
         assert_eq!(settings.voxel_size, 0.25);
         assert!(!settings.mesh_outer_faces);
+        assert_eq!(settings.mesher, VoxelMesher::Beveled);
         assert_eq!(settings.emission_strength, 3.0);
         assert!(!settings.uses_srgb);
         assert_eq!(settings.diffuse_roughness, 0.4);

@@ -91,7 +91,8 @@ pub use observers::VoxelInstanceReady;
 pub use vox_bake::VoxWriteError;
 pub use vox_bake::{
     AmbientOcclusionSettings, BakedImage, BakedMesh, BakedMeshAtlas, BakedPixelFormat, BakedVolume,
-    TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings, VoxelTextureMode,
+    TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings, VoxelMesher,
+    VoxelTextureMode,
 };
 pub use vox_export::{export_voxel_animation_to_vox, export_voxel_model_to_vox};
 

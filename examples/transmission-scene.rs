@@ -10,6 +10,7 @@ use bevy::{
 use bevy_vox_scene::{VoxLoaderSettings, VoxScenePlugin};
 mod shared;
 use shared::{PanOrbitCamera, PanOrbitCameraPlugin};
+use vox_bake::{AmbientOcclusionSettings, TexturePackSettings, VoxelMesher, VoxelTextureMode};
 
 fn main() {
     App::new()
@@ -19,6 +20,16 @@ fn main() {
             VoxScenePlugin {
                 global_settings: Some(VoxLoaderSettings {
                     voxel_size: 0.05,
+                    mesher: VoxelMesher::Beveled,
+                    texture_mode: VoxelTextureMode::Packed(
+                        TexturePackSettings {
+                            ambient_occlusion: Some(AmbientOcclusionSettings {
+                                depth: 3,
+                                intensity: 1.0
+                            }),
+                            ..default()
+                        }
+                    ),
                     ..default()
                 }),
             },

@@ -1,11 +1,12 @@
 use std::{error::Error, fmt};
 
+use crate::bevel::{QuadMapping, append_beveled};
 use crate::{
     BakedImage, BakedMesh, BakedMeshAtlas, BakedPalette, BakedPixelFormat, BakedQuad, BakedVolume,
-    TextureMipPolicy, VoxBakeSettings, VoxelGrid, VoxelTextureMode, ambient_occlusion_quad_uvs,
-    ambient_occlusion_stencil, bake_quad_geometry, classify_voxels, pack_atlas_rectangles,
-    packed_quad_uvs, paint_ambient_occlusion_island, paint_palette_island, palette_quad_uvs,
-    sanitized_ambient_occlusion_intensity,
+    TextureMipPolicy, VoxBakeSettings, VoxelGrid, VoxelMesher, VoxelTextureMode,
+    ambient_occlusion_quad_uvs, ambient_occlusion_stencil, bake_quad_geometry, classify_voxels,
+    pack_atlas_rectangles, packed_quad_uvs, paint_ambient_occlusion_island, paint_palette_island,
+    palette_quad_uvs, sanitized_ambient_occlusion_intensity,
 };
 
 /// Fully baked surface, volume, and optical data for one voxel model.
@@ -167,16 +168,22 @@ fn bake_surface(
             .collect::<Vec<_>>()
     });
 
+    let beveled = settings.mesher == VoxelMesher::Beveled && grid.padding >= 2;
+    let mut mappings = Vec::with_capacity(if beveled { quads.len() } else { 0 });
     for (index, quad) in quads.iter().enumerate() {
-        append_geometry(&mut mesh, quad, settings.voxel_size, position_offset);
+        if !beveled {
+            append_geometry(&mut mesh, quad, settings.voxel_size, position_offset);
+        }
+        let mut ao_uvs = None;
+        let material_uvs;
         let rect = material_layout.rectangles[index];
         if let Some(pack) = pack_settings {
-            mesh.uv0.extend_from_slice(&packed_quad_uvs(
+            material_uvs = packed_quad_uvs(
                 rect,
                 pack.padding,
                 [quad.width, quad.height],
                 [material_layout.width, material_layout.height],
-            ));
+            );
             paint_palette_island(
                 &mut palette_indices,
                 material_layout.width,
@@ -195,12 +202,17 @@ fn bake_surface(
                 ao_settings,
             ) {
                 let ao_rect = layout.rectangles[index];
-                uvs.extend_from_slice(&ambient_occlusion_quad_uvs(
+                let corners = ambient_occlusion_quad_uvs(
                     ao_rect,
                     pack.padding,
                     [quad.width, quad.height],
                     [layout.width, layout.height],
-                ));
+                );
+                if beveled {
+                    ao_uvs = Some(corners);
+                } else {
+                    uvs.extend_from_slice(&corners);
+                }
                 paint_ambient_occlusion_island(
                     image,
                     ao_rect,
@@ -215,8 +227,28 @@ fn bake_surface(
         } else {
             let palette_index = voxels[grid.linearize(quad.minimum)].index;
             used[palette_index as usize] = true;
-            mesh.uv0.extend_from_slice(&palette_quad_uvs(palette_index));
+            material_uvs = palette_quad_uvs(palette_index);
         }
+        if beveled {
+            mappings.push(QuadMapping {
+                material: material_uvs,
+                ao: ao_uvs,
+            });
+        } else {
+            mesh.uv0.extend_from_slice(&material_uvs);
+        }
+    }
+
+    if beveled {
+        append_beveled(
+            &mut mesh,
+            &quads,
+            &mappings,
+            voxels,
+            grid.dimensions,
+            settings.voxel_size,
+            position_offset,
+        );
     }
 
     Ok(BakedMeshAtlas {
@@ -274,6 +306,187 @@ fn common_alignment(left: u32, right: u32) -> u32 {
 mod tests {
     use super::*;
     use crate::{BakedMaterial, RawVoxel};
+
+    #[test]
+    fn half_voxel_bevel_meets_at_face_centers_on_a_single_voxel() {
+        let mut grid = VoxelGrid::empty([1; 3], true);
+        let center = grid.linearize([1; 3]);
+        grid.voxels[center] = RawVoxel(0);
+        let palette = BakedPalette::new(vec![BakedMaterial::default()], true);
+        let settings = VoxBakeSettings {
+            mesher: VoxelMesher::Beveled,
+            ..Default::default()
+        };
+        let mesh = bake_model(&grid, &palette, &settings)
+            .unwrap()
+            .surface
+            .unwrap()
+            .mesh;
+        assert_eq!(mesh.indices.len(), 8 * 3);
+        assert!(mesh.positions.iter().all(|position| {
+            position
+                .iter()
+                .map(|component| component.abs())
+                .sum::<f32>()
+                == 0.5
+                && position
+                    .iter()
+                    .filter(|&&component| component != 0.0)
+                    .count()
+                    == 1
+        }));
+    }
+
+    #[test]
+    fn beveled_box_keeps_six_greedy_planes_and_outward_chamfers() {
+        use glam::Vec3;
+
+        let mut grid = VoxelGrid::empty([12, 8, 6], true);
+        for z in 1..7 {
+            for y in 1..9 {
+                for x in 1..13 {
+                    let index = grid.linearize([x, y, z]);
+                    grid.voxels[index] = RawVoxel(0);
+                }
+            }
+        }
+        let palette = BakedPalette::new(vec![BakedMaterial::default()], true);
+        let settings = VoxBakeSettings {
+            mesher: VoxelMesher::Beveled,
+            ..Default::default()
+        };
+        let mesh = bake_model(&grid, &palette, &settings)
+            .unwrap()
+            .surface
+            .unwrap()
+            .mesh;
+        let axial_vertices = mesh
+            .normals
+            .iter()
+            .filter(|normal| {
+                normal
+                    .iter()
+                    .filter(|component| component.abs() > 0.0)
+                    .count()
+                    == 1
+            })
+            .count();
+        assert_eq!(axial_vertices, 24);
+        assert!(
+            mesh.normals
+                .iter()
+                .any(|n| n.iter().all(|component| component.abs() > 0.0))
+        );
+        for triangle in mesh.indices.chunks_exact(3) {
+            let a = Vec3::from_array(mesh.positions[triangle[0] as usize]);
+            let b = Vec3::from_array(mesh.positions[triangle[1] as usize]);
+            let c = Vec3::from_array(mesh.positions[triangle[2] as usize]);
+            assert!((b - a).cross(c - a).dot(a + b + c) > 0.0);
+        }
+    }
+
+    #[test]
+    fn bevels_handle_all_local_occupancy_patterns_in_both_texture_modes() {
+        let palette = BakedPalette::new(
+            vec![
+                BakedMaterial::default(),
+                BakedMaterial {
+                    metalness: 1.0,
+                    ..Default::default()
+                },
+            ],
+            true,
+        );
+        for texture_mode in [
+            VoxelTextureMode::Palette,
+            VoxelTextureMode::Packed(crate::TexturePackSettings {
+                ambient_occlusion: Some(crate::AmbientOcclusionSettings::default()),
+                mip_policy: TextureMipPolicy::Limited { max_lod: 1 },
+                ..Default::default()
+            }),
+        ] {
+            let settings = VoxBakeSettings {
+                mesher: VoxelMesher::Beveled,
+                texture_mode,
+                ..Default::default()
+            };
+            for mask in 1..256 {
+                let mut grid = VoxelGrid::empty([2; 3], true);
+                for corner in 0..8 {
+                    if mask & (1 << corner) != 0 {
+                        let index =
+                            grid.linearize(std::array::from_fn(|axis| 1 + ((corner >> axis) & 1)));
+                        grid.voxels[index] = RawVoxel((corner % 2) as u8);
+                    }
+                }
+                let atlas = bake_model(&grid, &palette, &settings)
+                    .unwrap()
+                    .surface
+                    .unwrap();
+                let mesh = &atlas.mesh;
+                assert!(!mesh.indices.is_empty());
+                assert_eq!(mesh.positions.len(), mesh.uv0.len());
+                assert_eq!(mesh.positions.len(), mesh.normals.len());
+                if let Some(uvs) = &mesh.uv1 {
+                    assert_eq!(mesh.positions.len(), uvs.len());
+                }
+                for (uv, normal) in mesh.uv0.iter().zip(&mesh.normals) {
+                    if normal
+                        .iter()
+                        .filter(|component| component.abs() > 0.0)
+                        .count()
+                        > 1
+                    {
+                        let [x, y] = [atlas.width, atlas.height].map(|size| size as f32);
+                        let index =
+                            (uv[0] * x) as usize + atlas.width as usize * (uv[1] * y) as usize;
+                        assert!(
+                            atlas
+                                .used_palette_indices
+                                .contains(&atlas.palette_indices[index])
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bevel_trims_opaque_backing_at_glass_boundary() {
+        let mut grid = VoxelGrid::empty([2, 1, 1], true);
+        let opaque = grid.linearize([1, 1, 1]);
+        let glass = grid.linearize([2, 1, 1]);
+        grid.voxels[opaque] = RawVoxel(0);
+        grid.voxels[glass] = RawVoxel(1);
+        let palette = BakedPalette::new(
+            vec![
+                BakedMaterial::default(),
+                BakedMaterial {
+                    translucency: 1.0,
+                    ..Default::default()
+                },
+            ],
+            true,
+        );
+        let settings = VoxBakeSettings {
+            mesher: VoxelMesher::Beveled,
+            texture_mode: VoxelTextureMode::Palette,
+            ..Default::default()
+        };
+        let model = bake_model(&grid, &palette, &settings).unwrap();
+        assert_eq!(model.average_ior, Some(1.5));
+        let mesh = model.surface.unwrap().mesh;
+        let mut found_backing = false;
+        for ((position, normal), uv) in mesh.positions.iter().zip(&mesh.normals).zip(&mesh.uv0) {
+            let [x, y, z] = *position;
+            if x == 0.0 && *normal == [1.0, 0.0, 0.0] {
+                found_backing = true;
+                assert!(y.abs() + z.abs() <= 0.5);
+                assert_eq!(*uv, palette_quad_uvs(0)[0]);
+            }
+        }
+        assert!(found_backing);
+    }
 
     #[test]
     fn complete_bake_produces_surface_and_volume_results() {

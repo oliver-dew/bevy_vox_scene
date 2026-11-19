@@ -17,7 +17,7 @@ pub use components::{
 use parse_scene::parse_scene_graph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use vox_bake::{UnitOffset, VoxBakeSettings, VoxelTextureMode};
+use vox_bake::{UnitOffset, VoxBakeSettings, VoxelMesher, VoxelTextureMode};
 
 use crate::model::{VoxelModel, VoxelPalette};
 
@@ -74,6 +74,9 @@ pub struct VoxLoaderSettings {
     /// collider generation. Defaults to false.
     #[serde(default)]
     pub retain_mesh_data: bool,
+    /// Surface geometry style.
+    #[serde(default)]
+    pub mesher: VoxelMesher,
     /// How voxel materials are mapped onto each model. Packed face atlases reduce geometry;
     /// palette atlases use less texture memory. Both modes create per-model materials.
     #[serde(default)]
@@ -93,6 +96,7 @@ impl Default for VoxLoaderSettings {
             diffuse_roughness: bake.diffuse_roughness,
             retain_voxel_data: false,
             retain_mesh_data: false,
+            mesher: bake.mesher,
             texture_mode: bake.texture_mode,
         }
     }
@@ -116,6 +120,7 @@ impl From<&VoxLoaderSettings> for VoxBakeSettings {
             emission_strength: settings.emission_strength,
             uses_srgb: settings.uses_srgb,
             diffuse_roughness: settings.diffuse_roughness,
+            mesher: settings.mesher,
             texture_mode: settings.texture_mode,
         }
     }

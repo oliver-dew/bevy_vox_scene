@@ -19,6 +19,8 @@ pub struct VoxBakeSettings {
     pub uses_srgb: bool,
     /// Roughness assigned to diffuse MagicaVoxel materials.
     pub diffuse_roughness: f32,
+    /// Surface geometry style.
+    pub mesher: VoxelMesher,
     /// Texture layout used by baked voxel meshes.
     #[serde(default)]
     pub texture_mode: VoxelTextureMode,
@@ -34,6 +36,7 @@ impl Default for VoxBakeSettings {
             emission_strength: 20.0,
             uses_srgb: true,
             diffuse_roughness: 0.8,
+            mesher: VoxelMesher::default(),
             texture_mode: VoxelTextureMode::default(),
         }
     }
@@ -60,6 +63,16 @@ impl Default for AmbientOcclusionSettings {
             intensity: 1.0,
         }
     }
+}
+
+/// Selects the geometry generated from occupied voxels.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum VoxelMesher {
+    /// Greedy axis-aligned faces with square edges.
+    #[default]
+    Greedy,
+    /// Greedy flat faces with a half-voxel chamfer at surface turns.
+    Beveled,
 }
 
 /// Selects the per-model texture layout used by voxel meshes.

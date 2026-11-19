@@ -4,6 +4,7 @@
 mod ambient_occlusion;
 mod atlas;
 mod bake;
+mod bevel;
 #[cfg(feature = "gltf")]
 mod gltf_export;
 mod grid;
@@ -39,7 +40,7 @@ pub use scene::{
 };
 pub use settings::{
     AmbientOcclusionSettings, TextureMipPolicy, TexturePackSettings, UnitOffset, VoxBakeSettings,
-    VoxelTextureMode, default_animation_frames_per_second,
+    VoxelMesher, VoxelTextureMode, default_animation_frames_per_second,
 };
 pub use vox_export::{
     VoxWriteError, export_animation_to_vox, export_animation_to_vox_with_offset,
